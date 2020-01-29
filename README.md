@@ -1,11 +1,17 @@
 # Metagov
 
-The aim of the Metagov toolset is to help developers and users quickly prototype and deploy governance modules and governance structures in an online community. It is being developed by the [Metagovernance Project](www.metagov.org), a nonprofit research group focused on the governance of virtual worlds.
+The Metagov toolset is intended to help developers and users quickly prototype and deploy governance modules and governance structures in an online community. It is being developed by the [Metagovernance Project](www.metagov.org), a nonprofit research group focused on the governance of virtual worlds.
 
-Currently, this repo is mostly a placeholder for documentation related to speccing out early prototypes of the toolset. It is intended to facilitate and serve as a site for collaboration with developers interested in contributing to the project.
+Currently, this repo is mostly a placeholder for documentation related to speccing out early prototypes of the toolset. It is intended to facilitate and serve as a site for collaboration with developers interested in contributing to the project. Help us build
 
 ## Development roadmap
-Use the roadmap to figure out what needs doing. Note that is constantly evolving (after all, this is a research project!). The most update to date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
+Use the roadmap to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). The most update to date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
+
+Roughly, this is what we are implementing.
+
+![The life cycle of governance][logo]
+[logo]: https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png "Logo Title Text 2"
+
 
 ### Metagov v0.1: spreadsheet for governance designers and metagovernance designers
 A wiki-style Google spreadsheet. See metagov.org/govlist.
@@ -39,9 +45,9 @@ A constitution creator web app, built in Python + jQuery, which connects to the 
 - AU, I can load saved governance systems.
 
 ## UI research
-1. (Agreement mockups)[https://drive.google.com/open?id=1jCyOkpSSgoLUBBUsW0q9ediwtW6-OT0a]
-2. (Constitution menu mockups)[https://drive.google.com/file/d/1yqeXb8rGE3HqYbkAF-31_v5osRDKSdFy/view?usp=sharing] (developed by Klang Games)
-3. (Govlist spreadsheet, for early prototypes)[www.metagov.org/govlist]
+1. [Agreement mockups](https://drive.google.com/open?id=1jCyOkpSSgoLUBBUsW0q9ediwtW6-OT0a)
+2. [Constitution menu mockups](https://drive.google.com/file/d/1yqeXb8rGE3HqYbkAF-31_v5osRDKSdFy/view?usp=sharing) (developed by Klang Games)
+3. [Govlist spreadsheet, for early prototypes](www.metagov.org/govlist)
 
 ## Research background
-1. (Modular Politics)[https://docs.google.com/document/d/1c4vp4HQFYHNsFzm4rNo2uh4fU8Gonfu9nJOLpasel5I/edit]
+1. [Modular Politics](https://docs.google.com/document/d/1c4vp4HQFYHNsFzm4rNo2uh4fU8Gonfu9nJOLpasel5I/edit)
