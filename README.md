@@ -10,7 +10,7 @@ To get a sense of what is going on, take a look at the diagram below.
 
 ![The life cycle of governance](https://github.com/thelastjosh/metagov-prototype/blob/master/Stages%20of%20governance.jpg "Life cycle of governance")
 
-Roughly, we are implementing the agreement engine, which doubles as a constitution-maker.
+Roughly, we are prototyping **the agreement engine**, which will be used to draft both (dumb and smart) contracts and constitutions.
 
 ## Development roadmap
 Use the roadmap to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). The most update to date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
