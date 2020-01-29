@@ -1,19 +1,19 @@
 # Metagov
 
-Help us build the governance layer of the Web!
+Help us build a governance layer for the Web!
 
-The Metagov toolset is intended to help developers and users quickly prototype and deploy governance modules and governance structures within an online community. It is being developed by the [Metagovernance Project](www.metagov.org), a nonprofit research group focused on the governance of virtual worlds.
+The Metagov toolset is intended to help developers and users quickly prototype and deploy governance modules and governance structures within any online community (across games, blockchains, and social networks). It is being developed by the [Metagovernance Project](www.metagov.org), a nonprofit research group focused on the governance of virtual worlds.
 
 Currently, this repo is mostly a placeholder for documentation related to speccing out early prototypes of the toolset. It is intended to facilitate and serve as a site for collaboration with developers interested in contributing to the project. 
 
-To get a sense of what is going on, take a look at the diagram below.
+## Development roadmap
+To get a broad sense of what is going on, take a look at the diagram below.
 
 ![The life cycle of governance](https://github.com/thelastjosh/metagov-prototype/blob/master/Stages%20of%20governance.jpg "Life cycle of governance")
 
-Roughly, we are prototyping **the agreement engine**, which will be used to draft both (dumb and smart) contracts and constitutions.
+Roughly, we are prototyping **the agreement engine**, which will be used to draft both (dumb and smart) contracts and constitutions. 
 
-## Development roadmap
-Use the roadmap to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). The most up-to-date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
+Once you understand the general idea (feel free to ask questions!), use the roadmap below to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). The most up-to-date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
 
 ### Metagov v0.1: spreadsheet for governance designers and metagovernance designers
 A wiki-style Google spreadsheet. See metagov.org/govlist.
