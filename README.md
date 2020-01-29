@@ -11,9 +11,9 @@ To get a broad sense of what is going on, take a look at the diagram below.
 
 ![The life cycle of governance](https://github.com/thelastjosh/metagov-prototype/blob/master/Stages%20of%20governance.jpg "Life cycle of governance")
 
-Roughly, we are prototyping **the agreement engine**, which will be used to draft both (dumb and smart) contracts and constitutions. 
+Roughly, we are prototyping **the agreement engine**, which will be used to draft both (dumb and smart) contracts and organizational charters / constitutions. The final output has to port into a range of social platforms, from blockchains to social networks to certain online games, but currently we can ignore questions of portability and just think about the basic logic and user experience.
 
-Once you understand the general idea (feel free to ask questions!), use the roadmap below to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). The most up-to-date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
+Once you understand the general idea of the tool (feel free to ask questions!), use the roadmap below to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). The most up-to-date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
 
 ### Metagov v0.1: spreadsheet for governance designers and metagovernance designers
 A wiki-style Google spreadsheet. See metagov.org/govlist.
