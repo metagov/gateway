@@ -1,6 +1,6 @@
 # Metagov
 
-Help us build a governance layer for the Web!
+Help us build the governance layer of the Web!
 
 The Metagov toolset is intended to help developers and users quickly prototype and deploy governance modules and governance structures within an online community. It is being developed by the [Metagovernance Project](www.metagov.org), a nonprofit research group focused on the governance of virtual worlds.
 
