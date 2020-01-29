@@ -13,7 +13,7 @@ To get a sense of what is going on, take a look at the diagram below.
 Roughly, we are prototyping **the agreement engine**, which will be used to draft both (dumb and smart) contracts and constitutions.
 
 ## Development roadmap
-Use the roadmap to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). The most update to date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
+Use the roadmap to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). The most up-to-date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
 
 ### Metagov v0.1: spreadsheet for governance designers and metagovernance designers
 A wiki-style Google spreadsheet. See metagov.org/govlist.
