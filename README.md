@@ -8,7 +8,7 @@ Currently, this repo is mostly a placeholder for documentation related to specci
 
 To get a sense of what is going on, take a look at the diagram below.
 
-![The life cycle of governance][https://github.com/thelastjosh/metagov-prototype/blob/master/Stages%20of%20governance.jpg "Life cycle of governance"]
+![The life cycle of governance](https://github.com/thelastjosh/metagov-prototype/blob/master/Stages%20of%20governance.jpg "Life cycle of governance")
 
 Roughly, we are implementing the agreement engine, which doubles as a constitution-maker.
 
