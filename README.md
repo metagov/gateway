@@ -15,7 +15,7 @@ Roughly, we are prototyping **the agreement engine**, which will be used to draf
 
 Once you understand the general idea of the tool (feel free to ask questions!), use the roadmap below to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). The most up-to-date version of the roadmap can be found [here](https://docs.google.com/document/d/1QDq89dogQb-K2jdDV5QL4Lqi8yehE3aiXzwVG8D24rY/edit#).
 
-![The life cycle of governance](https://github.com/thelastjosh/metagov-prototype/blob/master/Functional%20spec.scg "Functional spec")
+![The life cycle of governance](https://github.com/thelastjosh/metagov-prototype/blob/master/Functional%20spec.svg "Functional spec")
 
 
 ## UI research
