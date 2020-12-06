@@ -5,7 +5,13 @@ Metagov is intended to help developers and users quickly prototype and deploy di
 Currently, this repo is mostly a placeholder for documentation related to specifying early prototypes of the toolset. It is intended to facilitate and serve as a site for collaboration with other developers interested in contributing to the project.
 
 ## Currently
-I am currently (Aug. 28, 2020) working on **Metagov v0.1 aka Govbase** with Michael Zargham. Govbase is a shared data model for governance designers and metagovernance designers. It's also a data set of online governance structures. See the repo (https://github.com/thelastjosh/govbase), the Airtable (https://airtable.com/shrgnUrj0dqzZDsOd) or the  placeholder explainer page (metagov.org/govbase).
+We are currently working on [Metagov v0.1 aka Govbase](https://github.com/thelastjosh/govbase). Govbase is an open database for tools and projects online governance, featuring a list of online communities as well as a list of structures. See the repo at https://github.com/thelastjosh/govbase.
+
+## Next steps
+1. Metagov Shared Data Model v0.1, intended to facilitate governance module publication
+2. 
+
+## 
 
 ## Vision
 To get a broad sense of what is going on, take a look at the diagram below (credit: Larry Lessig, JT).
