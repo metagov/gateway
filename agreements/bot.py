@@ -1,30 +1,34 @@
 import tweepy
 import json
-from tinydb import TinyDB, Query
+from tinydb import TinyDB, where
 from tinydb.database import Document
 import auth
-import database
+import db_operations
 
 api = auth.API()
-db = TinyDB('agreements/db.json')
 
-m = database.Metadata(db)
+db = TinyDB('agreements/db.json', indent=4)
+
+tweets = db.table('tweets')
+
+m = db_operations.Metadata(db)
 
 # iterates through all new mentions
 for status in tweepy.Cursor(
     api.mentions_timeline, 
     tweet_mode="extended", 
-    since_id=m.get_last_status_parsed()
+    since_id=m.retrieve('last_status_parsed')
 ).items():
 
     # to be stored in tinydb
     tweet = {
-        'type': 'other',
-        'text': '',
-        'created': '',
-        'signed': False,
-        'user_id': 0,
-        'user_name': ''
+        'type': 'other',    # 
+        'parent': -1,       # id of tweet replying to (or -1 if root)
+        'text': '',         # tweet text
+        'created': '',      # date/time created
+        'signed': False,    # 
+        'user_id': 0,       # twitter id
+        'user_name': ''     # twitter username
     }
 
     # ensures tweet not already in database
@@ -40,6 +44,9 @@ for status in tweepy.Cursor(
             # agreement proposal
             if "+agreement" in status.full_text:
                 tweet['type'] = 'agreement'
+        
+        else:
+            tweet['parent'] = status.in_reply_to_status_id
             
         if "+amendment" in status.full_text:
             tweet['type'] = 'amendment'
@@ -48,17 +55,12 @@ for status in tweepy.Cursor(
             tweet['signed'] = True
 
         # saves tweet data into tinydb with tweet id
-        db.insert(Document(tweet, doc_id=status.id))
+        tweets.insert(Document(tweet, doc_id=status.id))
 
     # updates last status parsed if tweet id is larger
     # next time the mentions timeline starts, it won't even see already parsed tweets
-    if status.id > m.get_last_status_parsed(): 
-        m.set_last_status_parsed(status.id)
-
-# resaves database json to an indented version for easier reading
-with open('agreements/db.json', 'r') as f: data = json.load(f)
-with open('agreements/human.json', 'w') as f: json.dump(data, f, indent=4)
-
+    if status.id > m.retrieve('last_status_parsed'):
+        m.update('last_status_parsed', status.id)
 
 # an agreement might look like this?
 '''
