@@ -1,34 +1,35 @@
 import tweepy
 import json
 from tinydb import TinyDB
-import auth, database
+import auth
 from database.parser import Parser
 from database.metadata import Metadata
 import pdb
 
-api = auth.API()
+def run():
+    api = auth.API()
 
-db = TinyDB('agreements/db.json', indent=4)
-db.drop_tables()
-meta = Metadata(db)
-parser = Parser(db)
+    db = TinyDB('agreements/db.json', indent=4)
+    db.drop_tables()
+    meta = Metadata(db)
+    parser = Parser(db)
 
-# iterates through all new mentions
-for status in tweepy.Cursor(
-    api.mentions_timeline, 
-    tweet_mode="extended", # needed to get full text for longer tweets
-    since_id=meta.retrieve('last_status_parsed'), # won't iterate through tweets already in database
-    count=20
-).items():
+    # iterates through all new mentions
+    for status in tweepy.Cursor(
+        api.mentions_timeline, 
+        tweet_mode="extended", # needed to get full text for longer tweets
+        since_id=meta.retrieve('last_status_parsed'), # won't iterate through tweets already in database
+        count=20
+    ).items():
 
-    parser.add(status)
+        parser.add(status)
 
-    # updates last status id -> next mentions timeline won't see already parsed tweets
-    if status.id > meta.retrieve('last_status_parsed'):
-        meta.update('last_status_parsed', status.id)
+        # updates last status id -> next mentions timeline won't see already parsed tweets
+        if status.id > meta.retrieve('last_status_parsed'):
+            meta.update('last_status_parsed', status.id)
 
 
-parser.parse_all()
+    parser.parse_all()
 
 # an agreement might look like this?
 '''

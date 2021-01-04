@@ -7,6 +7,8 @@ class Parser:
         self.db = db
         self.tweets = db.table('tweets')
         self.threads = db.table('threads')
+        
+        self.threads.insert({})
 
     def add(self, status):
         # ensures tweet hasn't been added before
@@ -163,7 +165,6 @@ class Parser:
                     "terms": terms,
                     "term_nums": term_nums,
                     "signatures": {},
-                    "amendments": {},
                     "status_id": status_id
                 })
                 
