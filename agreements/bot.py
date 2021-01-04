@@ -9,7 +9,7 @@ import pdb
 def run():
     api = auth.API()
 
-    db = TinyDB('agreements/db.json', indent=4)
+    db = TinyDB('db.json', indent=4)
     db.drop_tables()
     meta = Metadata(db)
     parser = Parser(db)

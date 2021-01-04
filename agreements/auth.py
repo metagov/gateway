@@ -3,7 +3,7 @@ import json
 
 def API():
     # loading API keys from json
-    with open('agreements/apikeys.json', 'r') as f:
+    with open('apikeys.json', 'r') as f:
         keys = json.load(f)
 
     # sending keys to authenticator
