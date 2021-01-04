@@ -2,14 +2,16 @@ import tweepy
 import json
 from tinydb import TinyDB
 import auth, database
+from database.parser import Parser
+from database.metadata import Metadata
 import pdb
 
 api = auth.API()
 
 db = TinyDB('agreements/db.json', indent=4)
 db.drop_tables()
-meta = database.Metadata(db)
-parser = database.Parser(db)
+meta = Metadata(db)
+parser = Parser(db)
 
 # iterates through all new mentions
 for status in tweepy.Cursor(
