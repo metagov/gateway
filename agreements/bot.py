@@ -25,12 +25,8 @@ for status in tweepy.Cursor(
     if status.id > meta.retrieve('last_status_parsed'):
         meta.update('last_status_parsed', status.id)
 
-# for status in db.table('tweets'):
-#     print(status.doc_id)
-#     parser.parse(status)
 
-for thingy in sorted(list(db.table('tweets')._read_table().keys())):
-    parser.parse(db.table('tweets').get(doc_id=thingy))
+parser.parse_all()
 
 # an agreement might look like this?
 '''
