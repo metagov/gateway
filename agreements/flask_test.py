@@ -12,4 +12,4 @@ def run():
         db = f.read()
     return render_template('report.html', report=db)
 
-app.run()
+app.run(host="0.0.0.0", port=80)
