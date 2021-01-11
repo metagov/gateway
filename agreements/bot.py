@@ -31,16 +31,5 @@ def run():
 
     parser.parse_all()
 
-# an agreement might look like this?
-'''
-agreement
-├─sign
-├─sign
-├─amendment
-│ ├─sign
-│ ├─sign
-│ ├─sign
-│ └─passes
-└─amendment
-..└─amendment
-'''
+if __name__ == "__main__":
+    run()

@@ -8,8 +8,6 @@ class Parser:
         self.tweets = db.table('tweets')
         self.threads = db.table('threads')
         
-        self.threads.insert({})
-
     def add(self, status):
         # ensures tweet hasn't been added before
         if self.tweets.contains(doc_id=status.id):
@@ -25,7 +23,6 @@ class Parser:
             'created': str(status.created_at),           # date and time created
             'parent_id': status.in_reply_to_status_id,   # id of tweet replying
             'parsed': False,                             # whether tweet has been parsed
-            'parsed_type': '',                           # agreement, amendment, or discussion
             'thread_id': 0                               # corresponding id in threads table
         }
 
@@ -63,29 +60,18 @@ class Parser:
         return agreement
 
     # custom operation function for tinydb inserts a signature into an agreement/amendment
-    def add_signature(self, name, status_id, amendment_id=0):
+    def add_signature(self, name, status_id):
         def transform(doc):
-            if amendment_id:
-                # attempts to sign an agreement's amendment
-                amendment = doc['amendments'].__contains__(str(amendment_id))
-                if amendment:
-                    amendment['signatures'][name] = status_id
-            else:
-                # signs agreement
-                doc['signatures'][name] = status_id
+            doc['signatures'][name] = status_id
         return transform
 
     def parse(self, status):
         text = status['text']
 
-        terms = {}
-        term_nums = []
-        keywords = []
         users = [status["user_screen_name"]] # initialized to include author
         is_root = (status["parent_id"] == None)
         status_id = status.doc_id
         parent_id = status["parent_id"]
-        has_terms = False
 
         # extracts consecutive users from the beginning of the tweet
         for word in text.split():
@@ -94,50 +80,6 @@ class Parser:
                     users.append(word[1:])
             else:
                 break
-        
-        # parsing by line
-        for line in text.splitlines():
-            # checks if a line is a numbered term (ex: "1. ")
-            result = re.search(r'^(\d+)\. ', line)
-            if result:
-                has_terms = True
-                # these lines look complicated, but all they do is convert
-                # "1. term line text" -> {1: "term line text"}
-                term_num = int(result.group(1))
-                term_txt = line[len(result.group(0)):]
-
-                terms.update(
-                    {term_num: term_txt}
-                )
-
-                # keeps track of term line numbers in case they are non sequential
-                term_nums.append(term_num)
-                term_nums.sort()
-
-            # locates bot commands with "+" prefix
-            else:
-                for word in line.split():
-                    if word[0] == "+":
-                        keywords.append(word[1:])
-
-        # -------------------------------------------------------------------------------
-        # adding data to in tweets table that links to threads table
-        # -------------------------------------------------------------------------------
-
-        # setting parsed type
-        parsed_type = ""
-        if "agreement" in keywords:
-            parsed_type = "agreement"
-        elif "amendment" in keywords:
-            parsed_type = "amendment"
-        else:
-            parsed_type = "discussion"
-        
-        # adding parsed type to status entry
-        self.tweets.update(
-            {'parsed_type': parsed_type},
-            doc_ids=[status_id]
-        )
 
         # sets the thread id of a status (0 if no corresponding agreement)
         found_agreement = self.find_agreement(status_id)
@@ -152,34 +94,27 @@ class Parser:
             doc_ids=[status_id]
         )
 
-        # ------------------------------------------------------------------------------
-        # evaluating commands 
-        # ------------------------------------------------------------------------------
-
         # pushes valid agreements to threads
-        if "agreement" in keywords:
-            if is_root and has_terms:
-                thread_id = self.threads.insert({
-                    "author": status["user_full_name"],
-                    "members": users,
-                    "terms": terms,
-                    "term_nums": term_nums,
-                    "signatures": {},
-                    "status_id": status_id
-                })
-                
-                # thread id has to be set after agreement created
-                self.tweets.update(
-                    {'thread_id': thread_id},
-                    doc_ids=[status_id]
-                )
+        # (current valid agreement only requires being a root tweet containing @agreementengine)
+        if is_root:
+            thread_id = self.threads.insert({
+                "author": status["user_full_name"],
+                "members": users,
+                "agreement": text,
+                "signatures": {},
+                "status_id": status_id,
+                "link": f"https://twitter.com/{status['user_screen_name']}/status/{status_id}"
+            })
+            
+            # thread id has to be set after agreement created
+            self.tweets.update(
+                {'thread_id': thread_id},
+                doc_ids=[status_id]
+            )
 
-            else:
-                print('Malformed agreement')
-                return
         
         # responsible for finding the correct object to sign based on reply
-        if "sign" in keywords:
+        if "sign" in text:
             # sets the status to sign, this will be the status being replied to
             # or in the case of an agreement it will be the status itself
             if is_root:
