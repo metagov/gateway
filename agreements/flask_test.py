@@ -10,6 +10,6 @@ def run():
     bot.run()
     with open('db.json', 'r') as f:
         db = f.read()
-    return render_template('report.html', report=db)
+    return render_template('report.html', report=db["threads"])
 
 app.run(host="0.0.0.0", port=80)
