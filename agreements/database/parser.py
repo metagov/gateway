@@ -7,6 +7,13 @@ class Parser:
         self.db = db
         self.tweets = db.table('tweets')
         self.threads = db.table('threads')
+
+        if not self.threads.contains(doc_id=0):
+            self.threads.insert(Document(
+                {
+                    'num_threads': 0
+                },
+                doc_id=0))
         
     def add(self, status):
         # ensures tweet hasn't been added before
@@ -73,6 +80,15 @@ class Parser:
         status_id = status.doc_id
         parent_id = status["parent_id"]
 
+        # makes sure old tweet isn't reparsed
+        if status['parsed'] == True:
+            return
+        
+        self.tweets.update(
+            {'parsed': True},
+            doc_ids=[status_id]
+        )
+
         # extracts consecutive users from the beginning of the tweet
         for word in text.split():
             if word[0] == '@':
@@ -100,7 +116,7 @@ class Parser:
             thread_id = self.threads.insert({
                 "author": status["user_full_name"],
                 "members": users,
-                "agreement": text,
+                "text": text,
                 "signatures": {},
                 "status_id": status_id,
                 "link": f"https://twitter.com/{status['user_screen_name']}/status/{status_id}"
@@ -110,6 +126,11 @@ class Parser:
             self.tweets.update(
                 {'thread_id': thread_id},
                 doc_ids=[status_id]
+            )
+
+            self.threads.update(
+                {'num_threads': thread_id},
+                doc_ids=[0]
             )
 
         
