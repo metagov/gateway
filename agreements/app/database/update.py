@@ -1,7 +1,7 @@
 import tweepy
 import json
 from tinydb import TinyDB
-from auth import auth
+from app.auth import auth
 from .parser import Parser
 from .metadata import Metadata
 import pdb
@@ -9,7 +9,7 @@ import pdb
 def run():
     api = auth.API()
 
-    db = TinyDB('database/db.json', indent=4)
+    db = TinyDB('app/database/db.json', indent=4)
     # db.drop_tables() # clears database
     meta = Metadata(db)
     parser = Parser(db)
@@ -30,6 +30,3 @@ def run():
 
 
     parser.parse_all()
-
-if __name__ == "__main__":
-    run()
