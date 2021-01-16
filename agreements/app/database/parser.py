@@ -113,8 +113,16 @@ class Parser:
         # pushes valid agreements to threads
         # (current valid agreement only requires being a root tweet containing @agreementengine)
         if is_root:
+            # parsing for enforcer
+            result = re.search("enforced by @(\w+)(\W|$)", text)
+            if result:
+                enforcer = result.groups()[0]
+            else:
+                enforcer = status["user_screen_name"]
+
             thread_id = self.threads.insert({
                 "author": status["user_full_name"],
+                "enforcer": enforcer,
                 "members": users,
                 "text": text,
                 "signatures": {},
@@ -169,8 +177,7 @@ class Parser:
                     print(f'Leave request #{status_id} not by member of agreement')
             else:
                 print(f'Leave request #{status_id} not associated with a valid agreement')
-
-
+        
 
     def parse_all(self):
         # using internal function to retrieve tweet table's keys
