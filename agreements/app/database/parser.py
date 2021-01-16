@@ -114,7 +114,7 @@ class Parser:
         # (current valid agreement only requires being a root tweet containing @agreementengine)
         if is_root:
             # parsing for enforcer
-            result = re.search("enforced by @(\w+)(\W|$)", text)
+            result = re.search(r"enforced by @(\w+)(\W|$)", text)
             if result:
                 enforcer = result.groups()[0]
             else:
