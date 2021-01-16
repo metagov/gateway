@@ -72,6 +72,9 @@ class Parser:
             doc['signatures'][name] = status_id
         return transform
 
+    def extract_links(self, text):
+        return re.findall(r"(https?://[a-zA-Z0-9.-/]+)(?:\W|$)", text)
+
     def parse(self, status):
         text = status['text']
 
@@ -127,8 +130,9 @@ class Parser:
                 "text": text,
                 "signatures": {},
                 "dead": False,
+                "links": self.extract_links(text),
                 "status_id": status_id,
-                "link": f"https://twitter.com/{status['user_screen_name']}/status/{status_id}"
+                "status_link": f"https://twitter.com/{status['user_screen_name']}/status/{status_id}"
             })
             
             # thread id has to be set after agreement created
