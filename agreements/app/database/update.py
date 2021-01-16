@@ -28,5 +28,4 @@ def run():
         if status.id > meta.retrieve('last_status_parsed'):
             meta.update('last_status_parsed', status.id)
 
-
     parser.parse_all()

@@ -118,6 +118,7 @@ class Parser:
                 "members": users,
                 "text": text,
                 "signatures": {},
+                "dead": False,
                 "status_id": status_id,
                 "link": f"https://twitter.com/{status['user_screen_name']}/status/{status_id}"
             })
@@ -133,28 +134,42 @@ class Parser:
                 doc_ids=[0]
             )
 
-        
         # responsible for finding the correct object to sign based on reply
-        if "sign" in text:
-            # sets the status to sign, this will be the status being replied to
-            # or in the case of an agreement it will be the status itself
-            if is_root:
-                to_sign = status_id
-            else:
-                to_sign = parent_id
-            
+        if "+sign" in text:
             # retrieves agreement status is associated with
-            agreement = self.find_agreement(to_sign)
+            agreement = self.find_agreement(status_id)
 
             if agreement:
-                # signing agreeement case
-                if agreement['status_id'] == to_sign:
+                # ensures signature from a member of the agreement
+                if status["user_screen_name"] in agreement["members"]:
+                    # adding signature to agreement
                     self.threads.update(
                         self.add_signature(status["user_screen_name"], status_id),
-                        where('status_id') == to_sign
+                        doc_ids=[agreement.doc_id]
                     )
+                else:
+                    print(f'Signature #{status_id} not by member of agreement')
+
             else:
                 print(f'Signature #{status_id} not associate with a valid agreement')
+        
+        # leaving or unsigning an agreement destroys it
+        if ("+leave" in text) or ("+unsign" in text):
+            agreement = self.find_agreement(status_id)
+
+            if agreement:
+                # ensures signature from a member of the agreement
+                if status["user_screen_name"] in agreement["members"]:
+                    # marking thread dead
+                    self.threads.update(
+                        {"dead": True},
+                        doc_ids=[agreement.doc_id]
+                    )
+                else:
+                    print(f'Leave request #{status_id} not by member of agreement')
+            else:
+                print(f'Leave request #{status_id} not associated with a valid agreement')
+
 
 
     def parse_all(self):
