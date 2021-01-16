@@ -1,6 +1,7 @@
 from tinydb.database import Document
 from tinydb import where
 import re
+import requests
 
 class Parser:
     def __init__(self, db):
@@ -73,7 +74,20 @@ class Parser:
         return transform
 
     def extract_links(self, text):
-        return re.findall(r"(https?://[a-zA-Z0-9.-/]+)(?:\W|$)", text)
+        # extracts links from text using regex
+        tco_links = re.findall(r"(https?://[a-zA-Z0-9.-/]+)(?:\W|$)", text)
+        
+        # twitter shortens links to t.co, this follows the redirect to the original link
+        original_links = []
+        for l in tco_links:
+            try:
+                clean_link = requests.head(l).headers.get('location')
+                original_links.append(clean_link)
+            except requests.exceptions.RequestException as e:
+                print(f'Requests link redirect error: {e}')
+                original_links.append(l)
+        
+        return original_links
 
     def parse(self, status):
         text = status['text']
