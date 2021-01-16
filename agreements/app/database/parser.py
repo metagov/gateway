@@ -67,10 +67,16 @@ class Parser:
 
         return agreement
 
-    # custom operation function for tinydb inserts a signature into an agreement/amendment
+    # custom operation function for tinydb inserts a signature into an agreement
     def add_signature(self, name, status_id):
         def transform(doc):
             doc['signatures'][name] = status_id
+        return transform
+    
+    # custom operation function for tinydb inserts new links into an agreement
+    def add_links(self, links):
+        def transform(doc):
+            doc['links'].extend(links)
         return transform
 
     def extract_links(self, text):
@@ -195,6 +201,17 @@ class Parser:
                     print(f'Leave request #{status_id} not by member of agreement')
             else:
                 print(f'Leave request #{status_id} not associated with a valid agreement')
+        
+        links = self.extract_links(text)
+        if links:
+            agreement = self.find_agreement(status_id)
+            if agreement:
+                self.threads.update(
+                    self.add_links(links),
+                    doc_ids=[agreement.doc_id]
+                )
+            else:
+                print(f'Link addition #{status_id} not associated with a valid agreement')
         
 
     def parse_all(self):
