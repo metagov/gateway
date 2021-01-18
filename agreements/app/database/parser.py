@@ -95,7 +95,7 @@ class Parser:
         
         return original_links
 
-    def parse(self, status):
+    def parse(self, status, api):
         text = status['text']
 
         users = [status["user_screen_name"]] # initialized to include author
@@ -135,7 +135,7 @@ class Parser:
 
         # pushes valid agreements to threads
         # (current valid agreement only requires being a root tweet containing @agreementengine)
-        if is_root:
+        if is_root and (status["user_screen_name"] == "lukvmil"):
             # parsing for enforcer
             result = re.search(r"enforced by @(\w+)(\W|$)", text)
             if result:
@@ -154,7 +154,10 @@ class Parser:
                 "status_id": status_id,
                 "status_link": f"https://twitter.com/{status['user_screen_name']}/status/{status_id}"
             })
-            
+
+            # replies to an agreement creation tweet with a link to the agreement
+            # api.update_status(f"@{status['user_screen_name']} Your agreement has been created! http://localhost/thread/{thread_id}", status_id)
+
             # thread id has to be set after agreement created
             self.tweets.update(
                 {'thread_id': thread_id},
@@ -202,6 +205,7 @@ class Parser:
             else:
                 print(f'Leave request #{status_id} not associated with a valid agreement')
         
+        # extracts links from a status and stores them in the db entry
         links = self.extract_links(text)
         if links:
             agreement = self.find_agreement(status_id)
@@ -214,7 +218,7 @@ class Parser:
                 print(f'Link addition #{status_id} not associated with a valid agreement')
         
 
-    def parse_all(self):
+    def parse_all(self, api):
         # using internal function to retrieve tweet table's keys
         status_ids = list(self.tweets._read_table().keys())
         status_ids.sort()
@@ -223,4 +227,4 @@ class Parser:
         for s in status_ids:
             status = self.tweets.get(doc_id=s)
             if status['parsed'] == False:
-                self.parse(status)
+                self.parse(status, api)
