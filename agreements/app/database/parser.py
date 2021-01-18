@@ -30,6 +30,7 @@ class Parser:
             'user_id': status.user.id,                   # user id of poster
             'created': str(status.created_at),           # date and time created
             'parent_id': status.in_reply_to_status_id,   # id of tweet replying
+            'child_ids': [],
             'parsed': False,                             # whether tweet has been parsed
             'thread_id': 0                               # corresponding id in threads table
         }
@@ -49,7 +50,7 @@ class Parser:
         if status:
             parent_id = status['parent_id']
         else:
-            print(f"Couldn't find #{status_id}")
+            print(f"Couldn't find #{status_id} (status probably deleted)")
             return
 
         if parent_id:
@@ -77,6 +78,12 @@ class Parser:
     def add_links(self, links):
         def transform(doc):
             doc['links'].extend(links)
+        return transform
+    
+    # custom operation function for tinydb inserts a child's id to it's parent
+    def add_child_link(self, child_id):
+        def transform(doc):
+            doc['child_ids'].append(child_id)
         return transform
 
     def extract_links(self, text):
@@ -106,11 +113,13 @@ class Parser:
         # makes sure old tweet isn't reparsed
         if status['parsed'] == True:
             return
-        
-        self.tweets.update(
-            {'parsed': True},
-            doc_ids=[status_id]
-        )
+
+        # adding link from parent to child
+        if parent_id in self.tweets._read_table().keys():
+            self.tweets.update(
+                self.add_child_link(status_id),
+                doc_ids=[parent_id]
+            )
 
         # extracts consecutive users from the beginning of the tweet
         for word in text.split():
@@ -164,21 +173,21 @@ class Parser:
                 doc_ids=[status_id]
             )
 
+            # current num threads for api call updated
             self.threads.update(
                 {'num_threads': thread_id},
                 doc_ids=[0]
             )
 
         
-        agreement = self.find_agreement(status_id)
-        if agreement:
-            if status["user_screen_name"] in agreement["members"]:
+        if found_agreement:
+            if status["user_screen_name"] in found_agreement["members"]:
                 # signing agreement
                 if "+sign" in text:
                     # adding signature to agreement
                     self.threads.update(
                         self.add_signature(status["user_screen_name"], status_id),
-                        doc_ids=[agreement.doc_id]
+                        doc_ids=[found_agreement.doc_id]
                     )
                 
                 # leaving agreement
@@ -186,71 +195,25 @@ class Parser:
                     # marking thread dead
                     self.threads.update(
                         {"dead": True},
-                        doc_ids=[agreement.doc_id]
+                        doc_ids=[found_agreement.doc_id]
                     )
             else:
                 print(f'Action #{status_id} not by member of agreement')
             
+            # adding links from child statuses
             if not is_root:
                 links = self.extract_links(text)
                 if links:
                     self.threads.update(
                         self.add_links(links),
-                        doc_ids=[agreement.doc_id]
+                        doc_ids=[found_agreement.doc_id]
                     )
-        else:
-            print(f'Action #{status_id} not associated with a valid agreement')
-        """
 
-        # responsible for finding the correct object to sign based on reply
-        if "+sign" in text:
-            # retrieves agreement status is associated with
-            agreement = self.find_agreement(status_id)
-
-            if agreement:
-                # ensures signature from a member of the agreement
-                if status["user_screen_name"] in agreement["members"]:
-                    # adding signature to agreement
-                    self.threads.update(
-                        self.add_signature(status["user_screen_name"], status_id),
-                        doc_ids=[agreement.doc_id]
-                    )
-                else:
-                    print(f'Signature #{status_id} not by member of agreement')
-
-            else:
-                print(f'Signature #{status_id} not associate with a valid agreement')
-        
-        # leaving or unsigning an agreement destroys it
-        if ("+leave" in text) or ("+unsign" in text):
-            agreement = self.find_agreement(status_id)
-
-            if agreement:
-                # ensures signature from a member of the agreement
-                if status["user_screen_name"] in agreement["members"]:
-                    # marking thread dead
-                    self.threads.update(
-                        {"dead": True},
-                        doc_ids=[agreement.doc_id]
-                    )
-                else:
-                    print(f'Leave request #{status_id} not by member of agreement')
-            else:
-                print(f'Leave request #{status_id} not associated with a valid agreement')
-        
-        # extracts links from a status and stores them in the db entry
-        links = self.extract_links(text)
-        if links and not is_root:
-            agreement = self.find_agreement(status_id)
-            if agreement:
-                print(f'added {links} to {status_id}')
-                self.threads.update(
-                    self.add_links(links),
-                    doc_ids=[agreement.doc_id]
-                )
-            else:
-                print(f'Link addition #{status_id} not associated with a valid agreement')
-        """
+        # sets tweet status to parsed
+        self.tweets.update(
+                {'parsed': True},
+                doc_ids=[status_id]
+            )
         
 
     def parse_all(self, api):
