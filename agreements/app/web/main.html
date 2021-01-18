@@ -15,6 +15,7 @@
         .title {
             font-size: 60px;
             padding: 20px;
+            padding-bottom: 10px;
         }
 
         .status {
@@ -24,8 +25,6 @@
             font-size: 20px;
             margin: 10px;
             cursor: pointer;
-            /* border-radius: 25px;
-            border: 2px solid black; */
         }
 
         .status_author {
@@ -45,6 +44,7 @@
 <body>
     <div class="header">
         <div class="title">Agreement Engine</div>
+        <a href="https://github.com/metagov/metagov-prototype">view open source code</a>
     </div>
     <div class="status_bar" id="status_bar"></div>
 
@@ -69,12 +69,6 @@
         return threads;
     }
 
-    function redirect() {
-        console.log(this);
-        console.log(this.id);
-        // window.location.href = `api/${this.id}`;
-    }
-
     function render(data, id) {
         let e = document.getElementById('status_template').cloneNode(true);
         e.removeAttribute('hidden');
@@ -93,7 +87,6 @@
 
         document.getElementById('status_bar').appendChild(e);
     }
-
 
     fetch("/api/0")
         .then(response => response.json())
