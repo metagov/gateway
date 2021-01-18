@@ -169,6 +169,39 @@ class Parser:
                 doc_ids=[0]
             )
 
+        
+        agreement = self.find_agreement(status_id)
+        if agreement:
+            if status["user_screen_name"] in agreement["members"]:
+                # signing agreement
+                if "+sign" in text:
+                    # adding signature to agreement
+                    self.threads.update(
+                        self.add_signature(status["user_screen_name"], status_id),
+                        doc_ids=[agreement.doc_id]
+                    )
+                
+                # leaving agreement
+                if ("+leave" in text) or ("+unsign" in text):
+                    # marking thread dead
+                    self.threads.update(
+                        {"dead": True},
+                        doc_ids=[agreement.doc_id]
+                    )
+            else:
+                print(f'Action #{status_id} not by member of agreement')
+            
+            if not is_root:
+                links = self.extract_links(text)
+                if links:
+                    self.threads.update(
+                        self.add_links(links),
+                        doc_ids=[agreement.doc_id]
+                    )
+        else:
+            print(f'Action #{status_id} not associated with a valid agreement')
+        """
+
         # responsible for finding the correct object to sign based on reply
         if "+sign" in text:
             # retrieves agreement status is associated with
@@ -217,6 +250,7 @@ class Parser:
                 )
             else:
                 print(f'Link addition #{status_id} not associated with a valid agreement')
+        """
         
 
     def parse_all(self, api):
