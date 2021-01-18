@@ -54,33 +54,23 @@
     </div>
 </body>
 <script>
+    const max_display_threads = 30;
 
-    // gets all threads starting from the newest
-    function fetch_all(max_id) {
-        let threads = [];
-        for (let id = max_id; id > 0; id--) {
-            fetch(`/api/${id}`)
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data)
-                    threads.push(data);
-                })
-        }
-        return threads;
-    }
-
+    // renders all threads by adding templated children to the status bar
     function render(data, id) {
         let e = document.getElementById('status_template').cloneNode(true);
         e.removeAttribute('hidden');
         e.className = 'status';
 
-
+        // getting author, text html locations
         let author = e.getElementsByClassName('status_author')[0];
         let text = e.getElementsByClassName('status_text')[0];
 
+        // updating author, text for current thread
         author.innerHTML = data.author;
         text.innerHTML = data.text;
 
+        // setting redirect of each thread
         text.onclick = () => {
             window.location.href = `thread/${id}`;
         };
@@ -91,15 +81,14 @@
     fetch("/api/0")
         .then(response => response.json())
         .then(data => {
-            let max_id = data.num_threads;
-            // let threads = fetch_all(data.num_threads);
+            // shows no more than max_display_threads agreement on the home page
+            let max_id = Math.min(data.num_threads, max_display_threads);
 
-            let threads = [];
+            // fetching requested number of threads and rendering them
             for (let id = max_id; id > 0; id--) {
                 fetch(`/api/${id}`)
                     .then(response => response.json())
                     .then(data => {
-                        threads.push(data);
                         render(data, id);
                     })
             }
