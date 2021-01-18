@@ -207,9 +207,10 @@ class Parser:
         
         # extracts links from a status and stores them in the db entry
         links = self.extract_links(text)
-        if links:
+        if links and not is_root:
             agreement = self.find_agreement(status_id)
             if agreement:
+                print(f'added {links} to {status_id}')
                 self.threads.update(
                     self.add_links(links),
                     doc_ids=[agreement.doc_id]
