@@ -22,14 +22,18 @@ class Parser:
             print(f'Status #{status.id} already in database')
             return
 
+        parent_id = status.in_reply_to_status_id
+        if parent_id:
+            parent_id = str(parent_id)
+
         # recording data to store in database
         tweet = {
             'text': status.full_text,                    # text of the tweet
             'user_full_name': status.user.name,          # actual name of poster
             'user_screen_name': status.user.screen_name, # user name of poster
-            'user_id': status.user.id,                   # user id of poster
+            'user_id': str(status.user.id),                   # user id of poster
             'created': str(status.created_at),           # date and time created
-            'parent_id': status.in_reply_to_status_id,   # id of tweet replying
+            'parent_id': parent_id,   # id of tweet replying
             'child_ids': [],
             'parsed': False,                             # whether tweet has been parsed
             'thread_id': 0                               # corresponding id in threads table
@@ -45,7 +49,7 @@ class Parser:
     
     # recursive function to find the root message of a reply
     def find_root(self, status_id):
-        status = self.tweets.get(doc_id=status_id)
+        status = self.tweets.get(doc_id=int(status_id))
 
         if status:
             parent_id = status['parent_id']
@@ -61,7 +65,6 @@ class Parser:
     # gets the corresponding agreement from the root of a status
     def find_agreement(self, status_id):
         agreement_status_id = self.find_root(status_id)
-
         agreement = self.threads.get(
             where('status_id') == agreement_status_id
         )
@@ -107,7 +110,7 @@ class Parser:
 
         users = [status["user_screen_name"]] # initialized to include author
         is_root = (status["parent_id"] == None)
-        status_id = status.doc_id
+        status_id = str(status.doc_id)
         parent_id = status["parent_id"]
 
         # makes sure old tweet isn't reparsed
@@ -115,10 +118,13 @@ class Parser:
             return
 
         # adding link from parent to child
-        if parent_id in self.tweets._read_table().keys():
+        int_parent_id = 0
+        if parent_id:
+            int_parent_id = int(parent_id)
+        if int_parent_id in self.tweets._read_table().keys():
             self.tweets.update(
                 self.add_child_link(status_id),
-                doc_ids=[parent_id]
+                doc_ids=[int(parent_id)]
             )
 
         # extracts consecutive users from the beginning of the tweet
@@ -139,12 +145,12 @@ class Parser:
 
         self.tweets.update(
             {'thread_id': agreement_id},
-            doc_ids=[status_id]
+            doc_ids=[int(status_id)]
         )
 
         # pushes valid agreements to threads
         # (current valid agreement only requires being a root tweet containing @agreementengine)
-        if is_root and (status["user_screen_name"] == "lukvmil"):
+        if is_root:
             # parsing for enforcer
             result = re.search(r"enforced by @(\w+)(\W|$)", text)
             if result:
@@ -170,7 +176,7 @@ class Parser:
             # thread id has to be set after agreement created
             self.tweets.update(
                 {'thread_id': thread_id},
-                doc_ids=[status_id]
+                doc_ids=[int(status_id)]
             )
 
             # current num threads for api call updated
@@ -212,7 +218,7 @@ class Parser:
         # sets tweet status to parsed
         self.tweets.update(
                 {'parsed': True},
-                doc_ids=[status_id]
+                doc_ids=[int(status_id)]
             )
         
 
