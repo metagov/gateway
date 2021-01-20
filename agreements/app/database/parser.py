@@ -135,18 +135,7 @@ class Parser:
             else:
                 break
 
-        # sets the thread id of a status (0 if no corresponding agreement)
-        found_agreement = self.find_agreement(status_id)
-
-        if found_agreement:
-            agreement_id = found_agreement.doc_id
-        else:
-            agreement_id = 0    
-
-        self.tweets.update(
-            {'thread_id': agreement_id},
-            doc_ids=[int(status_id)]
-        )
+        
 
         # pushes valid agreements to threads
         # (current valid agreement only requires being a root tweet containing @agreementengine)
@@ -185,11 +174,24 @@ class Parser:
                 doc_ids=[0]
             )
 
-        
+        # sets the thread id of a status (0 if no corresponding agreement)
+        found_agreement = self.find_agreement(status_id)
+
+        if found_agreement:
+            agreement_id = found_agreement.doc_id
+        else:
+            agreement_id = 0    
+
+        self.tweets.update(
+            {'thread_id': agreement_id},
+            doc_ids=[int(status_id)]
+        )
+
         if found_agreement:
             if status["user_screen_name"] in found_agreement["members"]:
                 # signing agreement
-                if "+sign" in text:
+                if "sign" in text:
+                    print('signed')
                     # adding signature to agreement
                     self.threads.update(
                         self.add_signature(status["user_screen_name"], status_id),

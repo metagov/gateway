@@ -3,21 +3,124 @@
 
 <head>
     <style>
+        body {
+            font-family: Georgia, 'Times New Roman', Times, serif;
+        }
 
+        .header {
+            display: grid;
+            justify-items: center;
+        }
+
+        .title {
+            font-size: 60px;
+            padding: 20px;
+            padding-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .status {
+            display: grid;
+            justify-items: left;
+            /* padding: 15px; */
+            font-size: 20px;
+            margin: 10px;
+        }
+
+        .status_author {
+            padding-bottom: 5px;
+            font-size: 25px;
+        }
+
+        .status_text {
+            border-radius: 15px;
+            border: 2px solid black;
+            padding: 10px;
+            white-space: pre-line;
+        }
     </style>
 </head>
 
 <body>
-    <div id="test"></div>
+    <div class="header">
+        <div class="title" onclick=home()>Agreement Engine</div>
+        <a href="https://github.com/metagov/metagov-prototype">view open source code</a>
+    </div>
+    <div class="status">
+        <div class="status_author"></div>
+        <div class="status_text"></div>
+    </div>
+    <div id="signatures">signatures:</div>
+    <div id="links">links:</div>
+    <div id="status_replies"></div>
+
+    <div id="status_template" hidden>
+        <div class="status_text">text</div>
+    </div>
 </body>
 <script>
-    let url = window.location.href;
-    let id = url.split('/')[4];
+    const url = window.location.href;
+    const id = url.split('/')[4];
 
-    fetch(`/api/${id}`)
+    const author = document.getElementsByClassName("status_author")[0];
+    const text = document.getElementsByClassName("status_text")[0];
+    const replies = document.getElementById("status_replies");
+    const signatures = document.getElementById("signatures");
+    const links = document.getElementById("links");
+
+    // renders all threads by adding templated children to the status bar
+    function render(data) {
+        let e = document.getElementById('status_template').cloneNode(true);
+        e.removeAttribute('hidden');
+        e.className = 'status';
+
+        // getting author, text html locations
+        let text = e.getElementsByClassName('status_text')[0];
+
+        // updating author, text for current thread
+        // author.innerHTML = data.author;
+        text.innerHTML = data;
+
+        // setting redirect of each thread
+        text.onclick = () => {
+            window.location.href = `thread/${id}`;
+        };
+
+        document.getElementById('status_replies').appendChild(e);
+    }
+
+    function home() {
+        window.location.href = "/";
+    }
+
+    fetch(`/api/t/${id}`)
         .then(response => response.json())
         .then(data => {
-            document.getElementById("test").innerHTML = data.text
+            author.innerHTML = data.author
+            text.innerHTML = data.text
+            console.log(data)
+            for (var name in data.signatures) {
+                let new_sig = document.createElement("div");
+                new_sig.className = "signature";
+                new_sig.innerHTML = name;
+                signatures.appendChild(new_sig);
+            }
+            data.links.forEach((link) => {
+                let new_link = document.createElement("div");
+                new_link.className = "link";
+                new_link.innerHTML = link;
+                links.appendChild(new_link);
+            })
+            fetch(`/api/s/${data.status_id}`)
+                .then(response => response.json())
+                .then(data => {
+                    // loops through each status, excluding the first one (already retrieved)
+                    for (var i = 1; i < data.data.length; i++) {
+                        render(data.data[i])
+                    }
+
+
+                })
         })
 </script>
 
