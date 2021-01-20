@@ -78,7 +78,7 @@
         document.getElementById('status_bar').appendChild(e);
     }
 
-    fetch("/api/0")
+    fetch("/api/t/0")
         .then(response => response.json())
         .then(data => {
             // shows no more than max_display_threads agreement on the home page
@@ -86,7 +86,7 @@
 
             // fetching requested number of threads and rendering them
             for (let id = max_id; id > 0; id--) {
-                fetch(`/api/${id}`)
+                fetch(`/api/t/${id}`)
                     .then(response => response.json())
                     .then(data => {
                         render(data, id);
