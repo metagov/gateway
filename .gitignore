@@ -3,3 +3,7 @@ agreements/app/auth/apikeys.json
 __pycache__
 .vscode
 **_test**
+
+# Metagov Django app
+metagov/env/
+metagov/db.sqlite3
