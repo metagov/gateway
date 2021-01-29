@@ -1,4 +1,40 @@
+from enum import Enum
+
 # Based on http://martyalchin.com/2008/jan/10/simple-plugin-framework/
+
+# plugins should import from this file
+# plugins should not import from core
+
+
+class ResourceRetrievalFunctionRegistry(object):
+    def __init__(self):
+        self.registry = dict()
+
+    def get_function(self, name):
+        return self.registry.get(name)
+
+    def add(self, name, description, function):
+        self.registry[name] = {
+            'description': description,
+            'function': function
+        }
+
+
+function_registry = ResourceRetrievalFunctionRegistry()
+
+
+def retrieve_resource(name, description):
+    """
+    Decorator used by plugin authors writing resource retrieval functions.
+
+    function input: querydict
+    function output: HttpResponse
+    """
+    def decorate(func):
+        function_registry.add(name, description, func)
+        return func
+    return decorate
+
 
 class PluginMount(type):
     def __init__(cls, name, bases, attrs):
@@ -6,46 +42,54 @@ class PluginMount(type):
             # This branch only executes when processing the mount point itself.
             # So, since this is a new plugin type, not an implementation, this
             # class shouldn't be registered as a plugin. Instead, it sets up a
-            # list where plugins can be registered later.
-            cls.plugins = []
+            # dict where plugins can be registered later.
+            cls.plugins = dict()
         else:
             # This must be a plugin implementation, which should be registered.
-            # Simply appending it to the list is all that's needed to keep
-            # track of it later.
-            cls.plugins.append(cls)
-        
-    def get_plugins(self,cls, *args, **kwargs):
-        return [p(*args, **kwargs) for p in cls.plugins]
+            cls.plugins[cls.slug] = cls
 
-    def get_plugin_list(self,cls, *args, **kwargs):
-        return cls.plugins
 
-class ResourceProvider(metaclass=PluginMount):
+class GovernanceProcessProvider(metaclass=PluginMount):
     """
-    Mount point for plugins which refer to actions that can be performed.
-    Plugins implementing this reference should provide the following attributes:
+    Mount point for plugins which refer to governance processes that can be performed.
+    Plugins implementing this reference should provide the following static functions:
     ========  ========================================================
-    slug                 The slug to use for API route /resource/:slug
-    retrieve_resource    function that should return the HttpResponse
+    start     kick off the governance process
+    cancel    cancel the governance process
+    close     close the governance process
     ========  ========================================================
     """
 
-    # def __init__(self, request_input, *args, **kwargs):
-        
+    @staticmethod
+    def start(job_state, querydict):
+        # start process, update state
+        # returns result
+        pass
 
-    def retrieve_resource(self, input):
-        """
-        Retrieve a piece of data from an external system
-        """
+    @staticmethod
+    def close(job_state, querydict):
+        # close process, update state
+        # returns outcome
+        pass
+
+    @staticmethod
+    def cancel(job_state):
+        # cancel job, update state
+        pass
+
+    @staticmethod
+    def check(job_state):
+        # check job status, update state if necessary (used for polling)
+        # returns outcome
+        pass
+
+    @staticmethod
+    def handle_webhook(job_state, querydict):
+        # process data from webhook endpoint; update state if necessary
+        pass
 
 
-#### PLUGIN TYPES
-# resource provider
-# gov process
-# listener/actor (can create PlatformActions)
-
-#### PLUGIN POINTS
-# API endpoint /retrieve-resources
-# API endpoint /webhook/:plugin-key
-# API endpoint /execute-platform-action
-# API endpoint /governance-process
+class GovernanceProcessStatus(Enum):
+    CREATED = "CREATED"
+    PENDING = "PENDING"
+    COMPLETED = "COMPLETED"
