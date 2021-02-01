@@ -40,15 +40,15 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    'metagov.core',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'metagov.core.plugins.sourcecred',
-    'metagov.core.plugins.loomio',
+    'metagov.core',
+    'metagov.plugins.sourcecred',
+    'metagov.plugins.loomio',
 ]
 
 SOURCECRED_SERVER = "https://metagov.github.io/sourcecred-instance"

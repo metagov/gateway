@@ -1,5 +1,5 @@
 from django.db import models
-from metagov.core.plugins import GovernanceProcessProvider, GovernanceProcessStatus
+from metagov.core.plugin_models import GovernanceProcessProvider, GovernanceProcessStatus
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 import logging
@@ -67,7 +67,7 @@ class GovernanceProcess(models.Model):
     def start(self, querydict):
         PluginClass = self.plugins.get(self.plugin_name)
         result = PluginClass.start(self.job_state, querydict)
-        return result
+        return Result(self.pk, self.status, result)
 
     def cancel(self):
         """cancel governance process"""
@@ -85,6 +85,16 @@ class GovernanceProcess(models.Model):
         PluginClass = self.plugins.get(self.plugin_name)
         PluginClass.handle_webhook(self.job_state, querydict)
 
+class Result(object):
+    def __init__(self, instance_id, status, data):
+        self.instance_id = instance_id
+        self.status = status.name
+        self.data = data
+
+    def toJSON(self):
+        return json.dumps(self, default=lambda o: o.__dict__ if hasattr(o, '__dict__') else str(o),
+                          sort_keys=True)
+
 
 @receiver(post_save, sender=DataStore, dispatch_uid="update_job_status")
 def update_status(sender, instance, **kwargs):
@@ -97,3 +107,8 @@ def update_status(sender, instance, **kwargs):
         if new_status is not old_status:
             model.status = new_status
             model.save()
+        if new_status is GovernanceProcessStatus.COMPLETED:
+            outcome = PluginClass.get_outcome(model.job_state)
+            result = Result(model.pk, new_status, outcome)
+            logger.info(result.toJSON())
+            # TODO notify Driver

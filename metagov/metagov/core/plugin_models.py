@@ -1,9 +1,9 @@
 from enum import Enum
 
 # Based on http://martyalchin.com/2008/jan/10/simple-plugin-framework/
-
-# plugins should import from this file
-# plugins should not import from core
+# Plugins SHOULD import this file
+# Core SHOULD this file
+# Plugins SHOULD NOT import other files from core
 
 
 class ResourceRetrievalFunctionRegistry(object):

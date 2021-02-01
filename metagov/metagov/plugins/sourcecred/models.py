@@ -1,8 +1,8 @@
 import json
 import requests
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound
-from metagov.core.plugins import retrieve_resource
-from metagov.core.plugins.sourcecred import conf
+from metagov.core.plugin_models import retrieve_resource
+from metagov.plugins.sourcecred import conf
 
 @retrieve_resource('cred', 'Cred value for given user')
 def cred(querydict):

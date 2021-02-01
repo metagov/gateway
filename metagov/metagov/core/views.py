@@ -1,5 +1,5 @@
 from django.http import HttpResponse, HttpResponseBadRequest
-from metagov.core.plugins import GovernanceProcessProvider, function_registry
+from metagov.core.plugin_models import GovernanceProcessProvider, function_registry
 from metagov.core.models import GovernanceProcess, DataStore
 from django.views.decorators.csrf import csrf_exempt
 from django.http import QueryDict
@@ -39,7 +39,8 @@ def start_governance_process(request, slug):
     querydict = request.POST or request.GET
     # FIXME middleware to validate input/output?
     result = new_process.start(querydict)
-    return HttpResponse(json.dumps({'result': result}))
+    logger.info(result)
+    return HttpResponse(result.toJSON())
 
 
 @csrf_exempt
