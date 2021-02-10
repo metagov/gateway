@@ -9,14 +9,14 @@ class Metadata:
         self.table = db.table('metadata')
 
         # initializes metadata table in database if it hasn't been created yet
-        self.initialize_database()
+        if not self.table.contains(doc_id=1):
+            self.initialize_database()
 
     def initialize_database(self):
         config = json.load(open('app/database/default_config.json', 'r'))
         config['last_status_parsed'] = config['genesis_status']
-
-        if not self.table.contains(doc_id=1):
-            self.table.insert(Document(config, doc_id=1))
+        
+        self.table.insert(Document(config, doc_id=1))
 
     # retrieves a value from the metadata dictionary
     def retrieve(self, tag):

@@ -10,9 +10,10 @@ def run():
     api = auth.API()
 
     db = TinyDB('app/database/db.json', indent=4)
-    # db.drop_tables() # clears database
+    db.drop_tables() # clears database
+
     meta = Metadata(db)
-    parser = Parser(db)
+    parser = Parser(db, api)
 
     # iterates through all new mentions
     for status in tweepy.Cursor(
@@ -22,10 +23,8 @@ def run():
         count=20
     ).items():
 
-        parser.add(status)
+        parser.parse(status)
 
         # updates last status id -> next mentions timeline won't see already parsed tweets
         if status.id > meta.retrieve('last_status_parsed'):
             meta.update('last_status_parsed', status.id)
-
-    parser.parse_all(api)
