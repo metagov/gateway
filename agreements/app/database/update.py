@@ -20,7 +20,7 @@ def run():
         api.mentions_timeline, 
         tweet_mode="extended", # needed to get full text for longer tweets
         since_id=meta.retrieve('last_status_parsed'), # won't iterate through tweets already in database
-        count=20
+        count=200
     ).items():
 
         parser.parse(status)

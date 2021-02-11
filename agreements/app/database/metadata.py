@@ -20,7 +20,18 @@ class Metadata:
 
     # retrieves a value from the metadata dictionary
     def retrieve(self, tag):
-        return int(self.table.get(doc_id=1)[tag])
+        text = self.table.get(doc_id=1)[tag]
+
+        # converts to integer or float as needed
+        try:
+            val = int(text)
+        except ValueError:
+            try:
+                val = float(text)
+            except ValueError:
+                return
+        
+        return val
 
     # updates a value in the metadata dictionary
     def update(self, tag, value):

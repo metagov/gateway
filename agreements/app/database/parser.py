@@ -9,6 +9,7 @@ class Parser:
         self.accounts = db.table('accounts')
         self.contracts = db.table('contracts')
         self.statuses = db.table('statuses')
+        self.me = api.me()
 
         # intializing accounts table
         if not self.accounts.contains(doc_id=0):
@@ -17,6 +18,8 @@ class Parser:
                     'num_accounts': '0'
                 },
                 doc_id=0))
+            
+            self.add_account(self.me)
         
         # intializing contracts table
         if not self.contracts.contains(doc_id=0):
@@ -29,7 +32,7 @@ class Parser:
     
     def parse(self, status):
         self.add_status(status)
-        self.add_account(status)
+        self.add_account(status.user)
 
         text = status.full_text
 
@@ -59,13 +62,13 @@ class Parser:
 
         return True
 
-    def add_account(self, status):
-        if self.accounts.contains(doc_id=status.user.id):
+    def add_account(self, user):
+        if self.accounts.contains(doc_id=user.id):
             return False
 
         account = {
-            'full_name': status.user.name,
-            'screen_name': status.user.screen_name,
+            'full_name': user.name,
+            'screen_name': user.screen_name,
             'balance': '0',
             'contracts': []
         }
@@ -77,7 +80,7 @@ class Parser:
 
         self.accounts.insert(Document(
             account,
-            doc_id=status.user.id
+            doc_id=user.id
         ))
 
         return True
@@ -98,11 +101,16 @@ class Parser:
             count = int(arg[:-1])
         except ValueError:
             return
-
+        
+        # retrieving consts from db
         type_limit = self.meta.retrieve(f'{gen_type}_limit')
         type_value = self.meta.retrieve(f'{gen_type}_value')
+        tax_rate = self.meta.retrieve('tax_rate')
 
-        # cannot create over the limit
+        # =============================================================================
+        # calculating and generating contract json
+
+        # cannot create contract over the limit
         # THIS SHOULD BE FROM THE CONTRACT POOL. UPDATE LATER WHEN POSSIBLE.
         if count > type_limit: count = type_limit
         
@@ -111,7 +119,7 @@ class Parser:
         followers = user.followers_count
 
         # calculating cost per unit of contract
-        unit_cost = count * type_value * followers
+        unit_cost = type_value * followers
 
         contract = {
             "state": "alive",
@@ -120,9 +128,7 @@ class Parser:
             "count": str(count),
             "price": str(unit_cost),
             "created": str(status.created_at),
-            "executed": [
-
-            ]
+            "executed": []
         }
 
         self.contracts.insert(Document(
@@ -130,4 +136,27 @@ class Parser:
             doc_id=status.id
         ))
 
-        print (contract)
+        # ===============================================================================
+        # paying out to user, and reserving tax
+
+        total_value = count * unit_cost
+        taxed_value = round(total_value * tax_rate)
+        to_pay_out = total_value - taxed_value
+
+        self.pay(user.id, to_pay_out)
+        self.pay(self.me.id, taxed_value)
+
+        print(f'Generated contract {status.id} valued at {total_value}, {to_pay_out} paid out.')
+    
+    def pay(self, user, amount):
+        # function definition to update database 
+        def change_balance(doc):
+            int_balance = int(doc['balance'])
+            int_balance += amount
+            doc['balance'] = str(int_balance)
+
+        # applying change_balance function to give user amount of xsc
+        self.accounts.update(
+            change_balance,
+            doc_ids=[user]
+        )

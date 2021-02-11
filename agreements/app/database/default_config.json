@@ -4,5 +4,6 @@
     "like_value": "1",
     "like_limit": "10",
     "retweet_value": "5",
-    "retweet_limit": "10"
+    "retweet_limit": "10",
+    "tax_rate": "0.05"
 }
