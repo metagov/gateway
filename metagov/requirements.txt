@@ -4,6 +4,8 @@ certifi==2020.12.5
 chardet==4.0.0
 Django==3.1.5
 django-environ==0.4.5
+django-request-logging==0.7.2
+djangorestframework==3.12.2
 idna==2.10
 pycodestyle==2.6.0
 pytz==2020.5

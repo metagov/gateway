@@ -1,73 +1,51 @@
-from django.db import models
-from metagov.core.plugin_models import GovernanceProcessProvider, GovernanceProcessStatus
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-import logging
 import json
+import logging
+
+import requests
+from django.core.exceptions import ValidationError
+from django.db import models
+from django.db.models.signals import post_save, pre_save
+from django.dispatch import receiver
+from django.utils.translation import gettext_lazy as _
+from metagov.core.plugin_models import GovernanceProcessProvider, ProcessStatus, ProcessState
+from rest_framework import serializers
 
 logger = logging.getLogger('django')
 
 
-class DataStore(models.Model):
-    data_store = models.TextField()
-
-    def _get_data_store(self):
-        if self.data_store != '':
-            return json.loads(self.data_store)
-        else:
-            return {}
-
-    def _set_data_store(self, obj):
-        self.data_store = json.dumps(obj)
-        self.save()
-
-    def get(self, key):
-        obj = self._get_data_store()
-        return obj.get(key, None)
-
-    def set(self, key, value):
-        obj = self._get_data_store()
-        obj[key] = value
-        self._set_data_store(obj)
-        return True
-
-    def remove(self, key):
-        obj = self._get_data_store()
-        res = obj.pop(key, None)
-        self._set_data_store(obj)
-        if not res:
-            return False
-        return True
-
+def validate_process_name(name):
+    PluginClass = GovernanceProcessProvider.plugins.get(name)
+    if not PluginClass:
+        raise ValidationError(
+            _('%(name)s is not a registered governance process'),
+            params={'name': name},
+        )
 
 class GovernanceProcess(models.Model):
-    plugin_name = models.CharField(max_length=30)
+    name = models.CharField(max_length=30, validators=[
+                            validate_process_name], null=True)
+    callback_url = models.CharField(max_length=50, null=True, blank=True)
     status = models.CharField(
-        max_length=10,
-        default=GovernanceProcessStatus.CREATED,
+        max_length=15,
+        choices=[(s.value, s.name) for s in ProcessStatus],
+        default=ProcessStatus.CREATED.value
     )
-    job_state = models.OneToOneField(
-        DataStore,
-        on_delete=models.CASCADE,
-        verbose_name='job state',
-        null=True,
-        related_name='state_of',
-    )
+    data = models.JSONField(default=dict, blank=True)
+    errors = models.JSONField(default=dict, blank=True)
+    outcome = models.JSONField(default=dict, blank=True)
 
     # FIXME make nicer https://docs.djangoproject.com/en/3.1/ref/models/instances/
     # only needs the one selected plugin
     plugins = GovernanceProcessProvider.plugins
 
     def save(self, *args, **kwargs):
-        # the first time it is saved, create empty job state
-        if not self.pk:
-            self.job_state = DataStore.objects.create()
         super(GovernanceProcess, self).save(*args, **kwargs)
 
     def start(self, querydict):
-        PluginClass = self.plugins.get(self.plugin_name)
-        result = PluginClass.start(self.job_state, querydict)
-        return Result(self.pk, self.status, result)
+        PluginClass = self.plugins.get(self.name)
+        # FIXME stop using querydict
+        process_state = ProcessState(self)
+        PluginClass.start(process_state, querydict)
 
     def cancel(self):
         """cancel governance process"""
@@ -78,37 +56,59 @@ class GovernanceProcess(models.Model):
         return None
 
     def __str__(self):
-        return self.plugin_name
+        return self.name
 
     def handle_webhook(self, querydict):
         """process webhook, possibly updating state"""
-        PluginClass = self.plugins.get(self.plugin_name)
-        PluginClass.handle_webhook(self.job_state, querydict)
-
-class Result(object):
-    def __init__(self, instance_id, status, data):
-        self.instance_id = instance_id
-        self.status = status.name
-        self.data = data
-
-    def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__ if hasattr(o, '__dict__') else str(o),
-                          sort_keys=True)
+        PluginClass = self.plugins.get(self.name)
+        process_state = ProcessState(self)
+        # FIXME pass raw request, need access to headers
+        PluginClass.handle_webhook(process_state, querydict)
 
 
-@receiver(post_save, sender=DataStore, dispatch_uid="update_job_status")
-def update_status(sender, instance, **kwargs):
-    """Update GovernanceProcess status after its job state is saved"""
-    model = GovernanceProcess.objects.filter(job_state=instance).first()
-    if model is not None:
-        PluginClass = model.plugins.get(model.plugin_name)
-        old_status = model.status
-        new_status = PluginClass.get_status(instance)
-        if new_status is not old_status:
-            model.status = new_status
-            model.save()
-        if new_status is GovernanceProcessStatus.COMPLETED:
-            outcome = PluginClass.get_outcome(model.job_state)
-            result = Result(model.pk, new_status, outcome)
-            logger.info(result.toJSON())
-            # TODO notify Driver
+"""
+Pre-save receiver to notify caller that the governance processes has completed
+"""
+
+
+@receiver(pre_save, sender=GovernanceProcess, dispatch_uid="process_saved")
+def notify_process_completed(sender, instance, **kwargs):
+    try:
+        obj = sender.objects.get(pk=instance.pk)
+    except sender.DoesNotExist:
+        # instance is new
+        if instance.status == ProcessStatus.COMPLETED.value:
+            notify_completed(instance)
+    else:
+        if not obj.status == instance.status:
+            logger.info(f"Status changed: {obj.status} -> {instance.status}")
+            if instance.status == ProcessStatus.COMPLETED.value:
+                notify_completed(instance)
+
+
+class GovernanceProcessSerializer(serializers.Serializer):
+    id = serializers.CharField(max_length=50, allow_blank=False)
+    name = serializers.SlugField(
+        max_length=50, min_length=None, allow_blank=False)
+    status = serializers.ChoiceField(
+        choices=[(s.value, s.name) for s in ProcessStatus])
+    data = serializers.JSONField()
+    errors = serializers.JSONField()
+    outcome = serializers.JSONField()
+
+    def create(self, validated_data):
+        return GovernanceProcess.objects.create(**validated_data)
+
+
+# notify driver that process has completed
+def notify_completed(process):
+    if not process.callback_url:
+        logger.info("No callback url")
+        return
+    serializer = GovernanceProcessSerializer(process)
+    logger.info(f"Posting completed process outcome to {process.callback_url}")
+    logger.info(serializer.data)
+    resp = requests.post(process.callback_url, json=serializer.data)
+    if not resp.ok:
+        logger.error(
+            f"Error posting outcome to callback url: {resp.status_code} {resp.text}")

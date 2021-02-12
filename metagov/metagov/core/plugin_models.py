@@ -1,4 +1,10 @@
+from __future__ import annotations
+
 from enum import Enum
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from metagov.core.models import GovernanceProcess
 
 # Based on http://martyalchin.com/2008/jan/10/simple-plugin-framework/
 # Plugins SHOULD import this file
@@ -14,6 +20,9 @@ class ResourceRetrievalFunctionRegistry(object):
         return self.registry.get(name)
 
     def add(self, name, description, function):
+        if name in self.registry:
+            raise ValueError(f"Duplicate resource name '{name}'")
+
         self.registry[name] = {
             'description': description,
             'function': function
@@ -32,6 +41,33 @@ def retrieve_resource(name, description):
     """
     def decorate(func):
         function_registry.add(name, description, func)
+        return func
+    return decorate
+
+
+class ListenerRegistry(object):
+    def __init__(self):
+        self.registry = dict()
+
+    def get_function(self, name):
+        return self.registry.get(name)
+
+    def add(self, name, description, function):
+        if name in self.registry:
+            raise ValueError(f"Duplicate listener name '{name}'")
+
+        self.registry[name] = {
+            'description': description,
+            'function': function
+        }
+
+
+listener_registry = ListenerRegistry()
+
+
+def webhook_listener(name, description):
+    def decorate(func):
+        listener_registry.add(name, description, func)
         return func
     return decorate
 
@@ -61,35 +97,74 @@ class GovernanceProcessProvider(metaclass=PluginMount):
     """
 
     @staticmethod
-    def start(job_state, querydict):
+    def start(process_state, querydict) -> None:
         # start process, update state
         # returns result
         pass
 
     @staticmethod
-    def close(job_state, querydict):
+    def close(process_state, querydict) -> None:
         # close process, update state
         # returns outcome
         pass
 
     @staticmethod
-    def cancel(job_state):
+    def cancel(process_state) -> None:
         # cancel job, update state
         pass
 
     @staticmethod
-    def check(job_state):
+    def check(process_state) -> None:
         # check job status, update state if necessary (used for polling)
         # returns outcome
         pass
 
     @staticmethod
-    def handle_webhook(job_state, querydict):
+    def handle_webhook(process_state, querydict) -> None:
         # process data from webhook endpoint; update state if necessary
         pass
 
 
-class GovernanceProcessStatus(Enum):
-    CREATED = "CREATED"
-    PENDING = "PENDING"
-    COMPLETED = "COMPLETED"
+class ProcessStatus(Enum):
+    CREATED = 'created'
+    PENDING = 'pending'
+    COMPLETED = 'completed'
+
+class ProcessState:
+    """
+    Wrapper class for GovernanceProcess model. This is provided to plugins, so
+    they can access and modify job state, but not the Model directly.
+    """
+
+    def __init__(self, model: GovernanceProcess) -> None:
+        self.__model = model
+
+    def get_status(self) -> str:
+        return self.status
+
+    def set_status(self, status: ProcessStatus) -> None:
+        if not isinstance(status, ProcessStatus):
+            raise ValueError(f"Status must be an instance of ProcessStatus")
+        self.__model.status = status.value
+        self.__model.save()
+
+    def get_data_value(self, key: str) -> Any:
+        return self.__model.data.get(key, None)
+
+    def set_data_value(self, key: str, value: Any) -> None:
+        self.__model.data[key] = value
+        self.__model.save()
+
+    def get_errors(self) -> Any:
+        return self.__model.errors
+
+    def set_errors(self, obj: Any) -> None:
+        self.__model.errors = obj
+        self.__model.save()
+
+    def get_outcome(self) -> Any:
+        return self.__model.outcome
+
+    def set_outcome(self, obj: Any) -> None:
+        self.__model.outcome = obj
+        self.__model.save()

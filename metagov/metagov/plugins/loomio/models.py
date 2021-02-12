@@ -1,15 +1,18 @@
-from django.db import models
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound
-from metagov.core.plugin_models import GovernanceProcessProvider, GovernanceProcessStatus
-from metagov.plugins.loomio import conf
 import json
-import requests
 import logging
+
+import requests
+from django.db import models
+from django.http import (HttpResponse, HttpResponseBadRequest,
+                         HttpResponseNotFound)
+from metagov.core.plugin_models import (GovernanceProcessProvider, ProcessState,
+                                        ProcessStatus)
+from metagov.plugins.loomio import conf
 
 logger = logging.getLogger('django')
 
 """
-job_state: for storing any state you need to persist in the database
+process_state: for storing any state you need to persist in the database
 """
 
 
@@ -17,63 +20,72 @@ class Loomio(GovernanceProcessProvider):
     slug = 'loomio'
 
     @staticmethod
-    def start(job_state, querydict):
+    def start(process_state: ProcessState, querydict) -> None:
         url = "https://www.loomio.org/api/b1/polls"
         loomio_data = {
             'title': querydict.get('title', 'agree or disagree'),
             'poll_type': 'proposal',
-            'options[]': ['agree', 'disagree'],
-            'details': 'created by metagov',
-            'closing_at': '2021-02-03',
+            'options[]': querydict.getlist('options', ['agree', 'disagree']),
+            'details': querydict.get('details', 'created by metagov'),
+            'closing_at': querydict.get('closing_at', '2021-04-03'),
             'api_key': conf.LOOMIO_API_KEY
         }
+
         resp = requests.post(url, loomio_data)
+        if not resp.ok:
+            logger.error(
+                f"Error creating Loomio poll: {resp.status_code} {resp.text}")
+            process_state.set_errors({'text': resp.text or "unknown error"})
+            process_state.set_status(ProcessStatus.COMPLETED)
+            return
+
         response = resp.json()
-        poll_key = response.get('polls')[0].get('key')
-        poll_url = 'https://www.loomio.org/p/' + poll_key
-        job_state.set('poll_key', poll_key)
-        job_state.set('poll_url', poll_url)
-        return {'poll_url': poll_url}
+
+        if response.get('errors'):
+            process_state.set_errors(response['errors'])
+            process_state.set_status(ProcessStatus.COMPLETED)
+            return
+        else:
+            poll_key = response.get('polls')[0].get('key')
+            poll_url = 'https://www.loomio.org/p/' + poll_key
+            process_state.set_data_value('poll_key', poll_key)
+            process_state.set_data_value('poll_url', poll_url)
 
     @staticmethod
-    def handle_webhook(job_state, querydict):
+    def handle_webhook(process_state: ProcessState, querydict) -> None:
+        poll_key = process_state.get_data_value('poll_key')
+        poll_url = process_state.get_data_value('poll_url')
+        if not poll_key or not poll_url:
+            return
+
         kind = querydict.get('kind')
         url = querydict.get('url')
         if url is None:
             return
-        if not url.startswith(job_state.get('poll_url')):
+        if not url.startswith(poll_url):
             return
 
         logger.info(f"Processing event '{kind}' for poll {url}")
-        if kind == "poll_closed_by_user":
-            # FIXME get outcome from Loomio, store in job state
-            job_state.set('outcome', 'unknown')
+        if kind == "poll_closed_by_user" or kind == "poll_expired":
+            logger.info(f"Loomio poll closed. Fetching poll result...")
+            url = f"https://www.loomio.org/api/b1/polls/{poll_key}?api_key={conf.LOOMIO_API_KEY}"
+            resp = requests.get(url)
+            if not resp.ok:
+                logger.error(
+                    f"Error fetching poll outcome: {resp.status_code} {resp.text}")
+                process_state.set_errors(
+                    {'text': resp.text or "unknown errors"})
+                process_state.set_status(ProcessStatus.COMPLETED)
+            response = resp.json()
+            if response.get('errors'):
+                process_state.set_errors(response['errors'])
+                process_state.set_status(ProcessStatus.COMPLETED)
+            else:
+                outcome = response.get('polls')[0].get('stance_data')
+                process_state.set_outcome(outcome)
+                process_state.set_status(ProcessStatus.COMPLETED)
 
     @staticmethod
-    def cancel(job_state):
+    def cancel(process_state: ProcessState) -> None:
         # cancel poll
         pass
-
-    @staticmethod
-    def close(job_state):
-        # close poll, return outcome
-        pass
-
-    @staticmethod
-    def check(job_state):
-        # for polling. check status, update state
-        pass
-
-    @staticmethod
-    def get_status(job_state):
-        # given currently stored job state, what is the status?
-        if job_state.get('outcome'):
-            return GovernanceProcessStatus.COMPLETED
-        if job_state.get('poll_key'):
-            return GovernanceProcessStatus.PENDING
-        return GovernanceProcessStatus.CREATED
-
-    @staticmethod
-    def get_outcome(job_state):
-        # return outcome IF COMPLETED
-        return job_state.get('outcome')

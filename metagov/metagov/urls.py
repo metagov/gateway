@@ -19,7 +19,8 @@ from metagov.core import views
 
 urlpatterns = [
     path('', views.index, name='index'),
-    path('resource/<slug:slug>/<slug:resource_name>', views.get_resource, name='get_resource'),
-    path('governance-process/<slug:slug>', views.start_governance_process, name='start_governance_process'),
-    path('webhook/<slug:slug>', views.receive_webhook, name='receive_webhook'),
+    path('api/internal/resource/<slug:resource_name>', views.get_resource, name='get_resource'),
+    path('api/internal/process', views.create_process, name='create_process'),
+    path('api/internal/process/<slug:process_id>', views.get_process, name='get_process'),
+    path('api/postreceive/<slug:slug>', views.receive_webhook, name='receive_webhook'),
 ]
