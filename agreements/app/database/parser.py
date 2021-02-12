@@ -140,6 +140,7 @@ class Parser:
         # paying out to user, and reserving tax
 
         total_value = count * unit_cost
+        # rounded to keep XSC in whole units
         taxed_value = round(total_value * tax_rate)
         to_pay_out = total_value - taxed_value
 
