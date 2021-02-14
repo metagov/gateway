@@ -1,4 +1,4 @@
-from app.core import api, db
+from app.core import db
 from tinydb.database import Document
 
 class Account:
@@ -6,9 +6,9 @@ class Account:
         self.account_table = db.table('accounts')
         self.id = user.id
         self.user = user
-
-        if self.account_table.contains(doc_id=self.id):
-            self.add_to_database()
+    
+    def in_database(self):
+        return self.account_table.contains(doc_id=self.id)
     
     def add_to_database(self):
         # initializing default account data
@@ -26,10 +26,13 @@ class Account:
         ))
 
         # updating number of accounts
-        num_accounts = int(self.account_table.get(doc_id=0))
-        num_accounts += 1
+
+        def increment_num_accounts(doc):
+            num_accounts = int(doc['num_accounts'])
+            num_accounts += 1
+            doc['num_accounts'] = str(num_accounts)
 
         self.account_table.update(
-            {'num_accounts': str(num_accounts)}, 
+            increment_num_accounts, 
             doc_ids=[0]
         )

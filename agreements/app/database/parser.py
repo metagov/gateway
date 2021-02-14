@@ -1,5 +1,6 @@
 from tinydb.database import Document
 from .metadata import Metadata
+from app.objs.account import Account
 
 class Parser:
     def __init__(self, db, api):
@@ -32,7 +33,11 @@ class Parser:
     
     def parse(self, status):
         self.add_status(status)
-        self.add_account(status.user)
+
+        acc = Account(status.user)
+
+        if not acc.in_database():
+            acc.add_to_database()
 
         text = status.full_text
 
@@ -58,29 +63,6 @@ class Parser:
         self.statuses.insert(Document(
             dict_status, 
             doc_id=status.id
-        ))
-
-        return True
-
-    def add_account(self, user):
-        if self.accounts.contains(doc_id=user.id):
-            return False
-
-        account = {
-            'full_name': user.name,
-            'screen_name': user.screen_name,
-            'balance': '0',
-            'contracts': []
-        }
-
-        self.accounts.update(
-            {'num_accounts': str(int(self.accounts.get(doc_id=0)['num_accounts']) + 1)},
-            doc_ids=[0]
-        )
-
-        self.accounts.insert(Document(
-            account,
-            doc_id=user.id
         ))
 
         return True
