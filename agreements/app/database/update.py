@@ -9,14 +9,19 @@ def run():
     meta = Metadata(core.db)
     parser = Parser(core.db, core.api)
 
-    # iterates through all new mentions
+    new_statuses = []
+
+    # collects new statuses in reverse chronological order
     for status in tweepy.Cursor(
         core.api.mentions_timeline, 
         tweet_mode="extended", # needed to get full text for longer tweets
         since_id=meta.retrieve('last_status_parsed'), # won't iterate through tweets already in database
         count=200
     ).items():
+        new_statuses.append(status)
 
+    # iterates through statuses in chronological order
+    for status in reversed(new_statuses):
         parser.parse(status)
 
         # updates last status id -> next mentions timeline won't see already parsed tweets
