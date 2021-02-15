@@ -1,6 +1,7 @@
 from tinydb.database import Document
 from .metadata import Metadata
-from app.objs.account import Account
+from app.objs import account, contract
+from app.core import Consts
 
 class Parser:
     def __init__(self, db, api):
@@ -20,7 +21,7 @@ class Parser:
                 },
                 doc_id=0))
             
-            self.add_account(self.me)
+            account.Account(self.me)
         
         # intializing contracts table
         if not self.contracts.contains(doc_id=0):
@@ -34,18 +35,16 @@ class Parser:
     def parse(self, status):
         self.add_status(status)
 
-        acc = Account(status.user)
-
-        if not acc.in_database():
-            acc.add_to_database()
+        acc = account.Account(status.user)
 
         text = status.full_text
 
         if "+gen" in text:
-            self.generate(status)
+            con = contract.Contract(status)
+            con.generate()
         if "+exe" in text:
             self.execute(status)
-
+        
     def add_status(self, status):
         if self.statuses.contains(doc_id=status.id):
             return
@@ -85,7 +84,11 @@ class Parser:
             return
         
         # retrieving consts from db
-        type_limit = self.meta.retrieve(f'{gen_type}_limit')
+        if gen_type == "like":
+            type_limit = Consts.like_limit
+        else:
+            type_limit = Consts.retweet_limit
+        # type_limit = self.meta.retrieve(f'{gen_type}_limit')
         type_value = self.meta.retrieve(f'{gen_type}_value')
         tax_rate = self.meta.retrieve('tax_rate')
 

@@ -1,11 +1,15 @@
 from app.core import db
 from tinydb.database import Document
+from .contract import Contract
 
 class Account:
     def __init__(self, user):
         self.account_table = db.table('accounts')
         self.id = user.id
         self.user = user
+
+        if not self.in_database():
+            self.add_to_database()
     
     def in_database(self):
         return self.account_table.contains(doc_id=self.id)
@@ -26,7 +30,6 @@ class Account:
         ))
 
         # updating number of accounts
-
         def increment_num_accounts(doc):
             num_accounts = int(doc['num_accounts'])
             num_accounts += 1
@@ -36,3 +39,5 @@ class Account:
             increment_num_accounts, 
             doc_ids=[0]
         )
+    
+    # def generate_contract(self):
