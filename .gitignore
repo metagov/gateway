@@ -6,5 +6,6 @@ __pycache__
 
 # Metagov Django app
 metagov/env/
+metagov/static
 metagov/db.sqlite3
 .env

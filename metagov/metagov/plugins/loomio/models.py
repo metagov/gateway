@@ -19,7 +19,7 @@ process_state: for storing any state you need to persist in the database
 input_schema = {
     'properties': {
         "title": openapi.Schema(
-            title="Poll Title",
+            title="Poll title",
             type=openapi.TYPE_STRING,
         ),
         "closes_at": openapi.Schema(
@@ -67,16 +67,22 @@ class Loomio(GovernanceProcessProvider):
             poll_url = 'https://www.loomio.org/p/' + poll_key
             process_state.set_data_value('poll_key', poll_key)
             process_state.set_data_value('poll_url', poll_url)
+            process_state.set_status(ProcessStatus.PENDING)
 
     @staticmethod
-    def handle_webhook(process_state: ProcessState, querydict) -> None:
+    def handle_webhook(process_state: ProcessState, request) -> None:
         poll_key = process_state.get_data_value('poll_key')
         poll_url = process_state.get_data_value('poll_url')
         if not poll_key or not poll_url:
             return
 
-        kind = querydict.get('kind')
-        url = querydict.get('url')
+        try:
+            body = json.loads(request.body)
+        except ValueError:
+            logger.error("unable to decode webhook body")
+
+        kind = body.get('kind')
+        url = body.get('url')
         if url is None:
             return
         if not url.startswith(poll_url):

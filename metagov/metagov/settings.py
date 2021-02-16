@@ -79,6 +79,8 @@ SWAGGER_SETTINGS = {
 
 SOURCECRED_SERVER = "https://metagov.github.io/sourcecred-instance"
 LOOMIO_API_KEY = env('LOOMIO_API_KEY')
+DISCOURSE_API_KEY = env('DISCOURSE_API_KEY')
+DISCOURSE_URL = env('DISCOURSE_URL')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -182,4 +184,5 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 STATIC_URL = '/static/'

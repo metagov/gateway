@@ -121,7 +121,7 @@ class GovernanceProcessProvider(metaclass=PluginMount):
         pass
 
     @staticmethod
-    def handle_webhook(process_state, querydict) -> None:
+    def handle_webhook(process_state, request) -> None:
         # process data from webhook endpoint; update state if necessary
         pass
 

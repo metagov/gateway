@@ -88,6 +88,11 @@ def create_process_endpoint(process_name):
 
         # TODO: validate payload (plugin author implement serializer?)
         new_process.start(payload)
+        if new_process.errors:
+            logger.info("failed to start process")
+            new_process.delete()
+            return HttpResponseServerError(json.dumps(new_process.errors))
+
         logger.info(
             f"Started '{process_name}' process with id {new_process.pk}")
 
@@ -129,24 +134,20 @@ def receive_webhook(request, slug):
     """
     API endpoint for receiving webhook requests from external services
     """
-
-    query_dict = request_body(request)
-    if not query_dict:
-        return HttpResponse()
+    logger.info(request.body)
 
     listener = listener_registry.get_function(slug)
     if listener:
         listener.get('function')(request)
 
     active_processes = GovernanceProcess.objects.filter(name=slug)
+    if active_processes.count() > 0:
+        logger.info(
+            f"invoking handlers for {active_processes.count()} active processes")
+        for p in active_processes:
+            p.handle_webhook(request)
 
-    logger.info(
-        f"invoking handlers for {active_processes.count()} active processes")
-    logger.info(query_dict)
-    for p in active_processes:
-        p.handle_webhook(query_dict)
-
-    return HttpResponse("ok")
+    return HttpResponse()
 
 
 def request_body(request):

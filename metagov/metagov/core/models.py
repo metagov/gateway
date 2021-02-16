@@ -61,12 +61,11 @@ class GovernanceProcess(models.Model):
     def __str__(self):
         return self.name
 
-    def handle_webhook(self, querydict):
+    def handle_webhook(self, request):
         """process webhook, possibly updating state"""
         PluginClass = self.plugins.get(self.name)
         process_state = ProcessState(self)
-        # FIXME pass raw request, need access to headers
-        PluginClass.handle_webhook(process_state, querydict)
+        PluginClass.handle_webhook(process_state, request)
 
 
 @receiver(pre_save, sender=GovernanceProcess, dispatch_uid="process_saved")
