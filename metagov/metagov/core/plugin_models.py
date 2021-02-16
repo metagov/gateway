@@ -95,6 +95,7 @@ class GovernanceProcessProvider(metaclass=PluginMount):
     close     close the governance process
     ========  ========================================================
     """
+    input_schema = {}
 
     @staticmethod
     def start(process_state, querydict) -> None:

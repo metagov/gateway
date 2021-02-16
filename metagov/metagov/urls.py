@@ -1,26 +1,48 @@
-"""metagov URL Configuration
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/3.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+from django.conf.urls import url
 from django.contrib import admin
 from django.urls import include, path
+from drf_yasg import openapi
+from drf_yasg.views import get_schema_view
+from rest_framework import permissions
+
 from metagov.core import views
+from metagov.core.plugin_models import GovernanceProcessProvider
+
+schema_view = get_schema_view(
+    openapi.Info(
+        title="Metagov API",
+        default_version='v1',
+        description="""
+        Service for accessing governance resources and invoking governance processes. This documentation shows endpoints defined by plugins that are installed on this instance of Metagov.
+        
+        **Endpoints that start with `/api/internal` can only be accessed on the local network.**
+        """,
+    ),
+    public=True,
+    permission_classes=(permissions.AllowAny,),
+)
+
+plugin_patterns = []
+
+for slug in GovernanceProcessProvider.plugins.keys():
+    create_process = views.create_process_endpoint(slug)
+    post_pattern = path(
+        f"api/internal/process/{slug}", views.decorated_create_process_view(slug), name=f"create_{slug}")
+    get_pattern = path(
+        f"api/internal/process/{slug}/<int:process_id>", views.get_process, name=f"get_{slug}")
+    plugin_patterns.append(post_pattern)
+    plugin_patterns.append(get_pattern)
 
 urlpatterns = [
     path('', views.index, name='index'),
-    path('api/internal/resource/<slug:resource_name>', views.get_resource, name='get_resource'),
-    path('api/internal/process', views.create_process, name='create_process'),
-    path('api/internal/process/<slug:process_id>', views.get_process, name='get_process'),
-    path('api/postreceive/<slug:slug>', views.receive_webhook, name='receive_webhook'),
-]
+    url(r'^swagger(?P<format>\.json|\.yaml)$',
+        schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    url(r'^swagger/$', schema_view.with_ui('swagger',
+                                           cache_timeout=0), name='schema-swagger-ui'),
+    url(r'^redoc/$', schema_view.with_ui('redoc',
+                                         cache_timeout=0), name='schema-redoc'),
+    path('api/internal/resource/<slug:resource_name>',
+         views.get_resource, name='get_resource'),
+    path('api/postreceive/<slug:slug>',
+         views.receive_webhook, name='receive_webhook')
+] + plugin_patterns

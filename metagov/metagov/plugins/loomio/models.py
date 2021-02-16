@@ -5,8 +5,9 @@ import requests
 from django.db import models
 from django.http import (HttpResponse, HttpResponseBadRequest,
                          HttpResponseNotFound)
-from metagov.core.plugin_models import (GovernanceProcessProvider, ProcessState,
-                                        ProcessStatus)
+from drf_yasg import openapi
+from metagov.core.plugin_models import (GovernanceProcessProvider,
+                                        ProcessState, ProcessStatus)
 from metagov.plugins.loomio import conf
 
 logger = logging.getLogger('django')
@@ -15,9 +16,25 @@ logger = logging.getLogger('django')
 process_state: for storing any state you need to persist in the database
 """
 
+input_schema = {
+    'properties': {
+        "title": openapi.Schema(
+            title="Poll Title",
+            type=openapi.TYPE_STRING,
+        ),
+        "closes_at": openapi.Schema(
+            title="Poll close date",
+            type=openapi.TYPE_STRING,
+            format=openapi.FORMAT_DATE
+        ),
+    },
+    'required': ["title", "closes_at"],
+}
+
 
 class Loomio(GovernanceProcessProvider):
     slug = 'loomio'
+    input_schema = input_schema
 
     @staticmethod
     def start(process_state: ProcessState, querydict) -> None:

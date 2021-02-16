@@ -7,7 +7,9 @@ from django.db import models
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
-from metagov.core.plugin_models import GovernanceProcessProvider, ProcessStatus, ProcessState
+from drf_yasg import openapi
+from metagov.core.plugin_models import (GovernanceProcessProvider,
+                                        ProcessState, ProcessStatus)
 from rest_framework import serializers
 
 logger = logging.getLogger('django')
@@ -20,6 +22,7 @@ def validate_process_name(name):
             _('%(name)s is not a registered governance process'),
             params={'name': name},
         )
+
 
 class GovernanceProcess(models.Model):
     name = models.CharField(max_length=30, validators=[
@@ -66,13 +69,11 @@ class GovernanceProcess(models.Model):
         PluginClass.handle_webhook(process_state, querydict)
 
 
-"""
-Pre-save receiver to notify caller that the governance processes has completed
-"""
-
-
 @receiver(pre_save, sender=GovernanceProcess, dispatch_uid="process_saved")
 def notify_process_completed(sender, instance, **kwargs):
+    """
+    Pre-save receiver to notify caller that the governance processes has completed
+    """
     try:
         obj = sender.objects.get(pk=instance.pk)
     except sender.DoesNotExist:

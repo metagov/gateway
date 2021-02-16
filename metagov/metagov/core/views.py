@@ -8,12 +8,32 @@ from django.http import (HttpResponse, HttpResponseBadRequest,
 from django.shortcuts import render
 from django.template import loader
 from django.views.decorators.csrf import csrf_exempt
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
 from metagov.core.models import GovernanceProcess, GovernanceProcessSerializer
 from metagov.core.plugin_models import (GovernanceProcessProvider,
                                         function_registry, listener_registry)
 from rest_framework.decorators import api_view
+from rest_framework.schemas import AutoSchema
+from rest_framework.views import APIView
 
 logger = logging.getLogger('django')
+
+my_plugin_input_fields = {
+    "type": openapi.TYPE_OBJECT,
+    "title": "Loomio input",
+    "properties": {
+        "title": openapi.Schema(
+            title="Poll Title",
+            type=openapi.TYPE_STRING,
+        ),
+        "closes_at": openapi.Schema(
+            title="Poll close date",
+            type=openapi.TYPE_STRING,
+        ),
+    },
+    "required": ["title", "closes_at"],
+}
 
 
 def index(request):
@@ -40,45 +60,55 @@ def get_resource(request, resource_name):
     if item is None:
         return HttpResponseBadRequest(f"Resource retrieval function {resource_name} not registered")
 
-    # FIXME middleware to validate input/output?
+    # TODO: validate query params; swagger docs
     return item.get('function')(request.GET)
 
 
-@api_view(['POST'])
-def create_process(request):
-    """
-    Start new governance process
-    """
-    payload = request_body(request)
-    if not payload:
-        logger.error("no payload")
-        return HttpResponse()
+def create_process_endpoint(process_name):
+    @api_view(['POST'])
+    def create_process(request):
+        """
+        Start new governance process
+        """
+        payload = request_body(request)
 
-    process_name = payload.get('process_name')
-    callback_url = payload.get('callback_url')
-    new_process = GovernanceProcess(
-        name=process_name, callback_url=callback_url)
-    try:
-        new_process.full_clean()
-    except ValidationError as e:
-        logger.error(e)
-        return HttpResponseBadRequest(e)
+        if not payload:
+            logger.error("no payload")
+            return HttpResponse()
 
-    new_process.save()  # save to create DataStore
-    new_process.start(payload)
-    logger.info(f"Started '{process_name}' process with id {new_process.pk}")
+        new_process = GovernanceProcess(
+            name=process_name, callback_url=payload.get('callback_url'))
+        try:
+            new_process.full_clean()
+        except ValidationError as e:
+            logger.error(e)
+            return HttpResponseBadRequest(e)
 
-    # return 202 with resource location in header
-    response = HttpResponse(status=HTTPStatus.ACCEPTED)
-    response['Location'] = f"/api/internal/process/{new_process.pk}"
-    return response
+        new_process.save()  # save to create DataStore
+
+        # TODO: validate payload (plugin author implement serializer?)
+        new_process.start(payload)
+        logger.info(
+            f"Started '{process_name}' process with id {new_process.pk}")
+
+        # return 202 with resource location in header
+        response = HttpResponse(status=HTTPStatus.ACCEPTED)
+        response['Location'] = f"/api/internal/process/{new_process.pk}"
+        return response
+
+    return create_process
 
 
+@swagger_auto_schema(method='delete',
+                     operation_description="Cancel governance process")
+@swagger_auto_schema(method='get',
+                     operation_description="Get status of governance process",
+                     responses={
+                            200: openapi.Response(
+                                'Current process record. Check the `status` field to see if the process has completed. If the `errors` field has data, the process failed.', GovernanceProcessSerializer),
+                            404: 'Process not found'})
 @api_view(['GET', 'DELETE'])
 def get_process(request, process_id):
-    """
-    Get or delete governance process
-    """
     try:
         process = GovernanceProcess.objects.get(pk=process_id)
     except GovernanceProcess.DoesNotExist:
@@ -86,8 +116,8 @@ def get_process(request, process_id):
 
     if request.method == 'DELETE':
         process.cancel()
-        # process.delete()
-        return HttpResponse()
+        # actually delete?
+        return HttpResponse(status=204)
 
     serializer = GovernanceProcessSerializer(process)
     logger.info(f"Returning serialized process: {serializer.data}")
@@ -134,3 +164,33 @@ def request_body(request):
         return query_dict
 
     return None
+
+
+def decorated_create_process_view(slug):
+    """
+    Decorate the `create_process_endpoint` view with swagger schema properties defined by the plugin author
+
+    TODO: include schemas for outcome too, not just input.
+    """
+    cls = GovernanceProcessProvider.plugins.get(slug)
+    schema = cls.input_schema
+    properties = schema.get('properties')
+    required = schema.get('required')
+
+    view = create_process_endpoint(slug)
+
+    return swagger_auto_schema(
+        method='post',
+        responses={
+            202: 'Process successfully started. Use the URL from the `Location` header in the response to get the status and outcome of the process.'
+        },
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            title="input",
+            properties={
+                "_callback_url": openapi.Schema(type=openapi.TYPE_STRING, description='URL to POST outcome to when process is completed'),
+                **properties
+            },
+            required=required
+        )
+    )(view)
