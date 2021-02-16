@@ -98,7 +98,7 @@ def create_process_endpoint(process_name):
 
         # return 202 with resource location in header
         response = HttpResponse(status=HTTPStatus.ACCEPTED)
-        response['Location'] = f"/api/internal/process/{new_process.pk}"
+        response['Location'] = f"/api/internal/process/{process_name}/{new_process.pk}"
         return response
 
     return create_process
@@ -189,7 +189,7 @@ def decorated_create_process_view(slug):
             type=openapi.TYPE_OBJECT,
             title="input",
             properties={
-                "_callback_url": openapi.Schema(type=openapi.TYPE_STRING, description='URL to POST outcome to when process is completed'),
+                "callback_url": openapi.Schema(type=openapi.TYPE_STRING, description='URL to POST outcome to when process is completed'),
                 **properties
             },
             required=required
