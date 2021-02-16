@@ -1,0 +1,4 @@
+discourse_url:
+  default: ''
+discourse_api_key:
+  default: ''

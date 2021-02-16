@@ -5,11 +5,11 @@ import requests
 from drf_yasg import openapi
 from metagov.core.plugin_models import (GovernanceProcessProvider,
                                         ProcessState, ProcessStatus,
-                                        webhook_listener)
-from metagov.plugins.discourse import conf
+                                        webhook_listener, load_settings)
 
 logger = logging.getLogger('django')
 
+settings = load_settings("discourse")
 
 @webhook_listener("discourse", "listen to events on discourse")
 def process_webhook(request):
@@ -46,7 +46,7 @@ class DiscoursePoll(GovernanceProcessProvider):
     def start(process_state: ProcessState, querydict) -> None:
         logger.info(querydict)
 
-        url = f"{conf.DISCOURSE_URL}/posts.json"
+        url = f"{settings['discourse_url']}/posts.json"
         closes_at = querydict.get("closes_at", "2021-02-17T17:19:00.000Z")
         raw = f"""
 [poll type=regular results=always chartType=bar close={closes_at}]
@@ -63,7 +63,7 @@ class DiscoursePoll(GovernanceProcessProvider):
             "category": querydict.get("category", 8)
         }
 
-        headers = {'Api-Key': conf.DISCOURSE_API_KEY, 'Api-Username': 'system'}
+        headers = {'Api-Key': settings['discourse_api_key'], 'Api-Username': 'system'}
         logger.info(payload)
         logger.info(url)
         resp = requests.post(url, data=payload, headers=headers)
@@ -80,7 +80,7 @@ class DiscoursePoll(GovernanceProcessProvider):
             process_state.set_errors(response['errors'])
             process_state.set_status(ProcessStatus.COMPLETED)
         else:
-            poll_url = f"{conf.DISCOURSE_URL}/t/{response.get('topic_slug')}/{response.get('topic_id')}"
+            poll_url = f"{settings['discourse_url']}/t/{response.get('topic_slug')}/{response.get('topic_id')}"
             logger.info(f"Poll created at {poll_url}")
 
             process_state.set_data_value(

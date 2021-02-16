@@ -1,8 +1,11 @@
 import json
 import requests
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound
-from metagov.core.plugin_models import retrieve_resource
-from metagov.plugins.sourcecred import conf
+from metagov.core.plugin_models import retrieve_resource, load_settings
+
+
+settings = load_settings("sourcecred")
+
 
 @retrieve_resource('cred', 'Cred value for given user')
 def cred(querydict):
@@ -27,7 +30,7 @@ def grain(querydict):
 
 
 def get_user_cred(username):
-    url = f"{conf.SOURCECRED_SERVER}/output/accounts.json"
+    url = f"{settings['sourcecred_server']}/output/accounts.json"
     resp = requests.get(url)
     cred_data = resp.json()
     for account in cred_data["accounts"]:

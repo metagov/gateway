@@ -47,15 +47,22 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'drf_yasg',
-    'metagov.core',
-    'metagov.plugins.discourse',
-    'metagov.plugins.sourcecred',
-    'metagov.plugins.loomio',
+    'metagov.core'
 ]
+
+# Add plugins to INSTALLED_APPS
+PLUGINS_DIR = os.path.join(BASE_DIR, 'metagov', 'plugins')
+for item in os.listdir(PLUGINS_DIR):
+    if os.path.isdir(os.path.join(PLUGINS_DIR, item)) and not item.startswith('__'):
+        app_name = 'metagov.plugins.%s' % item
+        if app_name not in INSTALLED_APPS:
+            print(f"Installing plugin {app_name}")
+            INSTALLED_APPS += (app_name, )
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema'
 }
+
 SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False,
     'SECURITY_DEFINITIONS': {},
@@ -75,12 +82,6 @@ SWAGGER_SETTINGS = {
         'rest_framework.parsers.JSONParser',
     ]
 }
-
-
-SOURCECRED_SERVER = "https://metagov.github.io/sourcecred-instance"
-LOOMIO_API_KEY = env('LOOMIO_API_KEY')
-DISCOURSE_API_KEY = env('DISCOURSE_API_KEY')
-DISCOURSE_URL = env('DISCOURSE_URL')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

@@ -7,10 +7,12 @@ from django.http import (HttpResponse, HttpResponseBadRequest,
                          HttpResponseNotFound)
 from drf_yasg import openapi
 from metagov.core.plugin_models import (GovernanceProcessProvider,
-                                        ProcessState, ProcessStatus)
-from metagov.plugins.loomio import conf
+                                        ProcessState, ProcessStatus,
+                                        load_settings)
 
 logger = logging.getLogger('django')
+
+settings = load_settings("loomio")
 
 """
 process_state: for storing any state you need to persist in the database
@@ -45,7 +47,7 @@ class Loomio(GovernanceProcessProvider):
             'options[]': querydict.getlist('options', ['agree', 'disagree']),
             'details': querydict.get('details', 'created by metagov'),
             'closing_at': querydict.get('closing_at', '2021-04-03'),
-            'api_key': conf.LOOMIO_API_KEY
+            'api_key': settings['loomio_api_key']
         }
 
         resp = requests.post(url, loomio_data)
@@ -91,7 +93,7 @@ class Loomio(GovernanceProcessProvider):
         logger.info(f"Processing event '{kind}' for poll {url}")
         if kind == "poll_closed_by_user" or kind == "poll_expired":
             logger.info(f"Loomio poll closed. Fetching poll result...")
-            url = f"https://www.loomio.org/api/b1/polls/{poll_key}?api_key={conf.LOOMIO_API_KEY}"
+            url = f"https://www.loomio.org/api/b1/polls/{poll_key}?api_key={settings['loomio_api_key']}"
             resp = requests.get(url)
             if not resp.ok:
                 logger.error(

@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import os
+import sys
 from enum import Enum
 from typing import TYPE_CHECKING, Any
+
+import environ
+import yaml
 
 if TYPE_CHECKING:
     from metagov.core.models import GovernanceProcess
@@ -10,6 +15,24 @@ if TYPE_CHECKING:
 # Plugins SHOULD import this file
 # Core SHOULD this file
 # Plugins SHOULD NOT import other files from core
+
+
+env = environ.Env()
+
+
+def load_settings(plugin_dirname):
+    path = os.path.join(sys.path[0], 'metagov',
+                        'plugins', plugin_dirname, 'settings.yml')
+    with open(path) as file:
+        settings_config = yaml.load(file, Loader=yaml.FullLoader)
+        settings = dict()
+        for key in settings_config.keys():
+            # Look for values in global env for now
+            # TODO replace this with namespaced settings
+            # that can be exposed in the UI optionally
+            value = env(key.upper()) or key.default
+            settings[key] = value
+        return settings
 
 
 class ResourceRetrievalFunctionRegistry(object):
@@ -130,6 +153,7 @@ class ProcessStatus(Enum):
     CREATED = 'created'
     PENDING = 'pending'
     COMPLETED = 'completed'
+
 
 class ProcessState:
     """
