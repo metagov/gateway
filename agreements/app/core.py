@@ -5,7 +5,9 @@ from app.auth import auth
 
 # api and database references are needed in many other modules
 api = auth.API()
+engine_id = api.me().id
 db = TinyDB('app/database/db.json', indent=4)
+
 
 def retrieve(convert_to, tag):
     return convert_to(db.table('metadata').get(doc_id=1)[tag])

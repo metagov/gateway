@@ -40,8 +40,10 @@ class Parser:
         text = status.full_text
 
         if "+gen" in text:
-            con = contract.Contract(status)
-            con.generate()
+            acc.generate_contract(status)
+            # con = contract.Contract(status)
+            # value = con.generate()
+            # acc.pay_from_contract(value)
         if "+exe" in text:
             self.execute(status)
         

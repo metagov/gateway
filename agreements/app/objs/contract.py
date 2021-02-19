@@ -79,6 +79,8 @@ class Contract:
             contract, doc_id=self.status.id
         ))
 
-        return True
+        total_cost = unit_cost * contract_size
+
+        return total_cost
 
     

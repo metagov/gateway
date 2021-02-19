@@ -1,10 +1,10 @@
-from app.core import db
+from app import core
 from tinydb.database import Document
 from .contract import Contract
 
 class Account:
     def __init__(self, user):
-        self.account_table = db.table('accounts')
+        self.account_table = core.db.table('accounts')
         self.id = user.id
         self.user = user
 
@@ -40,4 +40,32 @@ class Account:
             doc_ids=[0]
         )
     
-    # def generate_contract(self):
+    def pay_generate(self, user_id, amount):
+        # passed into tiny db update function, adds to balance
+        def add_to_balance(doc):
+            balance = int(doc['balance'])
+            balance += amount
+            doc['balance'] = str(balance)
+        
+        # updates account balance
+        self.account_table.update(
+            add_to_balance,
+            doc_ids=[user_id]
+        )
+
+    def pay_transfer(self, user_id, amount):
+        pass
+
+    def generate_contract(self, status):
+        new_contract = Contract(status)
+        total_value = new_contract.generate()
+        # calculates taxed amount and amount to pay users based on total value of contract
+        to_pay_engine = round(total_value * core.Consts.tax_rate)
+        to_pay_user = total_value - to_pay_engine
+
+        print(to_pay_engine, to_pay_user)
+
+        self.pay_generate(core.engine_id, to_pay_engine)
+        self.pay_generate(self.id, to_pay_user)
+        
+
