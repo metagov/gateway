@@ -2,9 +2,7 @@
 
 ## Overview
 
-The Metagov Prototype is a Django app with a plugin architecture. It is meant to be deployed alongside a "governance driver" such as PolicyKit.
-
-See the [Metagov Prototype RFC](https://docs.google.com/document/d/1PQhIYQN_a3qBUCMc-OvX6oHyNB531nu32xeGV1OYv_w/edit#heading=h.kfc0oza24iyy) for an overview of the architecture and plugin interfaces.
+The Metagov Prototype is a Django app with a plugin architecture. It is meant to be deployed alongside a "governance driver" such as PolicyKit. See the [Metagov Prototype RFC](https://docs.google.com/document/d/1PQhIYQN_a3qBUCMc-OvX6oHyNB531nu32xeGV1OYv_w/edit#heading=h.kfc0oza24iyy) for an overview of the architecture and plugin interfaces.
 
 ### Governance Plugins
 
