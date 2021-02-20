@@ -9,14 +9,36 @@ class Pool:
     def count_user_contracts(self, contract_type, user_id):
         contract_count = 0
 
+        # searches all contracts made by specified user
         for contract in self.contract_table.search(
             where('user') == str(user_id)):
 
+            # if contract is of requested type, contract count is updated
             if contract['type'] == contract_type:
                 contract_count += int(contract['count'])
 
         return contract_count
 
+    def execute_contracts(self, user_id, status, amount):
+        balance = amount
+        contract_dict = self.contract_table._read_table()
+        # ids are ordered from oldest to newest (excluding zero entry containing metadata)
+        contract_ids = list(contract_dict.keys())[1:]
+
+        for c_id in contract_ids:
+            c_entry = contract_dict[c_id]
+            price = int(c_entry['price'])
+
+            # executes contract if it can be paid for
+            if price <= balance:
+                balance -= price
+
+            # stops trying to execute when total amount is spent
+            if balance == 0:
+                break
+
+        # returns the amount actually spent executing contracts
+        return amount - balance
 
 class Contract:
     def __init__(self, status):
@@ -79,7 +101,20 @@ class Contract:
             contract, doc_id=self.status.id
         ))
 
+        # updating number of contracts
+        def increment_num_contracts(doc):
+            num_contracts = int(doc['num_contracts'])
+            num_contracts += 1
+            doc['num_contracts'] = str(num_contracts)
+
+        self.contract_table.update(
+            increment_num_contracts, 
+            doc_ids=[0]
+        )
+
         total_cost = unit_cost * contract_size
+
+        print(contract)
 
         return total_cost
 

@@ -41,9 +41,6 @@ class Parser:
 
         if "+gen" in text:
             acc.generate_contract(status)
-            # con = contract.Contract(status)
-            # value = con.generate()
-            # acc.pay_from_contract(value)
         if "+exe" in text:
             self.execute(status)
         
@@ -67,74 +64,6 @@ class Parser:
         ))
 
         return True
-    
-    def generate(self, status):
-        # determines how many like and retweet contracts are being generated
-        text = status.full_text
-        words = text[text.find("+gen"):].split()
-        arg = words[1]
-
-        if (arg[-1] == "L") or (arg[-1] == "l"):
-            gen_type = "like"
-
-        elif (arg[-1] == "R") or (arg[-1] == "r"):
-            gen_type = "retweet"
-        
-        try:
-            count = int(arg[:-1])
-        except ValueError:
-            return
-        
-        # retrieving consts from db
-        if gen_type == "like":
-            type_limit = Consts.like_limit
-        else:
-            type_limit = Consts.retweet_limit
-        # type_limit = self.meta.retrieve(f'{gen_type}_limit')
-        type_value = self.meta.retrieve(f'{gen_type}_value')
-        tax_rate = self.meta.retrieve('tax_rate')
-
-        # =============================================================================
-        # calculating and generating contract json
-
-        # cannot create contract over the limit
-        # THIS SHOULD BE FROM THE CONTRACT POOL. UPDATE LATER WHEN POSSIBLE.
-        if count > type_limit: count = type_limit
-        
-        # retrieving user follower count to approximate social value
-        user = self.api.get_user(status.user.id)
-        followers = user.followers_count
-
-        # calculating cost per unit of contract
-        unit_cost = type_value * followers
-
-        contract = {
-            "state": "alive",
-            "user": str(user.id),
-            "type": gen_type,
-            "count": str(count),
-            "price": str(unit_cost),
-            "created": str(status.created_at),
-            "executed": []
-        }
-
-        self.contracts.insert(Document(
-            contract,
-            doc_id=status.id
-        ))
-
-        # ===============================================================================
-        # paying out to user, and reserving tax
-
-        total_value = count * unit_cost
-        # rounded to keep XSC in whole units
-        taxed_value = round(total_value * tax_rate)
-        to_pay_out = total_value - taxed_value
-
-        self.pay(user.id, to_pay_out)
-        self.pay(self.me.id, taxed_value)
-
-        print(f'Generated contract {status.id} valued at {total_value}, {to_pay_out} paid out.')
     
     def pay(self, user, amount):
         # function definition to update database 

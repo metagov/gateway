@@ -1,6 +1,6 @@
 from app import core
 from tinydb.database import Document
-from .contract import Contract
+from .contract import Contract, Pool
 
 class Account:
     def __init__(self, user):
@@ -40,12 +40,10 @@ class Account:
             doc_ids=[0]
         )
     
-    def pay_generate(self, user_id, amount):
+    def change_balance(self, user_id, amount):
         # passed into tiny db update function, adds to balance
         def add_to_balance(doc):
-            balance = int(doc['balance'])
-            balance += amount
-            doc['balance'] = str(balance)
+            doc['balance'] = str(int(doc['balance']) + amount)
         
         # updates account balance
         self.account_table.update(
@@ -63,9 +61,16 @@ class Account:
         to_pay_engine = round(total_value * core.Consts.tax_rate)
         to_pay_user = total_value - to_pay_engine
 
-        print(to_pay_engine, to_pay_user)
+        print(to_pay_user)
 
-        self.pay_generate(core.engine_id, to_pay_engine)
-        self.pay_generate(self.id, to_pay_user)
-        
+        # paid out to user and agreement engine
+        self.change_balance(core.engine_id, to_pay_engine)
+        self.change_balance(self.id, to_pay_user)
+    
+    def execute_on(self, status, amount):
+        contract_pool = Pool()
+        amount_spent = contract_pool.execute_contracts(self.id, status, amount)
 
+        self.change_balance(self.id, -amount_spent)
+
+        print(amount_spent)
