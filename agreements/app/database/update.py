@@ -1,7 +1,9 @@
-import tweepy
+import tweepy, logging
 from app import core
 from .parser import Parser
 from .metadata import Metadata
+
+logger = logging.getLogger(__name__)
 
 def run():
     core.db.drop_tables() # clears database
@@ -19,6 +21,8 @@ def run():
         count=200
     ).items():
         new_statuses.append(status)
+
+    logger.info('Fetched {} new statuses'.format(len(new_statuses)))
 
     # iterates through statuses in chronological order
     for status in reversed(new_statuses):

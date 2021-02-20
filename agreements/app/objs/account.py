@@ -1,10 +1,12 @@
 from app import core
 from tinydb.database import Document
 from .contract import Contract, Pool
+import logging
 
 class Account:
     def __init__(self, user):
         self.account_table = core.db.table('accounts')
+        self.logger = logging.getLogger(".".join([self.__module__, type(self).__name__]))
         self.id = user.id
         self.user = user
 
@@ -51,26 +53,45 @@ class Account:
             doc_ids=[user_id]
         )
 
-    def pay_transfer(self, user_id, amount):
-        pass
+    # def transfer_balance(self, user_id, amount):
+        
 
     def generate_contract(self, status):
+        self.logger.info(f'Generating new contract for {self.user.screen_name} [{self.id}]')
+
         new_contract = Contract(status)
         total_value = new_contract.generate()
+
+        if total_value == False:
+            logger.warn('Exiting invalid contract')
+            return
+
         # calculates taxed amount and amount to pay users based on total value of contract
         to_pay_engine = round(total_value * core.Consts.tax_rate)
         to_pay_user = total_value - to_pay_engine
 
-        print(to_pay_user)
-
         # paid out to user and agreement engine
         self.change_balance(core.engine_id, to_pay_engine)
         self.change_balance(self.id, to_pay_user)
+        self.logger.info(f'Paid {self.user.screen_name} [{self.id}] {to_pay_user} XSC ({to_pay_engine} withheld)')
+
     
-    def execute_on(self, status, amount):
+    def execute_contracts(self, status):
+        self.logger.info(f'Executing contracts for {self.user.screen_name} [{self.id}] on status #{status.id}')
+
+        text = status.full_text 
+        arg = text[text.find("+exe"):].split()[1]
+
+        # extracting amount to spend
+        try:
+            to_spend = int(arg)
+        except ValueError:
+            return False
+        
+        executing_on = status.in_reply_to_status_id
+
         contract_pool = Pool()
-        amount_spent = contract_pool.execute_contracts(self.id, status, amount)
+        amount_spent = contract_pool.auto_execute_contracts(self.id, executing_on, to_spend)
 
         self.change_balance(self.id, -amount_spent)
 
-        print(amount_spent)

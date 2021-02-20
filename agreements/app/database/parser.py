@@ -35,6 +35,7 @@ class Parser:
     def parse(self, status):
         self.add_status(status)
 
+
         acc = account.Account(status.user)
 
         text = status.full_text
@@ -42,8 +43,8 @@ class Parser:
         if "+gen" in text:
             acc.generate_contract(status)
         if "+exe" in text:
-            self.execute(status)
-        
+            acc.execute_contracts(status)
+                
     def add_status(self, status):
         if self.statuses.contains(doc_id=status.id):
             return

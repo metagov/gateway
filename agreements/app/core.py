@@ -1,14 +1,32 @@
 import json
+import logging, datetime
 import tweepy
 from tinydb import TinyDB
 from app.auth import auth
 
+# setting up app level logger
+root_logger = logging.getLogger('app')
+root_logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+handler.setLevel(logging.DEBUG)
+handler.setFormatter(logging.Formatter(
+    fmt='[%(asctime)s] %(name)-26s > %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'))
+root_logger.addHandler(handler)
+
+logger = logging.getLogger(__name__)
+
 # api and database references are needed in many other modules
+logger.info('Setting up auth keys...')
 api = auth.API()
 engine_id = api.me().id
+logger.info('Done!')
+
 db = TinyDB('app/database/db.json', indent=4)
+logger.info('Database loaded.')
 
 
+# retrieves values from the metadata table in the database
 def retrieve(convert_to, tag):
     return convert_to(db.table('metadata').get(doc_id=1)[tag])
 
@@ -18,3 +36,4 @@ class Consts:
     retweet_value = retrieve(int, 'retweet_value')
     retweet_limit = retrieve(int, 'retweet_limit')
     tax_rate = retrieve(float, 'tax_rate')
+

@@ -1,10 +1,12 @@
 from app import core
 from tinydb.database import Document
 from tinydb import where
+import logging
 
 class Pool:
     def __init__(self):
         self.contract_table = core.db.table('contracts')
+        self.logger = logging.getLogger(".".join([self.__module__, type(self).__name__]))
     
     def count_user_contracts(self, contract_type, user_id):
         contract_count = 0
@@ -19,7 +21,7 @@ class Pool:
 
         return contract_count
 
-    def execute_contracts(self, user_id, status, amount):
+    def auto_execute_contracts(self, user_id, status, amount):
         balance = amount
         contract_dict = self.contract_table._read_table()
         # ids are ordered from oldest to newest (excluding zero entry containing metadata)
@@ -27,11 +29,17 @@ class Pool:
 
         for c_id in contract_ids:
             c_entry = contract_dict[c_id]
-            price = int(c_entry['price'])
+            c_price = int(c_entry['price'])
+            c_user_id = int(c_entry['user'])
+
+            # prevents user from executing their own contract
+            if user_id == c_user_id:
+                continue
 
             # executes contract if it can be paid for
-            if price <= balance:
-                balance -= price
+            if c_price <= balance:
+                self.execute(c_id, status)
+                balance -= c_price
 
             # stops trying to execute when total amount is spent
             if balance == 0:
@@ -40,9 +48,13 @@ class Pool:
         # returns the amount actually spent executing contracts
         return amount - balance
 
+    def execute(self, contract_id, status):
+        print(contract_id, "I have been executed!")
+
 class Contract:
     def __init__(self, status):
         self.contract_table = core.db.table('contracts')
+        self.logger = logging.getLogger(".".join([self.__module__, type(self).__name__]))
         self.id = status.id
         self.status = status
     
@@ -60,6 +72,7 @@ class Contract:
         try:
             contract_size = int(arg[:-1])
         except ValueError:
+            logger.warn('Could not parse generate command')
             return False
         
         # selecting proper consts based on contract type
@@ -76,6 +89,7 @@ class Contract:
         remaining_contracts = contract_type_limit - total_contracts 
 
         if remaining_contracts < 1:
+            self.logger.warn('User has exceeded contract limit')
             return False
 
         # if user requests more than allowed, resized to max possible
@@ -114,7 +128,7 @@ class Contract:
 
         total_cost = unit_cost * contract_size
 
-        print(contract)
+        self.logger.info(f'New contract #{self.id} created for {contract_size} {contract_type}s valued at {total_cost} XSC')
 
         return total_cost
 
