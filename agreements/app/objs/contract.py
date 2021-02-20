@@ -30,7 +30,7 @@ class Pool:
         for c_id in contract_ids:
             c_entry = contract_dict[c_id]
             c_price = int(c_entry['price'])
-            c_user_id = int(c_entry['user'])
+            c_user_id = int(c_entry['user_id'])
 
             # prevents user from executing their own contract
             if user_id == c_user_id:
@@ -48,8 +48,24 @@ class Pool:
         # returns the amount actually spent executing contracts
         return amount - balance
 
-    def execute(self, contract_id, status):
-        print(contract_id, "I have been executed!")
+    def execute(self, contract_id, status_id):
+        contract_dict = self.contract_table._read_table()
+        to_execute = contract_dict[contract_id]
+        c_price = to_execute['price']
+        c_type = to_execute['type']
+        c_user_id = to_execute['user_id']
+        c_user_screen_name = to_execute['user_screen_name']
+
+        status = core.api.get_status(status_id)
+
+        self.logger.info(f'Executed {c_type} contract #{contract_id} from {c_user_screen_name} [{c_user_id}] for {c_price} XSC')
+
+        core.api.update_status(
+            status = f'@lukvmil Your contract has been called in, please {c_type} the above post!', 
+            in_reply_to_status_id = status_id, 
+            auto_populate_reply_metadata= True )
+        
+        print(to_execute)
 
 class Contract:
     def __init__(self, status):
@@ -102,7 +118,8 @@ class Contract:
 
         contract = {
             "state": "alive",
-            "user": str(self.status.user.id),
+            "user_id": str(self.status.user.id),
+            "user_screen_name": self.status.user.screen_name,
             "type": contract_type,
             "count": str(contract_size),
             "price": str(unit_cost),
@@ -129,6 +146,7 @@ class Contract:
         total_cost = unit_cost * contract_size
 
         self.logger.info(f'New contract #{self.id} created for {contract_size} {contract_type}s valued at {total_cost} XSC')
+        self.logger.info(contract)
 
         return total_cost
 

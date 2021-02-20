@@ -77,7 +77,7 @@ class Account:
 
     
     def execute_contracts(self, status):
-        self.logger.info(f'Executing contracts for {self.user.screen_name} [{self.id}] on status #{status.id}')
+        self.logger.info(f'Executing contracts for {self.user.screen_name} [{self.id}]')
 
         text = status.full_text 
         arg = text[text.find("+exe"):].split()[1]
@@ -89,6 +89,8 @@ class Account:
             return False
         
         executing_on = status.in_reply_to_status_id
+
+        self.logger.info(f'New execution request spending {to_spend} XSC on status #{executing_on}')
 
         contract_pool = Pool()
         amount_spent = contract_pool.auto_execute_contracts(self.id, executing_on, to_spend)
