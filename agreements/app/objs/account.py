@@ -86,23 +86,38 @@ class Account:
         total_value = new_contract.generate()
 
         if total_value == False:
-            logger.warn('Exiting invalid contract')
-            return
+            self.logger.warn('Exiting invalid contract')
+        
+        else:
+            # calculates taxed amount and amount to pay users based on total value of contract
+            to_pay_engine = round(total_value * core.Consts.tax_rate)
+            to_pay_user = total_value - to_pay_engine
 
-        # calculates taxed amount and amount to pay users based on total value of contract
-        to_pay_engine = round(total_value * core.Consts.tax_rate)
-        to_pay_user = total_value - to_pay_engine
+            # paid out to user and agreement engine
+            self.change_balance(core.engine_id, to_pay_engine)
+            self.change_balance(self.id, to_pay_user)
+            self.logger.info(f'Paid {self.screen_name} [{self.id}] {to_pay_user} XSC ({to_pay_engine} withheld)')
 
-        # paid out to user and agreement engine
-        self.change_balance(core.engine_id, to_pay_engine)
-        self.change_balance(self.id, to_pay_user)
-        self.logger.info(f'Paid {self.screen_name} [{self.id}] {to_pay_user} XSC ({to_pay_engine} withheld)')
+            # adds contract id to account list
+            self.account_table.update(
+                lambda d: d['contracts'].append(str(status.id)),
+                doc_ids=[self.id]
+            )
 
-        # adds contract id to account list
-        self.account_table.update(
-            lambda d: d['contracts'].append(str(status.id)),
-            doc_ids=[self.id]
-        )
+        c_entry = new_contract.get_entry()
+        update_message = ''
+
+        if new_contract.oversized == True:
+            update_message = f'You have reached your contract limit and cannot generate new ones until they have been used up.'
+        elif new_contract.resized == True:
+            update_message = f'Your request exceeded your {c_entry["type"]} contract limit so it was resized. Your account has been credited {to_pay_user} XSC for this {c_entry["count"]} {c_entry["type"]} contract.'
+        else:
+            update_message = f'Successfully generated! Your account has been credited {to_pay_user} XSC for this {c_entry["count"]} {c_entry["type"]} contract.'
+
+        core.api.update_status(
+            status = f'@{self.screen_name} ' + update_message, 
+            in_reply_to_status_id = status.id, 
+            auto_populate_reply_metadata= True)
 
     
     def execute_contracts(self, status):
@@ -123,8 +138,19 @@ class Account:
 
         contract_pool = contract.Pool()
         # auto execute function will try to spend all of the funds requested executing contracts
-        amount_spent = contract_pool.auto_execute_contracts(self.id, executing_on, to_spend)
+        executed_count, amount_spent = contract_pool.auto_execute_contracts(self.id, executing_on, to_spend)
 
         self.change_balance(self.id, -amount_spent)
+
+        if executed_count > 0:
+            update_message = f'Executed {executed_count} contracts for {amount_spent} XSC.'
+        else:
+            update_message = f'Unable to execute any contracts, your account has not been charged.'
+
+        core.api.update_status(
+            status = f'@{self.screen_name} ' + update_message, 
+            in_reply_to_status_id = status.id, 
+            auto_populate_reply_metadata= True)
+
 
 

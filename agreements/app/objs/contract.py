@@ -13,9 +13,7 @@ class Pool:
         contract_count = 0
 
         # searches all contracts made by specified user
-        for contract in self.contract_table.search(
-            where('user') == str(user_id)):
-
+        for contract in self.contract_table.search(where('user_id') == str(user_id)):
             # if contract is of requested type, contract count is updated
             if contract['type'] == contract_type:
                 contract_count += int(contract['count'])
@@ -67,7 +65,7 @@ class Pool:
             self.logger.info('Was not able to execute any contracts')
 
         # returns the amount actually spent executing contracts
-        return amount - balance
+        return (contract_count, amount - balance)
 
     def execute(self, contract_id, status_id):
         contract_dict = self.contract_table._read_table()
@@ -82,10 +80,10 @@ class Pool:
         self.logger.info(f'Executed {c_type} contract #{contract_id} from {c_user_screen_name} [{c_user_id}] for {c_price} XSC')
 
         # sends out message calling in executed contract
-        # core.api.update_status(
-        #     status = f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!', 
-        #     in_reply_to_status_id = status_id, 
-        #     auto_populate_reply_metadata= True)
+        core.api.update_status(
+            status = f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!', 
+            in_reply_to_status_id = status_id, 
+            auto_populate_reply_metadata= True)
         
         print(f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!')
 
@@ -107,7 +105,13 @@ class Contract:
         self.logger = logging.getLogger(".".join([self.__module__, type(self).__name__]))
         self.id = status.id
         self.status = status
+
+        self.resized = False
+        self.oversized = False
     
+    def get_entry(self):
+        return self.contract_table.get(doc_id=self.id)
+
     def generate(self):
         text = self.status.full_text
         arg = text[text.find("+gen"):].split()[1]
@@ -140,11 +144,14 @@ class Contract:
 
         if remaining_contracts < 1:
             self.logger.warn('User has exceeded contract limit')
+            self.oversized = True
             return False
 
         # if user requests more than allowed, resized to max possible
         if contract_size > remaining_contracts:
+            self.logger.warn('New contract will exceed limit, resizing')
             contract_size = remaining_contracts
+            self.resized = True
 
         # calculating unit cost per execution
         social_reach = self.status.user.followers_count
