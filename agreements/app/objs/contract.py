@@ -2,6 +2,7 @@ from app import core
 from tinydb.database import Document
 from tinydb import where
 import logging
+from . import account
 
 class Pool:
     def __init__(self):
@@ -27,23 +28,43 @@ class Pool:
         # ids are ordered from oldest to newest (excluding zero entry containing metadata)
         contract_ids = list(contract_dict.keys())[1:]
 
+        contract_count = 0
+
         for c_id in contract_ids:
             c_entry = contract_dict[c_id]
             c_price = int(c_entry['price'])
             c_user_id = int(c_entry['user_id'])
+            c_type = c_entry['type']
 
             # prevents user from executing their own contract
             if user_id == c_user_id:
                 continue
 
+            # a user can't like or retweet the same post twice
+            acc = account.Account(c_user_id)
+            if (c_type == "like") and (acc.has_liked(status)):
+                continue
+            if (c_type == "retweet") and (acc.has_retweeted(status)):
+                continue
+
             # executes contract if it can be paid for
             if c_price <= balance:
                 self.execute(c_id, status)
+                core.db.table('accounts').update(
+                    lambda d: d[f'{c_type}s'].append(str(status)),
+                    doc_ids=[c_user_id]
+                )
                 balance -= c_price
+                contract_count += 1
 
             # stops trying to execute when total amount is spent
             if balance == 0:
                 break
+        
+        if contract_count > 0:
+            self.logger.info(f'Successfully executed {contract_count} contracts for {amount - balance}/{amount} XSC')
+        else:
+            self.logger.info('Was not able to execute any contracts')
 
         # returns the amount actually spent executing contracts
         return amount - balance
@@ -60,12 +81,25 @@ class Pool:
 
         self.logger.info(f'Executed {c_type} contract #{contract_id} from {c_user_screen_name} [{c_user_id}] for {c_price} XSC')
 
-        core.api.update_status(
-            status = f'@lukvmil Your contract has been called in, please {c_type} the above post!', 
-            in_reply_to_status_id = status_id, 
-            auto_populate_reply_metadata= True )
+        # sends out message calling in executed contract
+        # core.api.update_status(
+        #     status = f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!', 
+        #     in_reply_to_status_id = status_id, 
+        #     auto_populate_reply_metadata= True)
         
-        print(to_execute)
+        print(f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!')
+
+        # transform function to update contract use count and executions
+        def update_contract(status_id):
+            def transform(doc):
+                doc['count'] = str(int(doc['count']) - 1)
+                doc['executed_on'].append(status_id)
+            return transform
+
+        self.contract_table.update(
+            update_contract(status_id),
+            doc_ids=[contract_id]
+        )
 
 class Contract:
     def __init__(self, status):
@@ -124,7 +158,7 @@ class Contract:
             "count": str(contract_size),
             "price": str(unit_cost),
             "created": str(self.status.created_at),
-            "executed": []
+            "executed_on": []
         }
 
         # inserting into database

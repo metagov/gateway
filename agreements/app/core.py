@@ -1,8 +1,8 @@
-import json
-import logging, datetime
+import json, logging
 import tweepy
 from tinydb import TinyDB
 from app.auth import auth
+from app.database.metadata import Metadata
 
 # setting up app level logger
 root_logger = logging.getLogger('app')
@@ -12,6 +12,12 @@ handler.setLevel(logging.DEBUG)
 handler.setFormatter(logging.Formatter(
     fmt='[%(asctime)s] %(name)-26s > %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'))
+fhandler = logging.FileHandler(f'last.log')
+fhandler.setLevel(logging.DEBUG)
+fhandler.setFormatter(logging.Formatter(
+    fmt='[%(asctime)s] %(name)-26s > %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'))
+root_logger.addHandler(fhandler)
 root_logger.addHandler(handler)
 
 logger = logging.getLogger(__name__)
@@ -25,6 +31,7 @@ logger.info('Done!')
 db = TinyDB('app/database/db.json', indent=4)
 logger.info('Database loaded.')
 
+Metadata(db)
 
 # retrieves values from the metadata table in the database
 def retrieve(convert_to, tag):

@@ -41,7 +41,7 @@ class Parser:
         text = status.full_text
 
         if "+gen" in text:
-            acc.generate_contract(status)
+            acc.create_contract(status)
         if "+exe" in text:
             acc.execute_contracts(status)
                 

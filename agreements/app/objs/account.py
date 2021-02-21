@@ -1,28 +1,44 @@
 from app import core
 from tinydb.database import Document
-from .contract import Contract, Pool
+from . import contract
 import logging
+import tweepy
 
 class Account:
-    def __init__(self, user):
+    def __init__(self, arg):
         self.account_table = core.db.table('accounts')
         self.logger = logging.getLogger(".".join([self.__module__, type(self).__name__]))
-        self.id = user.id
-        self.user = user
 
-        if not self.in_database():
-            self.add_to_database()
+        if type(arg) == int:
+            self.id = arg
+            if not self.in_database():
+                self.logger.warn('Account does not exist, unable to generate (user object not provided)')
     
+        elif type(arg) == tweepy.models.User:
+            user = arg
+            self.id = user.id
+            if not self.in_database():
+                self.generate(user)
+        else:
+            self.logger.warn('Invalid parameter when creating Account')
+
+        self.screen_name = self.get_entry()['screen_name']
+
+    def get_entry(self):
+        return self.account_table.get(doc_id=self.id)
+
     def in_database(self):
         return self.account_table.contains(doc_id=self.id)
     
-    def add_to_database(self):
+    def generate(self, user):
         # initializing default account data
         entry = {
-            'full_name': self.user.name,
-            'screen_name': self.user.screen_name,
+            'full_name': user.name,
+            'screen_name': user.screen_name,
             'balance': '0',
-            'contracts': []
+            'contracts': [],
+            'likes': [],
+            'retweets': []
         }
 
         # inserting account data into table
@@ -51,15 +67,22 @@ class Account:
         self.account_table.update(
             add_to_balance,
             doc_ids=[user_id]
-        )
+        )        
 
     # def transfer_balance(self, user_id, amount):
-        
 
-    def generate_contract(self, status):
-        self.logger.info(f'Generating new contract for {self.user.screen_name} [{self.id}]')
+    def has_liked(self, status_id):
+        likes = self.get_entry()['likes']
+        return str(status_id) in likes
+    
+    def has_retweeted(self, status_id):
+        retweets = self.get_entry()['retweets']
+        return str(status_id) in retweets
 
-        new_contract = Contract(status)
+    def create_contract(self, status):
+        self.logger.info(f'Generating new contract for {self.screen_name} [{self.id}]')
+
+        new_contract = contract.Contract(status)
         total_value = new_contract.generate()
 
         if total_value == False:
@@ -73,11 +96,17 @@ class Account:
         # paid out to user and agreement engine
         self.change_balance(core.engine_id, to_pay_engine)
         self.change_balance(self.id, to_pay_user)
-        self.logger.info(f'Paid {self.user.screen_name} [{self.id}] {to_pay_user} XSC ({to_pay_engine} withheld)')
+        self.logger.info(f'Paid {self.screen_name} [{self.id}] {to_pay_user} XSC ({to_pay_engine} withheld)')
+
+        # adds contract id to account list
+        self.account_table.update(
+            lambda d: d['contracts'].append(str(status.id)),
+            doc_ids=[self.id]
+        )
 
     
     def execute_contracts(self, status):
-        self.logger.info(f'Executing contracts for {self.user.screen_name} [{self.id}]')
+        self.logger.info(f'Executing contracts for {self.screen_name} [{self.id}]')
 
         text = status.full_text 
         arg = text[text.find("+exe"):].split()[1]
@@ -92,8 +121,10 @@ class Account:
 
         self.logger.info(f'New execution request spending {to_spend} XSC on status #{executing_on}')
 
-        contract_pool = Pool()
+        contract_pool = contract.Pool()
+        # auto execute function will try to spend all of the funds requested executing contracts
         amount_spent = contract_pool.auto_execute_contracts(self.id, executing_on, to_spend)
 
         self.change_balance(self.id, -amount_spent)
+
 
