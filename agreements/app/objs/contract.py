@@ -4,11 +4,13 @@ from tinydb import where
 import logging
 from . import account
 
+# represents the contract pool
 class Pool:
     def __init__(self):
         self.contract_table = core.db.table('contracts')
         self.logger = logging.getLogger(".".join([self.__module__, type(self).__name__]))
     
+    # counts how many contracts a user has for a given type
     def count_user_contracts(self, contract_type, user_id):
         contract_count = 0
 
@@ -20,6 +22,7 @@ class Pool:
 
         return contract_count
 
+    # automatically executes contracts up to the amount specified on the given status
     def auto_execute_contracts(self, user_id, status, amount):
         balance = amount
         contract_dict = self.contract_table._read_table()
@@ -48,10 +51,12 @@ class Pool:
             # executes contract if it can be paid for
             if c_price <= balance:
                 self.execute(c_id, status)
+                # adds status to likes or retweets list of an account
                 core.db.table('accounts').update(
                     lambda d: d[f'{c_type}s'].append(str(status)),
                     doc_ids=[c_user_id]
                 )
+                # updates remaining balance
                 balance -= c_price
                 contract_count += 1
 
@@ -64,9 +69,10 @@ class Pool:
         else:
             self.logger.info('Was not able to execute any contracts')
 
-        # returns the amount actually spent executing contracts
+        # returns the number of contracts executed and the amount actually spent executing contracts
         return (contract_count, amount - balance)
 
+    # actual execution of a single contract on a status
     def execute(self, contract_id, status_id):
         contract_dict = self.contract_table._read_table()
         to_execute = contract_dict[contract_id]
@@ -85,20 +91,18 @@ class Pool:
             in_reply_to_status_id = status_id, 
             auto_populate_reply_metadata= True)
         
-        print(f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!')
-
         # transform function to update contract use count and executions
         def update_contract(status_id):
             def transform(doc):
                 doc['count'] = str(int(doc['count']) - 1)
                 doc['executed_on'].append(status_id)
             return transform
-
         self.contract_table.update(
             update_contract(status_id),
             doc_ids=[contract_id]
         )
 
+# represents a single contract
 class Contract:
     def __init__(self, status):
         self.contract_table = core.db.table('contracts')
@@ -106,12 +110,15 @@ class Contract:
         self.id = status.id
         self.status = status
 
+        # attributes show whether a generationg request exceeded the limit, and whether it could be resized to under the limit
         self.resized = False
         self.oversized = False
     
+    # returns dict entry from db
     def get_entry(self):
         return self.contract_table.get(doc_id=self.id)
 
+    # generates a contract from a status (given in initialization)
     def generate(self):
         text = self.status.full_text
         arg = text[text.find("+gen"):].split()[1]
@@ -142,6 +149,7 @@ class Contract:
         total_contracts = contract_pool.count_user_contracts(contract_type, self.status.user.id)
         remaining_contracts = contract_type_limit - total_contracts 
 
+        # user has gone over the max contract limit for a particular type
         if remaining_contracts < 1:
             self.logger.warn('User has exceeded contract limit')
             self.oversized = True
@@ -157,6 +165,7 @@ class Contract:
         social_reach = self.status.user.followers_count
         unit_cost = contract_type_value * social_reach
 
+        # generating dict to be entered into db
         contract = {
             "state": "alive",
             "user_id": str(self.status.user.id),
@@ -178,12 +187,12 @@ class Contract:
             num_contracts = int(doc['num_contracts'])
             num_contracts += 1
             doc['num_contracts'] = str(num_contracts)
-
         self.contract_table.update(
             increment_num_contracts, 
             doc_ids=[0]
         )
 
+        # calculating total cost
         total_cost = unit_cost * contract_size
 
         self.logger.info(f'New contract #{self.id} created for {contract_size} {contract_type}s valued at {total_cost} XSC')

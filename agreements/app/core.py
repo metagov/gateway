@@ -4,7 +4,7 @@ from tinydb import TinyDB
 from app.auth import auth
 from app.database.metadata import Metadata
 
-# setting up app level logger
+# setting up app level logger to log in stdout and to a file
 root_logger = logging.getLogger('app')
 root_logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler()
@@ -31,6 +31,7 @@ logger.info('Done!')
 db = TinyDB('app/database/db.json', indent=4)
 logger.info('Database loaded.')
 
+# will generate db if doesn't exist yet
 Metadata(db)
 
 # retrieves values from the metadata table in the database

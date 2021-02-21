@@ -33,21 +33,22 @@ class Parser:
                 doc_id=0))
     
     def parse(self, status):
+        # decides what command a tweet is and runs the proper code
         self.add_status(status)
-
+        text = status.full_text
 
         acc = account.Account(status.user)
 
-        text = status.full_text
-
+        # generate and execute contract commands
         if "+gen" in text:
             acc.create_contract(status)
         if "+exe" in text:
             acc.execute_contracts(status)
-                
+
+    # adds data from every mention status to the database 
     def add_status(self, status):
         if self.statuses.contains(doc_id=status.id):
-            return
+            return False
 
         dict_status = {
             'text': status.full_text,
@@ -65,16 +66,3 @@ class Parser:
         ))
 
         return True
-    
-    def pay(self, user, amount):
-        # function definition to update database 
-        def change_balance(doc):
-            int_balance = int(doc['balance'])
-            int_balance += amount
-            doc['balance'] = str(int_balance)
-
-        # applying change_balance function to give user amount of xsc
-        self.accounts.update(
-            change_balance,
-            doc_ids=[user]
-        )
