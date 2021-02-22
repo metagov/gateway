@@ -102,7 +102,7 @@ class Pool:
         if core.Consts.send_tweets:
             # sends out message calling in executed contract
             core.api.update_status(
-                status = f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!', 
+                status = f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!' + " #" + str(status_id), 
                 in_reply_to_status_id = status_id, 
                 auto_populate_reply_metadata= True)
         else:

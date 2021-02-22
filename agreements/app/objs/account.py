@@ -94,6 +94,29 @@ class Account:
         new_agreement = agreement.Agreement(status)
         new_agreement.generate(self)
 
+        if new_agreement.contract_limited:
+            update_message = f'This agreement could not be created because you have reached your contract limit.'
+        elif new_agreement.balance_limited:
+            update_message = f'This agreement could not be created because you have exceeded your balance.'
+        else:
+            a_entry = new_agreement.get_entry()
+            collateral = a_entry['collateral']
+            c_type = a_entry['collateral_type']
+
+            if c_type == 'xsc':
+                update_message = f'Your agreement staking {collateral} XSC has been created!'
+            else:
+                update_message = f'Your agreement staking {collateral} {c_type}s has been created!'
+
+        if core.Consts.send_tweets:
+            # post to twitter
+            core.api.update_status(
+                status = f'@{self.screen_name} ' + update_message + " #" + str(status.id), 
+                in_reply_to_status_id = status.id, 
+                auto_populate_reply_metadata= True)
+        else:
+            print(f'@{self.screen_name} ' + update_message)
+
     def vote_upheld(self, status):
         original_agreement = agreement.Agreement(status.in_reply_to_status_id)
 
@@ -141,9 +164,9 @@ class Account:
         c_entry = new_contract.get_entry()
         update_message = ''
 
-        if new_contract.oversized == True:
+        if new_contract.oversized:
             update_message = f'You have reached your contract limit and cannot generate new ones until they have been used up.'
-        elif new_contract.resized == True:
+        elif new_contract.resized:
             update_message = f'Your request exceeded your {c_entry["type"]} contract limit so it was resized. Your account has been credited {to_pay_user} XSC for this {c_entry["count"]} {c_entry["type"]} contract.'
         else:
             update_message = f'Successfully generated! Your account has been credited {to_pay_user} XSC for this {c_entry["count"]} {c_entry["type"]} contract.'
@@ -151,7 +174,7 @@ class Account:
         if core.Consts.send_tweets:
             # post to twitter
             core.api.update_status(
-                status = f'@{self.screen_name} ' + update_message, 
+                status = f'@{self.screen_name} ' + update_message + " #" + str(status.id), 
                 in_reply_to_status_id = status.id, 
                 auto_populate_reply_metadata= True)
         else:
@@ -190,7 +213,7 @@ class Account:
         if core.Consts.send_tweets:
             # posting message to twitter
             core.api.update_status(
-                status = f'@{self.screen_name} ' + update_message, 
+                status = f'@{self.screen_name} ' + update_message + " #" + str(status.id), 
                 in_reply_to_status_id = status.id, 
                 auto_populate_reply_metadata= True)
         else:
