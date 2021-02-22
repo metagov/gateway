@@ -10,6 +10,7 @@ class Parser:
         self.meta = Metadata(db)
         self.accounts = db.table('accounts')
         self.contracts = db.table('contracts')
+        self.agreements = db.table('agreements')
         self.statuses = db.table('statuses')
         self.me = api.me()
 
@@ -28,7 +29,14 @@ class Parser:
             self.contracts.insert(Document(
                 {
                     'num_contracts': '0',
-                    'total_value': '0',
+                    # 'total_value': '0',
+                },
+                doc_id=0))
+        
+        if not self.agreements.contains(doc_id=0):
+            self.agreements.insert(Document(
+                {
+                    'num_agreements': '0'
                 },
                 doc_id=0))
     
@@ -44,6 +52,9 @@ class Parser:
             acc.create_contract(status)
         if "+exe" in text:
             acc.execute_contracts(status)
+        if "+agr" in text:
+            print(text)
+            acc.create_agreement(status)
 
     # adds data from every mention status to the database 
     def add_status(self, status):

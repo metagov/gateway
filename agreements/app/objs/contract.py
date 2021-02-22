@@ -36,6 +36,11 @@ class Pool:
             c_price = int(c_entry['price'])
             c_user_id = int(c_entry['user_id'])
             c_type = c_entry['type']
+            c_count = int(c_entry['count'])
+            c_state = c_entry['state']
+
+            if c_state == "dead":
+                continue
 
             # prevents user from executing their own contract
             if user_id == c_user_id:
@@ -50,15 +55,24 @@ class Pool:
 
             # executes contract if it can be paid for
             if c_price <= balance:
-                self.execute(c_id, status)
-                # adds status to likes or retweets list of an account
-                core.db.table('accounts').update(
-                    lambda d: d[f'{c_type}s'].append(str(status)),
-                    doc_ids=[c_user_id]
-                )
-                # updates remaining balance
-                balance -= c_price
-                contract_count += 1
+                if c_count > 0:
+                    self.execute(c_id, status)
+                    # adds status to likes or retweets list of an account
+                    core.db.table('accounts').update(
+                        lambda d: d[f'{c_type}s'].append(str(status)),
+                        doc_ids=[c_user_id]
+                    )
+                    # updates remaining balance
+                    balance -= c_price
+                    contract_count += 1
+                else:
+                    def kill_contract(doc):
+                        doc['state'] = 'dead'
+                    self.contract_table.update(
+                        kill_contract,
+                        doc_ids=[c_id]
+                    )
+
 
             # stops trying to execute when total amount is spent
             if balance == 0:
@@ -85,11 +99,14 @@ class Pool:
 
         self.logger.info(f'Executed {c_type} contract #{contract_id} from {c_user_screen_name} [{c_user_id}] for {c_price} XSC')
 
-        # sends out message calling in executed contract
-        core.api.update_status(
-            status = f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!', 
-            in_reply_to_status_id = status_id, 
-            auto_populate_reply_metadata= True)
+        if core.Consts.send_tweets:
+            # sends out message calling in executed contract
+            core.api.update_status(
+                status = f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!', 
+                in_reply_to_status_id = status_id, 
+                auto_populate_reply_metadata= True)
+        else:
+            print(f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!')
         
         # transform function to update contract use count and executions
         def update_contract(status_id):
@@ -118,7 +135,6 @@ class Contract:
     def get_entry(self):
         return self.contract_table.get(doc_id=self.id)
 
-    # generates a contract from a status (given in initialization)
     def generate(self):
         text = self.status.full_text
         arg = text[text.find("+gen"):].split()[1]
@@ -136,6 +152,10 @@ class Contract:
             logger.warn('Could not parse generate command')
             return False
         
+        return self.complex_generate(contract_type, contract_size)
+
+    # generates a contract from a status (given in initialization)
+    def complex_generate(self, contract_type, contract_size):
         # selecting proper consts based on contract type
         if contract_type == "like":
             contract_type_limit = core.Consts.like_limit

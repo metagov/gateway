@@ -1,7 +1,7 @@
 from app import core
 from tinydb.database import Document
-from . import contract
-import logging
+from . import contract, agreement
+import logging, math
 import tweepy
 
 # represents a single account
@@ -74,6 +74,9 @@ class Account:
             add_to_balance,
             doc_ids=[user_id]
         )        
+    
+    def check_balance(self):
+        return int(self.account_table.get(doc_id=self.id)['balance'])
 
     # checks whether a user has had a like contract called in on a status
     def has_liked(self, status_id):
@@ -84,6 +87,13 @@ class Account:
     def has_retweeted(self, status_id):
         retweets = self.get_entry()['retweets']
         return str(status_id) in retweets
+
+    def create_agreement(self, status):
+        self.logger.info(f'Generating new agreement for {self.screen_name} [{self.id}]')
+
+        new_agreement = agreement.Agreement(status)
+        new_agreement.generate(self)
+
 
     # generates a new contract
     def create_contract(self, status):
@@ -98,7 +108,7 @@ class Account:
         
         else:
             # calculates taxed amount and amount to pay users based on total value of contract
-            to_pay_engine = round(total_value * core.Consts.tax_rate)
+            to_pay_engine = math.ceil(total_value * core.Consts.tax_rate)
             to_pay_user = total_value - to_pay_engine
 
             # paid out to user and agreement engine
@@ -123,11 +133,14 @@ class Account:
         else:
             update_message = f'Successfully generated! Your account has been credited {to_pay_user} XSC for this {c_entry["count"]} {c_entry["type"]} contract.'
 
-        # post to twitter
-        core.api.update_status(
-            status = f'@{self.screen_name} ' + update_message, 
-            in_reply_to_status_id = status.id, 
-            auto_populate_reply_metadata= True)
+        if core.Consts.send_tweets:
+            # post to twitter
+            core.api.update_status(
+                status = f'@{self.screen_name} ' + update_message, 
+                in_reply_to_status_id = status.id, 
+                auto_populate_reply_metadata= True)
+        else:
+            print(f'@{self.screen_name} ' + update_message)
 
     # executes contracts on a requested post for a certain amount of XSC
     def execute_contracts(self, status):
@@ -159,11 +172,13 @@ class Account:
         else:
             update_message = f'Unable to execute any contracts, your account has not been charged.'
 
-        # posting message to twitter
-        core.api.update_status(
-            status = f'@{self.screen_name} ' + update_message, 
-            in_reply_to_status_id = status.id, 
-            auto_populate_reply_metadata= True)
-
+        if core.Consts.send_tweets:
+            # posting message to twitter
+            core.api.update_status(
+                status = f'@{self.screen_name} ' + update_message, 
+                in_reply_to_status_id = status.id, 
+                auto_populate_reply_metadata= True)
+        else:
+            print(f'@{self.screen_name} ' + update_message)
 
 

@@ -6,7 +6,7 @@ from .metadata import Metadata
 logger = logging.getLogger(__name__)
 
 def run():
-    # core.db.drop_tables() # clears database
+    core.db.drop_tables() # clears database
 
     meta = Metadata(core.db)
     parser = Parser(core.db, core.api)
