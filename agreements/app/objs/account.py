@@ -94,6 +94,21 @@ class Account:
         new_agreement = agreement.Agreement(status)
         new_agreement.generate(self)
 
+    def vote_upheld(self, status):
+        original_agreement = agreement.Agreement(status.in_reply_to_status_id)
+
+        if original_agreement.valid:
+            original_agreement.vote(self, 'upheld')
+        else:
+            self.logger.warn("Invalid agreement id, entry not found")
+    
+    def vote_broken(self, status):
+        original_agreement = agreement.Agreement(status.in_reply_to_status_id)
+
+        if original_agreement.valid:
+            original_agreement.vote(self, 'broken')
+        else:
+            self.logger.warn("Invalid agreement id, entry not found")
 
     # generates a new contract
     def create_contract(self, status):

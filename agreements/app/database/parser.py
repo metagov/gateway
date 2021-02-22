@@ -50,11 +50,14 @@ class Parser:
         # generate and execute contract commands
         if "+gen" in text:
             acc.create_contract(status)
-        if "+exe" in text:
+        elif "+exe" in text:
             acc.execute_contracts(status)
-        if "+agr" in text:
-            print(text)
+        elif "+agr" in text:
             acc.create_agreement(status)
+        elif "+upheld" in text:
+            acc.vote_upheld(status)
+        elif "+broken" in text:
+            acc.vote_broken(status)
 
     # adds data from every mention status to the database 
     def add_status(self, status):

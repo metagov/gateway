@@ -10,12 +10,12 @@ root_logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler()
 handler.setLevel(logging.DEBUG)
 handler.setFormatter(logging.Formatter(
-    fmt='[%(asctime)s] %(name)-26s > %(message)s',
+    fmt='[%(asctime)s] %(name)-28s > %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'))
 fhandler = logging.FileHandler(f'last.log')
 fhandler.setLevel(logging.DEBUG)
 fhandler.setFormatter(logging.Formatter(
-    fmt='[%(asctime)s] %(name)-26s > %(message)s',
+    fmt='[%(asctime)s] %(name)-38s > %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'))
 root_logger.addHandler(fhandler)
 root_logger.addHandler(handler)
