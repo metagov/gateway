@@ -30,7 +30,10 @@ def run():
 
     # iterates through statuses in chronological order
     for status in reversed(new_statuses):
-        parser.parse(status)
+        try:
+            parser.parse(status)
+        except tweepy.error.TweepError:
+            logger.warn('Duplicate tweet')
 
         # updates last status id -> next mentions timeline won't see already parsed tweets
         if status.id > last_status_parsed:
