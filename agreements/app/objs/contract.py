@@ -73,7 +73,6 @@ class Pool:
                         doc_ids=[c_id]
                     )
 
-
             # stops trying to execute when total amount is spent
             if balance == 0:
                 break
