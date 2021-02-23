@@ -52,6 +52,12 @@ class Parser:
             acc.create_contract(status)
         elif "+exe" in text:
             acc.execute_contracts(status)
+        elif "+bal" in text:
+            acc.send_current_balance(status)
+        elif "+likes" in text:
+            acc.send_current_likes(status)
+        elif "+retweets" in text:
+            acc.send_current_retweets(status)
         elif "+agr" in text:
             acc.create_agreement(status)
         elif "+upheld" in text:

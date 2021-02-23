@@ -3,6 +3,7 @@ from tinydb.database import Document
 from . import contract, agreement
 import logging, math
 import tweepy
+import pdb 
 
 # represents a single account
 class Account:
@@ -77,6 +78,47 @@ class Account:
     
     def check_balance(self):
         return int(self.account_table.get(doc_id=self.id)['balance'])
+    
+    def send_current_balance(self, status):
+        self.logger.info('Sending current balance')
+
+        if core.Consts.send_tweets:
+            # post to twitter
+            core.api.update_status(
+                status = f'@{self.screen_name} ' + f'You currently have {self.check_balance()} XSC in your account.' + " #" + str(status.id), 
+                in_reply_to_status_id = status.id, 
+                auto_populate_reply_metadata= True)
+        else:
+            print(f'@{self.screen_name} ' + update_message)
+    
+    def send_current_likes(self, status):
+        likes = contract.Pool().count_user_contracts('like', self.id)
+
+        self.logger.info('Sending active like contract count')
+
+        if core.Consts.send_tweets:
+            # post to twitter
+            core.api.update_status(
+                status = f'@{self.screen_name} ' + f'You currently have {likes} active like contracts.' + " #" + str(status.id), 
+                in_reply_to_status_id = status.id, 
+                auto_populate_reply_metadata= True)
+        else:
+            print(f'@{self.screen_name} ' + update_message)
+
+    def send_current_retweets(self, status):
+        retweets = contract.Pool().count_user_contracts('retweet', self.id)
+
+        self.logger.info('Sending active retweet contract count')
+
+
+        if core.Consts.send_tweets:
+            # post to twitter
+            core.api.update_status(
+                status = f'@{self.screen_name} ' + f'You currently have {retweets} active retweet contracts.' + " #" + str(status.id), 
+                in_reply_to_status_id = status.id, 
+                auto_populate_reply_metadata= True)
+        else:
+            print(f'@{self.screen_name} ' + update_message)
 
     # checks whether a user has had a like contract called in on a status
     def has_liked(self, status_id):
@@ -98,8 +140,12 @@ class Account:
             update_message = f'This agreement could not be created because you have reached your contract limit.'
         elif new_agreement.balance_limited:
             update_message = f'This agreement could not be created because you have exceeded your balance.'
+        elif not new_agreement.valid:
+            update_message = f'Invalid agreement, failed to create.'
         else:
             a_entry = new_agreement.get_entry()
+            if not a_entry:
+                pdb.set_trace()
             collateral = a_entry['collateral']
             c_type = a_entry['collateral_type']
 
@@ -164,7 +210,9 @@ class Account:
         c_entry = new_contract.get_entry()
         update_message = ''
 
-        if new_contract.oversized:
+        if total_value == 0:
+            update_message = f'Your account has 0 followers, so contracts cannot be generated.'
+        elif new_contract.oversized:
             update_message = f'You have reached your contract limit and cannot generate new ones until they have been used up.'
         elif new_contract.resized:
             update_message = f'Your request exceeded your {c_entry["type"]} contract limit so it was resized. Your account has been credited {to_pay_user} XSC for this {c_entry["count"]} {c_entry["type"]} contract.'
