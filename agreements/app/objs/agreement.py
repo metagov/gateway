@@ -223,7 +223,7 @@ class Agreement:
                     in_reply_to_status_id = self.id, 
                     auto_populate_reply_metadata= True)
             else:
-                print(f'@{self.screen_name} ' + update_message)
+                print(update_message + " #" + str(self.id))
                        
 
     

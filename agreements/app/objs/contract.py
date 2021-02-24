@@ -105,7 +105,7 @@ class Pool:
                 in_reply_to_status_id = status_id, 
                 auto_populate_reply_metadata= True)
         else:
-            print(f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!')
+            print(f'@{c_user_screen_name} Your contract has been called in, please {c_type} the above post!' + " #" + str(status_id))
         
         # transform function to update contract use count and executions
         def update_contract(status_id):

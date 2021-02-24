@@ -89,7 +89,7 @@ class Account:
                 in_reply_to_status_id = status.id, 
                 auto_populate_reply_metadata= True)
         else:
-            print(f'@{self.screen_name} ' + update_message)
+            print(f'@{self.screen_name} ' + f'You currently have {self.check_balance()} XSC in your account.' + " #" + str(status.id))
     
     def send_current_likes(self, status):
         likes = contract.Pool().count_user_contracts('like', self.id)
@@ -103,7 +103,7 @@ class Account:
                 in_reply_to_status_id = status.id, 
                 auto_populate_reply_metadata= True)
         else:
-            print(f'@{self.screen_name} ' + update_message)
+            print(f'@{self.screen_name} ' + f'You currently have {likes} active like contracts.' + " #" + str(status.id))
 
     def send_current_retweets(self, status):
         retweets = contract.Pool().count_user_contracts('retweet', self.id)
@@ -118,7 +118,7 @@ class Account:
                 in_reply_to_status_id = status.id, 
                 auto_populate_reply_metadata= True)
         else:
-            print(f'@{self.screen_name} ' + update_message)
+            print(f'@{self.screen_name} ' + f'You currently have {retweets} active retweet contracts.' + " #" + str(status.id))
 
     # checks whether a user has had a like contract called in on a status
     def has_liked(self, status_id):
@@ -161,7 +161,7 @@ class Account:
                 in_reply_to_status_id = status.id, 
                 auto_populate_reply_metadata= True)
         else:
-            print(f'@{self.screen_name} ' + update_message)
+            print(f'@{self.screen_name} ' + update_message + " #" + str(status.id))
 
     def vote_upheld(self, status):
         original_agreement = agreement.Agreement(status.in_reply_to_status_id)
@@ -226,7 +226,7 @@ class Account:
                 in_reply_to_status_id = status.id, 
                 auto_populate_reply_metadata= True)
         else:
-            print(f'@{self.screen_name} ' + update_message)
+            print(f'@{self.screen_name} ' + update_message + " #" + str(status.id))
 
     # executes contracts on a requested post for a certain amount of XSC
     def execute_contracts(self, status):
@@ -270,6 +270,6 @@ class Account:
                 in_reply_to_status_id = status.id, 
                 auto_populate_reply_metadata= True)
         else:
-            print(f'@{self.screen_name} ' + update_message)
+            print(f'@{self.screen_name} ' + update_message + " #" + str(status.id))
 
 
