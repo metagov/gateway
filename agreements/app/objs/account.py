@@ -246,17 +246,22 @@ class Account:
 
         self.logger.info(f'New execution request spending {to_spend} XSC on status #{executing_on}')
 
-        contract_pool = contract.Pool()
-        # auto execute function will try to spend all of the funds requested executing contracts
-        executed_count, amount_spent = contract_pool.auto_execute_contracts(self.id, executing_on, to_spend)
+        if to_spend > self.check_balance():
+            self.logger.info(f'Execution request exceeds balance')
 
-        # updates balance based on amount actually spent
-        self.change_balance(self.id, -amount_spent)
-
-        if executed_count > 0:
-            update_message = f'Executed {executed_count} contracts for {amount_spent} XSC.'
+            update_message = f'This request exceeds your balance.'
         else:
-            update_message = f'Unable to execute any contracts, your account has not been charged.'
+            contract_pool = contract.Pool()
+            # auto execute function will try to spend all of the funds requested executing contracts
+            executed_count, amount_spent = contract_pool.auto_execute_contracts(self.id, executing_on, to_spend)
+
+            # updates balance based on amount actually spent
+            self.change_balance(self.id, -amount_spent)
+
+            if executed_count > 0:
+                update_message = f'Executed {executed_count} contracts for {amount_spent} XSC.'
+            else:
+                update_message = f'Unable to execute any contracts, your account has not been charged.'
 
         if core.Consts.send_tweets:
             # posting message to twitter
