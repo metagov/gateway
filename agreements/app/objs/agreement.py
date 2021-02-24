@@ -178,6 +178,12 @@ class Agreement:
             # if the creator used likes/retweets as collateral nothing happens and the contracts aren't generated
             else:
                 self.logger.info(f'Collateral type was future contract, nothing to do')
+                # effectively zeroes out dead contract
+                core.db.table('contracts').update(
+                    {'count': '0'},
+                    doc_ids=[self.id]
+                )
+                
                 update_message = f'Agreement is upheld, no contracts will be generated.'
 
 
