@@ -143,12 +143,15 @@ class Contract:
             contract_type = "like"
         elif (arg[-1] == "R") or (arg[-1] == "r"):
             contract_type = "retweet"
+        else:
+            self.logger.warn('Could not parse generate command')
+            return False
         
         # trying to extract contract size
         try:
             contract_size = int(arg[:-1])
         except ValueError:
-            logger.warn('Could not parse generate command')
+            self.logger.warn('Could not parse generate command')
             return False
         
         return self.complex_generate(contract_type, contract_size)
