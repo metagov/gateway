@@ -44,11 +44,10 @@ class GovernanceProcess(models.Model):
     def save(self, *args, **kwargs):
         super(GovernanceProcess, self).save(*args, **kwargs)
 
-    def start(self, querydict):
+    def start(self, parameters):
         PluginClass = self.plugins.get(self.name)
-        # FIXME stop using querydict
         process_state = ProcessState(self)
-        PluginClass.start(process_state, querydict)
+        PluginClass.start(process_state, parameters)
 
     def cancel(self):
         """cancel governance process"""

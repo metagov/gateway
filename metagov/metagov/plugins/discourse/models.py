@@ -7,10 +7,10 @@ import metagov.plugins.discourse.schemas as Schemas
 from metagov.core.plugin_models import (GovernanceProcessProvider,
                                         ProcessState, ProcessStatus,
                                         load_settings,
-                                        webhook_listener,
+                                        register_listener,
                                         BaseCommunity,
                                         BaseUser,
-                                        retrieve_resource,
+                                        register_resource,
                                         PlatformEvent,
                                         register_action)
 
@@ -72,15 +72,34 @@ ACTIONS
 
 
 @register_action(
-    action_type="discourse.create-post",
+    slug="discourse.create-post",
     description="Create a new post on discourse",
-    parameters_schema=Schemas.create_post_parameters,
-    response_schema=Schemas.create_post_response,
+    input_schema=Schemas.create_post_parameters,
+    output_schema=Schemas.create_post_response,
 )
 def create_post(initiator, parameters):
     payload = {'raw': parameters['raw'], 'topic_id': parameters['topic_id']}
     post = make_discourse_request("posts.json", payload)
-    return {'url': construct_post_url(post)}
+    return {'url': construct_post_url(post), 'post_number': post['post_number']}
+
+
+@register_action(
+    slug="discourse.delete-post",
+    description="Delete a post on discourse",
+    input_schema=Schemas.delete_post_parameters,
+    output_schema=None,
+)
+def delete_post(initiator, parameters):
+    headers = {
+        'Api-Username': 'system',
+        'Api-Key': system_api_key
+    }
+    resp = requests.delete(
+        f"{discourse_server_url}/posts/{parameters['post_number']}", headers=headers)
+    if not resp.ok:
+        logger.error(f"{resp.status_code} {resp.reason}")
+        raise ValueError(resp.text)
+    return {}
 
 
 """
@@ -88,7 +107,7 @@ LISTENERS
 """
 
 
-@webhook_listener("discourse", "receive events")
+@register_listener("discourse", "receive events")
 def process_webhook(request):
     instance = request.headers.get('X-Discourse-Instance')
     event_id = request.headers.get('X-Discourse-Event-Id')
@@ -102,7 +121,8 @@ def process_webhook(request):
     new_action = None
     if event == "post_created":
         post = body.get('post')
-        data = {'raw': post['raw'], 'topic_id': post['topic_id'], 'url': construct_post_url(post)}
+        data = {'raw': post['raw'], 'topic_id': post['topic_id'], 'post_number': post['post_number'],
+                'url': construct_post_url(post)}
         initiator = DiscourseUser(username=post['username'])
         new_action = PlatformEvent(
             community=community,
@@ -124,8 +144,8 @@ RESOURCE RETRIEVALS
 """
 
 
-@retrieve_resource('badges', 'Discourse badges for a given user')
-def get_discourse_badges(request):
+@register_resource('discourse.badges', 'Discourse badges for a given user')
+def get_discourse_badges(parameters):
     raise NotImplementedError
 
 
@@ -137,51 +157,54 @@ GOVERNANCE PROCESSES
 class DiscoursePoll(GovernanceProcessProvider):
     slug = 'discourse-poll'
 
-    #TODO use jsonschema-to-openapi
     input_schema = {
-        'properties': {
-            "title": openapi.Schema(
-                title="Poll title",
-                type=openapi.TYPE_STRING,
-            ),
-            "closes_at": openapi.Schema(
-                title="Poll close date-time",
-                type=openapi.TYPE_STRING,
-                format=openapi.FORMAT_DATETIME
-            ),
-            "category": openapi.Schema(
-                title="Discourse category id",
-                type=openapi.TYPE_INTEGER
-            ),
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string"
+            },
+            "options": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "category": {
+                "type": "integer"
+            },
+            "closing_at": {
+                "type": "string",
+                "format": "date"
+            }
         },
-        'required': ["title"],
+        "required": [
+            "title",
+            "closing_at"
+        ]
     }
 
     @staticmethod
-    def start(process_state: ProcessState, querydict) -> None:
-        logger.info(querydict)
-
+    def start(process_state: ProcessState, parameters) -> None:
         url = f"{discourse_server_url}/posts.json"
-        closes_at = querydict.get("closes_at", "2021-02-17T17:19:00.000Z")
+        closes_at = parameters["closing_at"]
+        options = "".join([f"* {opt}\n" for opt in parameters['options']])
         raw = f"""
 [poll type=regular results=always chartType=bar close={closes_at}]
-# {querydict.get("title", "Select an option")}
-* one
-* two
-* three
-* four
+# {parameters["title"]}
+{options}
 [/poll]
         """
         payload = {
             "raw": raw,
-            "title": querydict.get("title"),
-            "category": querydict.get("category", 8)
+            "title": parameters.get("title"),
+            "category": parameters.get("category", 8)
         }
 
         headers = {
             'Api-Key': system_api_key, 'Api-Username': 'system'}
         logger.info(payload)
         logger.info(url)
+
         resp = requests.post(url, data=payload, headers=headers)
         if not resp.ok:
             logger.error(

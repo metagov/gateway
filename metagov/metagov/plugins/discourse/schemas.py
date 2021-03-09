@@ -21,9 +21,26 @@ create_post_response = {
     "properties": {
         "url": {
             "type": "string"
+        },
+        "post_number": {
+            "type": "integer"
         }
     },
     "required": [
-        "url"
+        "url",
+        "post_number"
+    ]
+}
+
+delete_post_parameters = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "post_number": {
+            "type": "integer"
+        }
+    },
+    "required": [
+        "post_number"
     ]
 }

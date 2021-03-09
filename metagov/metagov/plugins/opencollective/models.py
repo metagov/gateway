@@ -1,11 +1,16 @@
 
 import requests
 import logging
+import json
 import metagov.plugins.opencollective.queries as Queries
 import metagov.plugins.opencollective.schemas as Schemas
 from metagov.core.plugin_models import (load_settings,
-                                        retrieve_resource,
-                                        register_action)
+                                        register_resource,
+                                        register_listener,
+                                        register_action,
+                                        BaseCommunity,
+                                        BaseUser,
+                                        PlatformEvent)
 
 logger = logging.getLogger('django')
 settings = load_settings("opencollective")
@@ -28,25 +33,56 @@ def run_query(query, variables):
             request.status_code, request.reason, query))
 
 
+class OpenCollectiveUser(BaseUser):
+    pass
+
+
+class OpenCollectiveCommunity(BaseCommunity):
+    def __init__(self,
+                 name: str,
+                 slug: str,
+                 collective_id: str,
+                 collective_legacy_id: int):
+        self.platform = 'opencollective'
+        self.name = name
+        self.unique_id = slug
+        self.slug = slug
+        self.collective_id = collective_id
+        self.collective_legacy_id = collective_legacy_id
+
+
+def create_community():
+    result = run_query(Queries.collective, {'slug': collective})
+    logger.info("Initialized Open Collective: " + str(result))
+    return OpenCollectiveCommunity(
+        name=result['data']['collective']['name'],
+        slug=collective,
+        collective_id=result['data']['collective']['id'],
+        collective_legacy_id=result['data']['collective']['legacyId']
+    )
+
+
 # init - do this somewhere else
-result = run_query(Queries.collective, {'slug': collective})
-logger.info(result)
-collective_id = result['data']['collective']['id']
-collective_name = result['data']['collective']['name']
+community = create_community()
+
+
+"""
+ACTIONS
+"""
 
 
 @register_action(
-    action_type="opencollective.create-conversation",
+    slug="opencollective.create-conversation",
     description="Start a new conversation on Open Collective",
-    parameters_schema=Schemas.create_conversation_parameters,
-    response_schema=Schemas.create_conversation_response,
+    input_schema=Schemas.create_conversation_parameters,
+    output_schema=Schemas.create_conversation_response,
 )
 def create_conversation(initiator, parameters):
     variables = {
         "html": parameters['raw'],
         # "tags": [],
         "title": parameters['title'],
-        "CollectiveId": collective_id
+        "CollectiveId": community.collective_id
     }
     result = run_query(Queries.create_conversation, variables)
     data = result['data']['createConversation']
@@ -55,10 +91,10 @@ def create_conversation(initiator, parameters):
 
 
 @register_action(
-    action_type="opencollective.create-comment",
+    slug="opencollective.create-comment",
     description="Add a comment to a conversation on Open Collective",
-    parameters_schema=Schemas.create_comment_parameters,
-    response_schema=Schemas.create_comment_response,
+    input_schema=Schemas.create_comment_parameters,
+    output_schema=Schemas.create_comment_response,
 )
 def create_comment(initiator, parameters):
     variables = {
@@ -73,10 +109,49 @@ def create_comment(initiator, parameters):
     return {'comment_id': data['id']}
 
 
-@retrieve_resource('collective-members', 'members of the collective')
-def get_members(request):
-    from django.http import JsonResponse
+"""
+LISTENER
+"""
+
+
+@register_listener("opencollective", "receive events from Open Collective")
+def listener(request):
+    body = json.loads(request.body)
+    if body.get('CollectiveId') != community.collective_legacy_id:
+        raise Exception(
+            f"Received webhook for the wrong collective. Expected {community.collective_legacy_id}, found " + str(body.get('CollectiveId')))
+
+    logger.info(body)
+    event_type = body.get("type")
+    if event_type == "collective.expense.created":
+
+        data = body.get('data')
+        variables = {
+            "reference": {
+                'legacyId': data['expense']['id']
+            }
+        }
+        result = run_query(Queries.expense, variables)
+        created_by = result['data']['expense']['createdByAccount']
+
+        new_action = PlatformEvent(
+            community=community,
+            event_type="expense_created",
+            initiator=OpenCollectiveUser(username=created_by['slug']),
+            timestamp=data.get('createdAt'),
+            data=data
+
+        )
+        new_action.send()
+
+"""
+RESOURCE RETRIEVALS
+"""
+
+
+@register_resource(slug='opencollective.members', description='list members of the collective')
+def get_members(_parameters):
     result = run_query(Queries.members, {'slug': collective})
     accounts = [a['account']
                 for a in result['data']['collective']['members']['nodes']]
-    return JsonResponse({'accounts': accounts})
+    return {'accounts': accounts}

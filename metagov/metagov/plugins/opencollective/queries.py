@@ -12,7 +12,30 @@ collective = """
 query Collective($slug: String) {
     collective(id: null, slug: $slug, githubHandle: null, throwIfMissing: null) {
         id
+        legacyId
         name
+    }
+}
+"""
+
+expense = """
+query Expense($reference: ExpenseReferenceInput) {
+    expense(id: null, expense: $reference, draftKey: "test") {
+        id
+        legacyId
+        type
+        status
+        payee {
+          isAdmin
+          name
+          slug
+        }
+        createdByAccount {
+          isAdmin
+          name
+          slug
+        }
+        tags
     }
 }
 """

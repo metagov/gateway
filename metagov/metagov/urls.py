@@ -6,7 +6,7 @@ from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 
 from metagov.core import views
-from metagov.core.plugin_models import GovernanceProcessProvider
+from metagov.core.plugin_models import GovernanceProcessProvider, action_function_registry, resource_retrieval_registry
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -25,13 +25,22 @@ schema_view = get_schema_view(
 plugin_patterns = []
 
 for slug in GovernanceProcessProvider.plugins.keys():
-    create_process = views.create_process_endpoint(slug)
     post_pattern = path(
-        f"api/internal/process/{slug}", views.decorated_create_process_view(slug), name=f"create_{slug}")
+        f"api/internal/process/{slug}", views.decorated_create_process_view(slug), name=f"create_process_{slug}")
     get_pattern = path(
-        f"api/internal/process/{slug}/<int:process_id>", views.get_process, name=f"get_{slug}")
+        f"api/internal/process/{slug}/<int:process_id>", views.get_process, name=f"get_process_{slug}")
     plugin_patterns.append(post_pattern)
     plugin_patterns.append(get_pattern)
+
+for (slug, item) in action_function_registry.registry.items():
+    pattern = path(
+        f"api/internal/action/{slug}", views.decorated_perform_action_view(slug), name=f"perform_{slug}")
+    plugin_patterns.append(pattern)
+
+for (slug, item) in resource_retrieval_registry.registry.items():
+    pattern = path(
+        f"api/internal/resource/{slug}", views.decorated_resource_view(slug), name=f"resource_{slug}")
+    plugin_patterns.append(pattern)
 
 # TODO: Add endpoints to expose schemas for actions, processes, and resources
 
@@ -46,10 +55,6 @@ urlpatterns = [
                                            cache_timeout=0), name='schema-swagger-ui'),
     url(r'^redoc/$', schema_view.with_ui('redoc',
                                          cache_timeout=0), name='schema-redoc'),
-    path('api/internal/resource/<slug:resource_name>',
-         views.get_resource, name='get_resource'),
-    path('api/internal/action',
-         views.perform_action, name='perform_action'),
     path('api/postreceive/<slug:slug>',
          views.receive_webhook, name='receive_webhook')
 ] + plugin_patterns

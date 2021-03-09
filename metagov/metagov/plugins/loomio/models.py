@@ -15,20 +15,31 @@ logger = logging.getLogger('django')
 settings = load_settings("loomio")
 loomio_api_key = settings['loomio_api_key']
 
-
 input_schema = {
-    'properties': {
-        "title": openapi.Schema(
-            title="Poll title",
-            type=openapi.TYPE_STRING,
-        ),
-        "closes_at": openapi.Schema(
-            title="Poll close date",
-            type=openapi.TYPE_STRING,
-            format=openapi.FORMAT_DATE
-        ),
+    "type": "object",
+    "properties": {
+        "title": {
+            "type": "string"
+        },
+        "options": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "details": {
+            "type": "string"
+        },
+        "closing_at": {
+            "type": "string",
+            "format": "date"
+        }
     },
-    'required': ["title", "closes_at"],
+    "required": [
+        "title",
+        "options",
+        "closing_at"
+    ]
 }
 
 
@@ -37,14 +48,14 @@ class Loomio(GovernanceProcessProvider):
     input_schema = input_schema
 
     @staticmethod
-    def start(process_state: ProcessState, querydict) -> None:
+    def start(process_state: ProcessState, parameters) -> None:
         url = "https://www.loomio.org/api/b1/polls"
         loomio_data = {
-            'title': querydict.get('title', 'agree or disagree'),
+            'title': parameters['title'],
             'poll_type': 'proposal',
-            'options[]': querydict.getlist('options', ['agree', 'disagree']),
-            'details': querydict.get('details', 'created by metagov'),
-            'closing_at': querydict.get('closing_at', '2021-04-03'),
+            'options[]': parameters['options'],
+            'details': parameters.get('details', 'Created by Metagov'),
+            'closing_at': parameters['closing_at'],
             'api_key': loomio_api_key
         }
 
@@ -61,7 +72,6 @@ class Loomio(GovernanceProcessProvider):
         if response.get('errors'):
             process_state.set_errors(response['errors'])
             process_state.set_status(ProcessStatus.COMPLETED)
-            return
         else:
             poll_key = response.get('polls')[0].get('key')
             poll_url = 'https://www.loomio.org/p/' + poll_key

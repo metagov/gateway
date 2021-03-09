@@ -45,47 +45,60 @@ class SaferDraft7Validator(jsonschema.Draft7Validator):
                    "additionalProperties": False}
 
 
+class RegisteredFunction:
+    def __init__(self, slug, function, description, input_schema, output_schema):
+        self.slug = slug
+        self.function = function
+        self.description = description
+        self.input_schema = input_schema
+        self.output_schema = output_schema
+
+
 class FunctionRegistry(object):
     def __init__(self):
         self.registry = dict()
 
-    def get_function(self, name):
-        return self.registry.get(name)
+    def get(self, slug):
+        return self.registry.get(slug)
 
-    def add(self, function, name, description, parameters_schema=None, response_schema=None):
-        if name in self.registry:
-            raise ValueError(f"Duplicate resource name '{name}'")
-        if parameters_schema:
-            SaferDraft7Validator.check_schema(parameters_schema)
-        if response_schema:
-            SaferDraft7Validator.check_schema(response_schema)
-        self.registry[name] = {
-            'function': function,
-            'description': description,
-            'parameters_schema': parameters_schema,
-            'response_schema': response_schema,
-        }
+    def add(self, function, slug, description, input_schema=None, output_schema=None):
+        if slug in self.registry:
+            raise Exception(f"Duplicate function slug '{slug}'")
+        if input_schema:
+            SaferDraft7Validator.check_schema(input_schema)
+        if output_schema:
+            SaferDraft7Validator.check_schema(output_schema)
+        self.registry[slug] = RegisteredFunction(
+            slug=slug,
+            function=function,
+            description=description,
+            input_schema=input_schema,
+            output_schema=output_schema
+        )
 
 
 resource_retrieval_registry = FunctionRegistry()
 action_function_registry = FunctionRegistry()
 
-def retrieve_resource(name, description):
+
+def register_resource(slug, description, input_schema=None, output_schema=None):
     """
     Decorator for resource retrieval functions
     """
     def decorate(func):
-        resource_retrieval_registry.add(func, name, description)
+        resource_retrieval_registry.add(
+            func, slug, description, input_schema, output_schema)
         return func
     return decorate
 
-def register_action(action_type, description, parameters_schema, response_schema):
+
+def register_action(slug, description, input_schema, output_schema):
     """
     Decorator for platform action functions
     """
     def decorate(func):
         action_function_registry.add(
-            func, action_type, description, parameters_schema, response_schema)
+            func, slug, description, input_schema, output_schema)
         return func
     return decorate
 
@@ -95,6 +108,7 @@ class BaseUser(abc.ABC):
 
     def __init__(self, username: str):
         self.username = username
+
 
 class BaseCommunity(abc.ABC):
     # human-readable name of the community
@@ -109,6 +123,7 @@ class PlatformEvent:
     """
     Event that has occurred on a platform.
     """
+
     def __init__(self, community, event_type, initiator, timestamp, data):
         self.community = community
         self.event_type = event_type
@@ -123,9 +138,8 @@ class PlatformEvent:
         """
         Send event to registered Driver endpoint
         """
-        #TODO log to special file or db
+        # TODO log to special file or db
         serialized = self.toJSON()
-        # FIXME
         resp = requests.post(settings.DRIVER_ACTION_ENDPOINT, data=serialized)
         if not resp.ok:
             print(
@@ -136,7 +150,7 @@ class ListenerRegistry(object):
     def __init__(self):
         self.registry = dict()
 
-    def get_function(self, name):
+    def get(self, name):
         return self.registry.get(name)
 
     def add(self, name, description, function):
@@ -148,13 +162,14 @@ class ListenerRegistry(object):
             'function': function
         }
 
+listener_registry = FunctionRegistry()
 
-listener_registry = ListenerRegistry()
-
-
-def webhook_listener(name, description):
+def register_listener(slug, description):
+    """
+    Decorator for webhook listener functions
+    """
     def decorate(func):
-        listener_registry.add(name, description, func)
+        listener_registry.add(func, slug, description)
         return func
     return decorate
 
@@ -184,13 +199,13 @@ class GovernanceProcessProvider(metaclass=PluginMount):
     input_schema = {}
 
     @staticmethod
-    def start(process_state, querydict) -> None:
+    def start(process_state, parameters) -> None:
         # start process, update state
         # returns result
         pass
 
     @staticmethod
-    def close(process_state, querydict) -> None:
+    def close(process_state, parameters) -> None:
         # close process, update state
         # returns outcome
         pass
@@ -210,7 +225,6 @@ class GovernanceProcessProvider(metaclass=PluginMount):
     def handle_webhook(process_state, request) -> None:
         # process data from webhook endpoint; update state if necessary
         pass
-
 
 class ProcessStatus(Enum):
     CREATED = 'created'

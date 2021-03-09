@@ -1,10 +1,14 @@
 import json
 import logging
 from http import HTTPStatus
+
 import jsonschema
+from jsonschema_to_openapi.convert import convert
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import (HttpResponse, HttpResponseBadRequest, HttpResponseServerError,
-                         HttpResponseNotFound, JsonResponse, QueryDict)
+from django.http import (HttpResponse, HttpResponseBadRequest,
+                         HttpResponseNotFound, HttpResponseServerError,
+                         JsonResponse, QueryDict)
 from django.shortcuts import render
 from django.template import loader
 from django.views.decorators.csrf import csrf_exempt
@@ -12,11 +16,12 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from metagov.core.models import GovernanceProcess, GovernanceProcessSerializer
 from metagov.core.plugin_models import (GovernanceProcessProvider,
-                                        resource_retrieval_registry, listener_registry, action_function_registry)
+                                        action_function_registry,
+                                        listener_registry,
+                                        resource_retrieval_registry)
 from rest_framework.decorators import api_view
 from rest_framework.schemas import AutoSchema
 from rest_framework.views import APIView
-from django.contrib.auth.decorators import login_required
 
 logger = logging.getLogger('django')
 
@@ -28,62 +33,6 @@ def index(request):
 @login_required
 def home(request):
     return HttpResponse(f"hello {request.user.username}")
-
-
-@api_view(['GET'])
-def get_resource(request, resource_name):
-    """
-    API endpoint for retrieving a resource defined in a plugin
-    """
-    if request.method != 'GET':
-        return HttpResponseBadRequest("Resource endpoint only supports GET")
-
-    item = resource_retrieval_registry.get_function(resource_name)
-    if item is None:
-        return HttpResponseBadRequest(f"Resource retrieval function {resource_name} not registered")
-
-    # TODO: validate query params; swagger docs
-    return item.get('function')(request.GET)
-
-
-def create_process_endpoint(process_name):
-    @api_view(['POST'])
-    def create_process(request):
-        """
-        Start new governance process
-        """
-        payload = request_body(request)
-
-        if not payload:
-            logger.error("no payload")
-            return HttpResponse()
-
-        new_process = GovernanceProcess(
-            name=process_name, callback_url=payload.get('callback_url'))
-        try:
-            new_process.full_clean()
-        except ValidationError as e:
-            logger.error(e)
-            return HttpResponseBadRequest(e)
-
-        new_process.save()  # save to create DataStore
-
-        # TODO: validate payload (plugin author implement serializer?)
-        new_process.start(payload)
-        if new_process.errors:
-            logger.info("failed to start process")
-            new_process.delete()
-            return HttpResponseServerError(json.dumps(new_process.errors))
-
-        logger.info(
-            f"Started '{process_name}' process with id {new_process.pk}")
-
-        # return 202 with resource location in header
-        response = HttpResponse(status=HTTPStatus.ACCEPTED)
-        response['Location'] = f"/api/internal/process/{process_name}/{new_process.pk}"
-        return response
-
-    return create_process
 
 
 @swagger_auto_schema(method='delete',
@@ -111,63 +60,14 @@ def get_process(request, process_id):
     return JsonResponse(serializer.data)
 
 
-@api_view(['POST'])
-def perform_action(request):
-    """
-    Perform an action on a platform
-    """
-    payload = request_body(request)
-    if not payload:
-        logger.error("no payload")
-        return HttpResponseBadRequest()
-    if not payload.get('action_type'):
-        return HttpResponseBadRequest("missing action_type")
-
-    action_type = payload['action_type']
-
-    # 1. Look up action function in registry
-    item = action_function_registry.get_function(action_type)
-    if item is None:
-        return HttpResponseBadRequest(f"Action {action_type} not registered")
-    action_function = item.get('function')
-
-    # 2. Validate input parameters
-    parameters = payload.get('parameters')
-    if item.get('parameters_schema'):  # FIXME be a class not an object
-        try:
-            jsonschema.validate(parameters, item.get('parameters_schema'))
-        except jsonschema.exceptions.ValidationError as err:
-            return HttpResponseBadRequest(f"ValidationErrror: {err.message}")
-
-    initiator = payload.get('initiator')
-
-    # 3. Invoke action function
-    try:
-        response = action_function(initiator, parameters)
-    except ValueError as err:  # FIXME use custom err type
-        return HttpResponseServerError(f"Error executing action: {err}")
-
-    # 4. Validate response
-    if item.get('response_schema'):  # FIXME be a class not an object
-        try:
-            jsonschema.validate(response, item.get('response_schema'))
-        except jsonschema.exceptions.ValidationError as err:
-            return HttpResponseBadRequest(f"ValidationErrror: {err.message}")
-
-    # 5. Return response
-    return JsonResponse(response)
-
-
 @csrf_exempt
 def receive_webhook(request, slug):
     """
     API endpoint for receiving webhook requests from external services
     """
-    logger.info(request.body)
-
-    listener = listener_registry.get_function(slug)
+    listener = listener_registry.get(slug)
     if listener:
-        listener.get('function')(request)
+        listener.function(request)
 
     active_processes = GovernanceProcess.objects.filter(name=slug)
     if active_processes.count() > 0:
@@ -180,40 +80,76 @@ def receive_webhook(request, slug):
 
 
 def request_body(request):
-    if request.POST:
-        return request.POST
-    if len(request.body) > 0:
-        body_data = {}
-        try:
-            body_data = json.loads(request.body)
-        except ValueError:
-            logger.error("unable to decode webhook body")
-            return HttpResponse("ok")
-        query_dict = QueryDict('', mutable=True)
-        query_dict.update(body_data)
-        return query_dict
+    try:
+        body_data = json.loads(request.body)
+    except ValueError:
+        return HttpResponseBadRequest("unable to read body as json")
+    return body_data
 
-    return None
+
+def validate_process_input(slug, parameters):
+    cls = GovernanceProcessProvider.plugins.get(slug)
+    if cls.input_schema:
+        jsonschema.validate(parameters, cls.input_schema)
+
+
+def construct_openapi_schema(slug):
+    cls = GovernanceProcessProvider.plugins.get(slug)
+    if cls.input_schema:
+        return convert(cls.input_schema)
 
 
 def decorated_create_process_view(slug):
     """
     Decorate the `create_process_endpoint` view with swagger schema properties defined by the plugin author
-
-    TODO: include schemas for outcome too, not just input.
     """
-    cls = GovernanceProcessProvider.plugins.get(slug)
-    schema = cls.input_schema
-    properties = schema.get('properties')
-    required = schema.get('required')
+    @api_view(['POST'])
+    def create_process(request):
+        payload = request_body(request)
 
-    view = create_process_endpoint(slug)
+        new_process = GovernanceProcess(
+            name=slug, callback_url=payload.get('callback_url'))
+        try:
+            new_process.full_clean()
+        except ValidationError as e:
+            logger.error(e)
+            return HttpResponseBadRequest(e)
+
+        new_process.save()  # save to create DataStore
+
+        # Validate payload
+        try:
+            validate_process_input(slug, payload)
+        except jsonschema.exceptions.ValidationError as err:
+            return HttpResponseBadRequest(f"ValidationError: {err.message}")
+
+        new_process.start(payload)
+        if new_process.errors:
+            logger.info("failed to start process")
+            new_process.delete()
+            return HttpResponseServerError(json.dumps(new_process.errors))
+
+        logger.info(
+            f"Started '{slug}' process with id {new_process.pk}")
+
+        # return 202 with resource location in header
+        response = HttpResponse(status=HTTPStatus.ACCEPTED)
+        response['Location'] = f"/api/internal/process/{slug}/{new_process.pk}"
+        return response
+
+    schema = construct_openapi_schema(slug)
+    properties = {}
+    required = {}
+    if schema:
+        properties = schema.get('properties')
+        required = schema.get('required')
 
     return swagger_auto_schema(
         method='post',
         responses={
             202: 'Process successfully started. Use the URL from the `Location` header in the response to get the status and outcome of the process.'
         },
+        operation_description=f"Start a new governance process of type '{slug}'",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             title="input",
@@ -223,4 +159,125 @@ def decorated_create_process_view(slug):
             },
             required=required
         )
-    )(view)
+    )(create_process)
+
+
+def decorated_perform_action_view(slug):
+    @api_view(['POST'])
+    def perform_action(request):
+        """
+        Perform an action on a platform
+        """
+        payload = request_body(request)
+
+        # 1. Look up action function in registry
+        item = action_function_registry.get(slug)
+        if item is None:
+            return HttpResponseBadRequest(f"Action {slug} not registered")
+
+        # 2. Validate input parameters
+        parameters = payload.get('parameters')
+        if item.input_schema:
+            try:
+                jsonschema.validate(parameters, item.input_schema)
+            except jsonschema.exceptions.ValidationError as err:
+                return HttpResponseBadRequest(f"ValidationError: {err.message}")
+
+        initiator = payload.get('initiator') # TODO
+
+        # 3. Invoke action function
+        try:
+            response = item.function(initiator, parameters)
+        except ValueError as err:  # FIXME use custom err type
+            return HttpResponseServerError(f"Error executing action: {err}")
+
+        # 4. Validate response
+        if item.output_schema:
+            try:
+                jsonschema.validate(response, item.output_schema)
+            except jsonschema.exceptions.ValidationError as err:
+                return HttpResponseBadRequest(f"ValidationError: {err.message}")
+
+        # 5. Return response
+        return JsonResponse(response)
+
+    item = action_function_registry.get(slug)
+
+    arg_dict = {'method': 'post', 'operation_description': item.description}
+    if item.input_schema:
+        schema = convert(item.input_schema)
+        arg_dict['request_body'] = openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties=schema.get('properties', {}),
+            required=schema.get('required', [])
+        )
+
+    if item.output_schema:
+        schema = convert(item.output_schema)
+        arg_dict['responses'] = {
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties=schema.get('properties', {})
+            )
+        }
+    else:
+        arg_dict['responses'] = {200: 'action was performed successfully'}
+    return swagger_auto_schema(**arg_dict)(perform_action)
+
+
+def jsonschema_to_parameters(schema):
+    schema = convert(schema)
+    properties = schema.get('properties', {})
+    required = schema.get('required', [])
+    parameters = []
+    for (name, prop) in properties.items():
+        param = openapi.Parameter(
+            name=name, in_="query",
+            description=prop.get('description'),
+            type=prop.get('type'),
+            required=name in required)
+        parameters.append(param)
+    return parameters
+
+
+def decorated_resource_view(slug):
+    @api_view(['GET'])
+    def get_resource(request):
+        item = resource_retrieval_registry.get(slug)
+        if item is None:
+            return HttpResponseBadRequest(f"Resource retrieval function {slug} not registered")
+
+        parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
+        # Validate parameters
+        if item.input_schema:
+            try:
+                jsonschema.validate(parameters, item.input_schema)
+            except jsonschema.exceptions.ValidationError as err:
+                return HttpResponseBadRequest(f"ValidationError: {err.message}")
+
+        resource = item.function(parameters)
+        # Validate resource
+        if item.output_schema:
+            try:
+                jsonschema.validate(resource, item.output_schema)
+            except jsonschema.exceptions.ValidationError as err:
+                return HttpResponseBadRequest(f"ValidationError: {err.message}")
+
+        return JsonResponse(resource)
+
+    item = resource_retrieval_registry.get(slug)
+
+    arg_dict = {'method': 'get', 'operation_description': item.description}
+    if item.input_schema:
+        arg_dict['manual_parameters'] = jsonschema_to_parameters(
+            item.input_schema)
+    if item.output_schema:
+        schema = convert(item.output_schema)
+        arg_dict['responses'] = {
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties=schema.get('properties', {})
+            )
+        }
+
+    return swagger_auto_schema(**arg_dict)(get_resource)
