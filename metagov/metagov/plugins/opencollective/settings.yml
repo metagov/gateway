@@ -1,2 +1,4 @@
 opencollective_api_key:
   default: ''
+opencollective_webhook_receiver_slug:
+  default: ''

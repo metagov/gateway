@@ -17,6 +17,7 @@ logger = logging.getLogger('django')
 settings = load_settings("opencollective")
 
 api_key = settings['opencollective_api_key']
+webhook_receiver_slug = settings['opencollective_webhook_receiver_slug']
 
 opencollective_url = "https://opencollective.com"
 # from settings
@@ -115,7 +116,9 @@ LISTENER
 """
 
 
-@register_listener("opencollective", "receive events from Open Collective")
+@register_listener(
+    slug=webhook_receiver_slug,
+    description="receive events from Open Collective")
 def listener(request):
     body = json.loads(request.body)
     if body.get('CollectiveId') != community.collective_legacy_id:
