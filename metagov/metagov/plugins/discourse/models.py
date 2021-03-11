@@ -56,10 +56,10 @@ def create_discourse_community():
 community = create_discourse_community()
 
 
-def make_discourse_request(route, payload):
+def discourse_post_request(route, payload, username):
     headers = {
         'Content-Type': 'application/json',
-        'Api-Username': 'system',
+        'Api-Username': username,
         'Api-Key': system_api_key
     }
     resp = requests.post(f"{discourse_server_url}/{route}",
@@ -84,7 +84,8 @@ ACTIONS
 )
 def create_post(initiator, parameters):
     payload = {'raw': parameters['raw'], 'topic_id': parameters['topic_id']}
-    post = make_discourse_request("posts.json", payload)
+    username = initiator.get('username', 'system')
+    post = discourse_post_request("posts.json", payload, username)
     return {'url': construct_post_url(post), 'post_number': post['post_number']}
 
 
