@@ -35,8 +35,13 @@ DEBUG = env('DEBUG')
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 
+DISCOURSE_URL = env('DISCOURSE_URL')
+DISCOURSE_SSO_SECRET = env('DISCOURSE_SSO_SECRET')
+DRIVER_ACTION_ENDPOINT = env('DRIVER_ACTION_ENDPOINT')
 
-# Application definition
+LOGIN_REDIRECT_URL = '/home'
+LOGIN_URL = '/login/discourse'
+LOGOUT_URL = '/logout'
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -46,6 +51,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'social_django',
     'drf_yasg',
     'metagov.core'
 ]
@@ -91,9 +97,15 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'request_logging.middleware.LoggingMiddleware'
+    'request_logging.middleware.LoggingMiddleware',
+    'social_django.middleware.SocialAuthExceptionMiddleware',
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'metagov.core.auth_backends.DiscourseSSOAuth',
+    'django.contrib.auth.backends.ModelBackend'
+]
+# SOCIAL_AUTH_PROTECTED_USER_FIELDS = ['email', 'groups']
 ROOT_URLCONF = 'metagov.urls'
 
 LOGGING = {
@@ -131,6 +143,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'social_django.context_processors.backends',  # <--
+                'social_django.context_processors.login_redirect', # <--
             ],
         },
     },

@@ -13,10 +13,8 @@ from metagov.core.plugin_models import (GovernanceProcessProvider,
 logger = logging.getLogger('django')
 
 settings = load_settings("loomio")
+loomio_api_key = settings['loomio_api_key']
 
-"""
-process_state: for storing any state you need to persist in the database
-"""
 
 input_schema = {
     'properties': {
@@ -47,7 +45,7 @@ class Loomio(GovernanceProcessProvider):
             'options[]': querydict.getlist('options', ['agree', 'disagree']),
             'details': querydict.get('details', 'created by metagov'),
             'closing_at': querydict.get('closing_at', '2021-04-03'),
-            'api_key': settings['loomio_api_key']
+            'api_key': loomio_api_key
         }
 
         resp = requests.post(url, loomio_data)
@@ -93,7 +91,7 @@ class Loomio(GovernanceProcessProvider):
         logger.info(f"Processing event '{kind}' for poll {url}")
         if kind == "poll_closed_by_user" or kind == "poll_expired":
             logger.info(f"Loomio poll closed. Fetching poll result...")
-            url = f"https://www.loomio.org/api/b1/polls/{poll_key}?api_key={settings['loomio_api_key']}"
+            url = f"https://www.loomio.org/api/b1/polls/{poll_key}?api_key={loomio_api_key}"
             resp = requests.get(url)
             if not resp.ok:
                 logger.error(

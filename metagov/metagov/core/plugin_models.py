@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import os
 import sys
+import abc
+import jsonpickle
+import requests
+import jsonschema
+from django.conf import settings
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -13,7 +18,7 @@ if TYPE_CHECKING:
 
 # Based on http://martyalchin.com/2008/jan/10/simple-plugin-framework/
 # Plugins SHOULD import this file
-# Core SHOULD this file
+# Core SHOULD import this file
 # Plugins SHOULD NOT import other files from core
 
 
@@ -35,37 +40,96 @@ def load_settings(plugin_dirname):
         return settings
 
 
-class ResourceRetrievalFunctionRegistry(object):
+class SaferDraft7Validator(jsonschema.Draft7Validator):
+    META_SCHEMA = {**jsonschema.Draft7Validator.META_SCHEMA,
+                   "additionalProperties": False}
+
+
+class FunctionRegistry(object):
     def __init__(self):
         self.registry = dict()
 
     def get_function(self, name):
         return self.registry.get(name)
 
-    def add(self, name, description, function):
+    def add(self, function, name, description, parameters_schema=None, response_schema=None):
         if name in self.registry:
             raise ValueError(f"Duplicate resource name '{name}'")
-
+        if parameters_schema:
+            SaferDraft7Validator.check_schema(parameters_schema)
+        if response_schema:
+            SaferDraft7Validator.check_schema(response_schema)
         self.registry[name] = {
+            'function': function,
             'description': description,
-            'function': function
+            'parameters_schema': parameters_schema,
+            'response_schema': response_schema,
         }
 
 
-function_registry = ResourceRetrievalFunctionRegistry()
-
+resource_retrieval_registry = FunctionRegistry()
+action_function_registry = FunctionRegistry()
 
 def retrieve_resource(name, description):
     """
-    Decorator used by plugin authors writing resource retrieval functions.
-
-    function input: querydict
-    function output: HttpResponse
+    Decorator for resource retrieval functions
     """
     def decorate(func):
-        function_registry.add(name, description, func)
+        resource_retrieval_registry.add(func, name, description)
         return func
     return decorate
+
+def register_action(action_type, description, parameters_schema, response_schema):
+    """
+    Decorator for platform action functions
+    """
+    def decorate(func):
+        action_function_registry.add(
+            func, action_type, description, parameters_schema, response_schema)
+        return func
+    return decorate
+
+
+class BaseUser(abc.ABC):
+    username: str = NotImplemented
+
+    def __init__(self, username: str):
+        self.username = username
+
+class BaseCommunity(abc.ABC):
+    # human-readable name of the community
+    name: str = NotImplemented
+    # machine-readable unique id of the community
+    unique_id: str = NotImplemented
+    # name of the platform
+    platform: str = NotImplemented
+
+
+class PlatformEvent:
+    """
+    Event that has occurred on a platform.
+    """
+    def __init__(self, community, event_type, initiator, timestamp, data):
+        self.community = community
+        self.event_type = event_type
+        self.initiator = initiator
+        self.timestamp = timestamp
+        self.data = data  # this can be validated based on a schema
+
+    def toJSON(self):
+        return jsonpickle.encode(self, unpicklable=False)
+
+    def send(self):
+        """
+        Send event to registered Driver endpoint
+        """
+        #TODO log to special file or db
+        serialized = self.toJSON()
+        # FIXME
+        resp = requests.post(settings.DRIVER_ACTION_ENDPOINT, data=serialized)
+        if not resp.ok:
+            print(
+                f"Error posting action to driver: {resp.status_code} {resp.reason}")
 
 
 class ListenerRegistry(object):
@@ -93,7 +157,6 @@ def webhook_listener(name, description):
         listener_registry.add(name, description, func)
         return func
     return decorate
-
 
 class PluginMount(type):
     def __init__(cls, name, bases, attrs):

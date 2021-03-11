@@ -1,9 +1,9 @@
 import json
 import logging
 from http import HTTPStatus
-
+import jsonschema
 from django.core.exceptions import ValidationError
-from django.http import (HttpResponse, HttpResponseBadRequest,
+from django.http import (HttpResponse, HttpResponseBadRequest, HttpResponseServerError,
                          HttpResponseNotFound, JsonResponse, QueryDict)
 from django.shortcuts import render
 from django.template import loader
@@ -12,40 +12,22 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from metagov.core.models import GovernanceProcess, GovernanceProcessSerializer
 from metagov.core.plugin_models import (GovernanceProcessProvider,
-                                        function_registry, listener_registry)
+                                        resource_retrieval_registry, listener_registry, action_function_registry)
 from rest_framework.decorators import api_view
 from rest_framework.schemas import AutoSchema
 from rest_framework.views import APIView
+from django.contrib.auth.decorators import login_required
 
 logger = logging.getLogger('django')
 
-my_plugin_input_fields = {
-    "type": openapi.TYPE_OBJECT,
-    "title": "Loomio input",
-    "properties": {
-        "title": openapi.Schema(
-            title="Poll Title",
-            type=openapi.TYPE_STRING,
-        ),
-        "closes_at": openapi.Schema(
-            title="Poll close date",
-            type=openapi.TYPE_STRING,
-        ),
-    },
-    "required": ["title", "closes_at"],
-}
-
 
 def index(request):
-    registered_resource_retrievals = [
-        (k, v['description']) for k, v in function_registry.registry.items()]
-    registered_governance_processes = list(
-        GovernanceProcessProvider.plugins.keys())
-    context = {
-        'registered_resource_retrievals': registered_resource_retrievals,
-        'registered_governance_processes': registered_governance_processes
-    }
-    return render(request, 'index.html', context)
+    return render(request, 'login.html', {})
+
+
+@login_required
+def home(request):
+    return HttpResponse(f"hello {request.user.username}")
 
 
 @api_view(['GET'])
@@ -56,7 +38,7 @@ def get_resource(request, resource_name):
     if request.method != 'GET':
         return HttpResponseBadRequest("Resource endpoint only supports GET")
 
-    item = function_registry.get_function(resource_name)
+    item = resource_retrieval_registry.get_function(resource_name)
     if item is None:
         return HttpResponseBadRequest(f"Resource retrieval function {resource_name} not registered")
 
@@ -127,6 +109,53 @@ def get_process(request, process_id):
     serializer = GovernanceProcessSerializer(process)
     logger.info(f"Returning serialized process: {serializer.data}")
     return JsonResponse(serializer.data)
+
+
+@api_view(['POST'])
+def perform_action(request):
+    """
+    Perform an action on a platform
+    """
+    payload = request_body(request)
+    if not payload:
+        logger.error("no payload")
+        return HttpResponseBadRequest()
+    if not payload.get('action_type'):
+        return HttpResponseBadRequest("missing action_type")
+
+    action_type = payload['action_type']
+
+    # 1. Look up action function in registry
+    item = action_function_registry.get_function(action_type)
+    if item is None:
+        return HttpResponseBadRequest(f"Action {action_type} not registered")
+    action_function = item.get('function')
+
+    # 2. Validate input parameters
+    parameters = payload.get('parameters')
+    if item.get('parameters_schema'):  # FIXME be a class not an object
+        try:
+            jsonschema.validate(parameters, item.get('parameters_schema'))
+        except jsonschema.exceptions.ValidationError as err:
+            return HttpResponseBadRequest(f"ValidationErrror: {err.message}")
+
+    initiator = payload.get('initiator')
+
+    # 3. Invoke action function
+    try:
+        response = action_function(initiator, parameters)
+    except ValueError as err:  # FIXME use custom err type
+        return HttpResponseServerError(f"Error executing action: {err}")
+
+    # 4. Validate response
+    if item.get('response_schema'):  # FIXME be a class not an object
+        try:
+            jsonschema.validate(response, item.get('response_schema'))
+        except jsonschema.exceptions.ValidationError as err:
+            return HttpResponseBadRequest(f"ValidationErrror: {err.message}")
+
+    # 5. Return response
+    return JsonResponse(response)
 
 
 @csrf_exempt

@@ -33,7 +33,12 @@ for slug in GovernanceProcessProvider.plugins.keys():
     plugin_patterns.append(post_pattern)
     plugin_patterns.append(get_pattern)
 
+# TODO: Add endpoints to expose schemas for actions, processes, and resources
+
 urlpatterns = [
+    url(r'^$', views.index, name='index'),
+    url(r'home', views.home, name='home'),
+    url('', include('social_django.urls', namespace='social')),
     path('', views.index, name='index'),
     url(r'^swagger(?P<format>\.json|\.yaml)$',
         schema_view.without_ui(cache_timeout=0), name='schema-json'),
@@ -43,6 +48,8 @@ urlpatterns = [
                                          cache_timeout=0), name='schema-redoc'),
     path('api/internal/resource/<slug:resource_name>',
          views.get_resource, name='get_resource'),
+    path('api/internal/action',
+         views.perform_action, name='perform_action'),
     path('api/postreceive/<slug:slug>',
          views.receive_webhook, name='receive_webhook')
 ] + plugin_patterns
