@@ -6,12 +6,16 @@ import abc
 import jsonpickle
 import requests
 import jsonschema
+import time
+import logging
 from django.conf import settings
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import environ
 import yaml
+
+logger = logging.getLogger('django')
 
 if TYPE_CHECKING:
     from metagov.core.models import GovernanceProcess
@@ -120,10 +124,6 @@ class BaseCommunity(abc.ABC):
 
 
 class PlatformEvent:
-    """
-    Event that has occurred on a platform.
-    """
-
     def __init__(self, community, event_type, initiator, timestamp, data):
         self.community = community
         self.event_type = event_type
@@ -134,16 +134,21 @@ class PlatformEvent:
     def toJSON(self):
         return jsonpickle.encode(self, unpicklable=False)
 
-    def send(self):
-        """
-        Send event to registered Driver endpoint
-        """
-        # TODO log to special file or db
-        serialized = self.toJSON()
-        resp = requests.post(settings.DRIVER_ACTION_ENDPOINT, data=serialized)
-        if not resp.ok:
-            print(
-                f"Error posting action to driver: {resp.status_code} {resp.reason}")
+
+def send_platform_event(event_type: str, community: BaseCommunity, initiator: BaseUser, data):
+    event = PlatformEvent(
+        community=community,
+        event_type=event_type,
+        initiator=initiator,
+        timestamp=str(time.time()),
+        data=data
+    )
+    serialized = event.toJSON()
+    logger.info("Sending event to Driver: " + serialized)
+    resp = requests.post(settings.DRIVER_ACTION_ENDPOINT, data=serialized)
+    if not resp.ok:
+        print(
+            f"Error sending event to driver: {resp.status_code} {resp.reason}")
 
 
 class ListenerRegistry(object):
@@ -162,7 +167,9 @@ class ListenerRegistry(object):
             'function': function
         }
 
+
 listener_registry = FunctionRegistry()
+
 
 def register_listener(slug, description):
     """
@@ -172,6 +179,7 @@ def register_listener(slug, description):
         listener_registry.add(func, slug, description)
         return func
     return decorate
+
 
 class PluginMount(type):
     def __init__(cls, name, bases, attrs):
@@ -225,6 +233,7 @@ class GovernanceProcessProvider(metaclass=PluginMount):
     def handle_webhook(process_state, request) -> None:
         # process data from webhook endpoint; update state if necessary
         pass
+
 
 class ProcessStatus(Enum):
     CREATED = 'created'

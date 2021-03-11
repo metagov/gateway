@@ -2,6 +2,10 @@ import json
 import logging
 import jsonpickle
 import requests
+import time
+import hmac
+import hashlib
+import base64
 from drf_yasg import openapi
 import metagov.plugins.discourse.schemas as Schemas
 from metagov.core.plugin_models import (GovernanceProcessProvider,
@@ -11,7 +15,7 @@ from metagov.core.plugin_models import (GovernanceProcessProvider,
                                         BaseCommunity,
                                         BaseUser,
                                         register_resource,
-                                        PlatformEvent,
+                                        send_platform_event,
                                         register_action)
 
 
@@ -21,6 +25,7 @@ settings = load_settings("discourse")
 
 discourse_server_url = settings['discourse_url']
 system_api_key = settings['discourse_api_key']
+discourse_webhook_secret = settings['discourse_webhook_secret']
 
 
 def construct_post_url(post):
@@ -107,36 +112,39 @@ LISTENERS
 """
 
 
-@register_listener("discourse", "receive events")
-def process_webhook(request):
-    instance = request.headers.get('X-Discourse-Instance')
-    event_id = request.headers.get('X-Discourse-Event-Id')
-    event_type = request.headers.get('X-Discourse-Event-Type')
-    event = request.headers.get('X-Discourse-Event')
-    logger.info(f"Received event {event} from {instance}")
-    body = json.loads(request.body)
-    logger.info(body)
+def validate_request_signature(request):
+    event_signature = request.headers['X-Discourse-Event-Signature']
+    key = bytes(discourse_webhook_secret, 'utf-8')
+    string_signature = hmac.new(key, request.body, hashlib.sha256).hexdigest()
+    expected_signature = f"sha256={string_signature}"
+    if not hmac.compare_digest(event_signature, expected_signature):
+        raise Exception('Invalid signature header')
+
+    instance = request.headers['X-Discourse-Instance']
     if instance != discourse_server_url:
-        raise Exception("got webhook event that doesnt match server")
-    new_action = None
+        raise Exception("Unexpected X-Discourse-Instance")
+
+
+@register_listener("discourse", "receive events from Discourse")
+def listener(request):
+    validate_request_signature(request)
+    event = request.headers.get('X-Discourse-Event')
+    body = json.loads(request.body)
+    logger.info(f"Received event '{event}' from Discourse")
+
     if event == "post_created":
         post = body.get('post')
-        data = {'raw': post['raw'], 'topic_id': post['topic_id'], 'post_number': post['post_number'],
+        data = {'raw': post['raw'],
+                'topic_id': post['topic_id'],
+                'post_number': post['post_number'],
                 'url': construct_post_url(post)}
         initiator = DiscourseUser(username=post['username'])
-        new_action = PlatformEvent(
-            community=community,
+        send_platform_event(
             event_type="post_created",
+            community=community,
             initiator=initiator,
-            timestamp="time",
             data=data
         )
-    else:
-        logger.info("not creating any action from webhook")
-
-    if new_action:
-        logger.info("Sending action to Driver: " + new_action.toJSON())
-        new_action.send()
 
 
 """

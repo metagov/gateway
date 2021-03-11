@@ -2,15 +2,16 @@
 import requests
 import logging
 import json
+import time
 import metagov.plugins.opencollective.queries as Queries
 import metagov.plugins.opencollective.schemas as Schemas
 from metagov.core.plugin_models import (load_settings,
                                         register_resource,
                                         register_listener,
                                         register_action,
+                                        send_platform_event,
                                         BaseCommunity,
-                                        BaseUser,
-                                        PlatformEvent)
+                                        BaseUser)
 
 logger = logging.getLogger('django')
 settings = load_settings("opencollective")
@@ -121,28 +122,23 @@ def listener(request):
         raise Exception(
             f"Received webhook for the wrong collective. Expected {community.collective_legacy_id}, found " + str(body.get('CollectiveId')))
 
-    logger.info(body)
     event_type = body.get("type")
     if event_type == "collective.expense.created":
-
-        data = body.get('data')
+        # Hit API to get expense data
         variables = {
             "reference": {
-                'legacyId': data['expense']['id']
+                'legacyId': body['data']['expense']['id']
             }
         }
-        result = run_query(Queries.expense, variables)
-        created_by = result['data']['expense']['createdByAccount']
-
-        new_action = PlatformEvent(
-            community=community,
+        expense_data = run_query(Queries.expense, variables)['data']['expense']
+        username = expense_data['createdByAccount']['slug']
+        send_platform_event(
             event_type="expense_created",
-            initiator=OpenCollectiveUser(username=created_by['slug']),
-            timestamp=data.get('createdAt'),
-            data=data
-
+            community=community,
+            initiator=OpenCollectiveUser(username=username),
+            data=expense_data
         )
-        new_action.send()
+
 
 """
 RESOURCE RETRIEVALS

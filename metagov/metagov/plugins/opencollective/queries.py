@@ -22,14 +22,14 @@ expense = """
 query Expense($reference: ExpenseReferenceInput) {
     expense(id: null, expense: $reference, draftKey: "test") {
         id
+        createdAt
+        description
+        longDescription
+        amount
+        currency
         legacyId
         type
         status
-        payee {
-          isAdmin
-          name
-          slug
-        }
         createdByAccount {
           isAdmin
           name

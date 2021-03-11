@@ -2,3 +2,5 @@ discourse_url:
   default: ''
 discourse_api_key:
   default: ''
+discourse_webhook_secret:
+  default: ''
