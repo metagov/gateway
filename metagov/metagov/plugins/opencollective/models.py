@@ -17,10 +17,9 @@ settings = load_settings("opencollective")
 
 api_key = settings['opencollective_api_key']
 webhook_receiver_slug = settings['opencollective_webhook_receiver_slug']
+collective = settings['opencollective_collective_slug']
 
 opencollective_url = "https://opencollective.com"
-# from settings
-collective = "metagov"
 
 
 def run_query(query, variables):
