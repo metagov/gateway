@@ -10,8 +10,7 @@ from metagov.core.plugin_models import (load_settings,
                                         register_listener,
                                         register_action,
                                         send_platform_event,
-                                        BaseCommunity,
-                                        BaseUser)
+                                        BaseCommunity)
 
 logger = logging.getLogger('django')
 settings = load_settings("opencollective")
@@ -33,10 +32,6 @@ def run_query(query, variables):
         logger.info(request.text)
         raise Exception("Query failed to run by returning code of {} {}. {}".format(
             request.status_code, request.reason, query))
-
-
-class OpenCollectiveUser(BaseUser):
-    pass
 
 
 class OpenCollectiveCommunity(BaseCommunity):
@@ -79,7 +74,7 @@ ACTIONS
     input_schema=Schemas.create_conversation_parameters,
     output_schema=Schemas.create_conversation_response,
 )
-def create_conversation(initiator, parameters):
+def create_conversation(parameters, initiator):
     variables = {
         "html": parameters['raw'],
         # "tags": [],
@@ -98,7 +93,7 @@ def create_conversation(initiator, parameters):
     input_schema=Schemas.create_comment_parameters,
     output_schema=Schemas.create_comment_response,
 )
-def create_comment(initiator, parameters):
+def create_comment(parameters, initiator):
     variables = {
         "comment": {
             "html": parameters['raw'],
@@ -134,11 +129,12 @@ def listener(request):
             }
         }
         expense_data = run_query(Queries.expense, variables)['data']['expense']
-        username = expense_data['createdByAccount']['slug']
+        initiator = {'user_id': expense_data['createdByAccount']['slug'],
+                     'provider': 'opencollective'}
         send_platform_event(
             event_type="expense_created",
             community=community,
-            initiator=OpenCollectiveUser(username=username),
+            initiator=initiator,
             data=expense_data
         )
 

@@ -13,7 +13,6 @@ from metagov.core.plugin_models import (GovernanceProcessProvider,
                                         load_settings,
                                         register_listener,
                                         BaseCommunity,
-                                        BaseUser,
                                         register_resource,
                                         send_platform_event,
                                         register_action)
@@ -30,10 +29,6 @@ discourse_webhook_secret = settings['discourse_webhook_secret']
 
 def construct_post_url(post):
     return f"{discourse_server_url}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}?u={post['username']}"
-
-
-class DiscourseUser(BaseUser):
-    pass
 
 
 class DiscourseCommunity(BaseCommunity):
@@ -80,32 +75,53 @@ ACTIONS
     slug="discourse.create-post",
     description="Create a new post on discourse",
     input_schema=Schemas.create_post_parameters,
-    output_schema=Schemas.create_post_response,
+    output_schema=Schemas.create_post_response
 )
-def create_post(initiator, parameters):
+def create_post(parameters, initiator):
     payload = {'raw': parameters['raw'], 'topic_id': parameters['topic_id']}
-    username = initiator.get('username', 'system')
+    username = initiator or 'system'
     post = discourse_post_request("posts.json", payload, username)
-    return {'url': construct_post_url(post), 'post_number': post['post_number']}
+    return {'url': construct_post_url(post), 'id': post['id']}
 
 
 @register_action(
     slug="discourse.delete-post",
     description="Delete a post on discourse",
     input_schema=Schemas.delete_post_parameters,
-    output_schema=None,
+    output_schema=None
 )
-def delete_post(initiator, parameters):
+def delete_post(parameters, initiator):
     headers = {
         'Api-Username': 'system',
         'Api-Key': system_api_key
     }
     resp = requests.delete(
-        f"{discourse_server_url}/posts/{parameters['post_number']}", headers=headers)
+        f"{discourse_server_url}/posts/{parameters['id']}", headers=headers)
     if not resp.ok:
         logger.error(f"{resp.status_code} {resp.reason}")
         raise ValueError(resp.text)
     return {}
+
+
+@register_action(
+    slug="discourse.lock-post",
+    description="Lock or unlock a post on discourse",
+    input_schema=Schemas.lock_post_parameters,
+    output_schema=Schemas.lock_post_response,
+)
+def lock_post(parameters, initiator):
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Api-Username': 'system',
+        'Api-Key': system_api_key
+    }
+    data = {'locked': json.dumps(parameters['locked'])}
+    resp = requests.put(
+        f"{discourse_server_url}/posts/{parameters['id']}/locked", headers=headers, data=data)
+    if not resp.ok:
+        logger.error(f"{resp.status_code} {resp.reason}")
+        raise ValueError(resp.text)
+    return resp.json()
 
 
 """
@@ -137,9 +153,10 @@ def listener(request):
         post = body.get('post')
         data = {'raw': post['raw'],
                 'topic_id': post['topic_id'],
-                'post_number': post['post_number'],
+                'id': post['id'],
                 'url': construct_post_url(post)}
-        initiator = DiscourseUser(username=post['username'])
+        initiator = {'user_id': post['username'],
+                     'provider': 'discourse'}
         send_platform_event(
             event_type="post_created",
             community=community,

@@ -22,13 +22,13 @@ create_post_response = {
         "url": {
             "type": "string"
         },
-        "post_number": {
+        "id": {
             "type": "integer"
         }
     },
     "required": [
         "url",
-        "post_number"
+        "id"
     ]
 }
 
@@ -36,11 +36,37 @@ delete_post_parameters = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "post_number": {
+        "id": {
             "type": "integer"
         }
     },
     "required": [
-        "post_number"
+        "id"
     ]
+}
+
+lock_post_parameters = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "id": {
+            "type": "integer"
+        },
+        "locked": {
+            "type": "boolean"
+        }
+    },
+    "required": [
+        "id",
+        "locked"
+    ]
+}
+lock_post_response = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "locked": {
+            "type": "boolean"
+        }
+    }
 }

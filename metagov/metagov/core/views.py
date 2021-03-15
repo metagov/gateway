@@ -152,7 +152,6 @@ def decorated_create_process_view(slug):
         operation_description=f"Start a new governance process of type '{slug}'",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
-            title="input",
             properties={
                 "callback_url": openapi.Schema(type=openapi.TYPE_STRING, description='URL to POST outcome to when process is completed'),
                 **properties
@@ -183,11 +182,12 @@ def decorated_perform_action_view(slug):
             except jsonschema.exceptions.ValidationError as err:
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
-        initiator = payload.get('initiator') # TODO
-
         # 3. Invoke action function
         try:
-            response = item.function(initiator, parameters)
+            user_id = payload.get('initiator', {}).get('user_id')
+            # provider = payload.get('initiator', {}).get('provider')
+            # TODO lookup user in metagov, find identity for this provider
+            response = item.function(parameters, user_id)
         except ValueError as err:  # FIXME use custom err type
             return HttpResponseServerError(f"Error executing action: {err}")
 
@@ -206,10 +206,21 @@ def decorated_perform_action_view(slug):
     arg_dict = {'method': 'post', 'operation_description': item.description}
     if item.input_schema:
         schema = convert(item.input_schema)
+        properties = {
+            'parameters': openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties=schema.get('properties', {}),
+                required=schema.get('required', [])),
+            'initiator': openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                description='Perform the action on behalf of this user. If not provided, or if plugin does not have sufficient access, the action will be performed by the system or bot user.',
+                properties={'user_id': {'type': 'string', 'description': 'User identifier from the identity provider'},
+                            'provider': {'type': 'string', 'description': 'Name of the identity provider'}})
+        }
+
         arg_dict['request_body'] = openapi.Schema(
             type=openapi.TYPE_OBJECT,
-            properties=schema.get('properties', {}),
-            required=schema.get('required', [])
+            properties={**properties}
         )
 
     if item.output_schema:

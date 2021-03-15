@@ -106,14 +106,6 @@ def register_action(slug, description, input_schema, output_schema):
         return func
     return decorate
 
-
-class BaseUser(abc.ABC):
-    username: str = NotImplemented
-
-    def __init__(self, username: str):
-        self.username = username
-
-
 class BaseCommunity(abc.ABC):
     # human-readable name of the community
     name: str = NotImplemented
@@ -129,13 +121,13 @@ class PlatformEvent:
         self.event_type = event_type
         self.initiator = initiator
         self.timestamp = timestamp
-        self.data = data  # this can be validated based on a schema
+        self.data = data
 
     def toJSON(self):
         return jsonpickle.encode(self, unpicklable=False)
 
 
-def send_platform_event(event_type: str, community: BaseCommunity, initiator: BaseUser, data):
+def send_platform_event(event_type: str, community: BaseCommunity, initiator, data):
     event = PlatformEvent(
         community=community,
         event_type=event_type,
