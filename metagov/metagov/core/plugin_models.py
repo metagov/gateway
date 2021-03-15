@@ -11,6 +11,7 @@ import logging
 from django.conf import settings
 from enum import Enum
 from typing import TYPE_CHECKING, Any
+from constance import config
 
 import environ
 import yaml
@@ -32,16 +33,25 @@ env = environ.Env()
 def load_settings(plugin_dirname):
     path = os.path.join(sys.path[0], 'metagov',
                         'plugins', plugin_dirname, 'settings.yml')
+    settings = dict()
+
     with open(path) as file:
         settings_config = yaml.load(file, Loader=yaml.FullLoader)
-        settings = dict()
         for key in settings_config.keys():
-            # Look for values in global env for now
-            # TODO replace this with namespaced settings
-            # that can be exposed in the UI optionally
-            value = env(key.upper()) or key.default
-            settings[key] = value
-        return settings
+            value = settings_config[key]
+            if value.get('client'):
+                # this is a client-side setting, get it from constance
+                settings[key] = getattr(config, key)
+            else:
+                # this is a server-side setting, get it from env file
+                default_value = value.get('default')
+                env_value = env(key.upper())
+                settings[key] = env_value or default_value
+
+            if not settings[key]:
+                raise Exception(
+                    f"Missing value for {key} in plugin {plugin_dirname}")
+    return settings
 
 
 class SaferDraft7Validator(jsonschema.Draft7Validator):
@@ -105,6 +115,7 @@ def register_action(slug, description, input_schema, output_schema):
             func, slug, description, input_schema, output_schema)
         return func
     return decorate
+
 
 class BaseCommunity(abc.ABC):
     # human-readable name of the community

@@ -11,6 +11,7 @@ from django.http import (HttpResponse, HttpResponseBadRequest,
                          JsonResponse, QueryDict)
 from django.shortcuts import render
 from django.template import loader
+from django.dispatch import receiver
 from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -22,6 +23,7 @@ from metagov.core.plugin_models import (GovernanceProcessProvider,
 from rest_framework.decorators import api_view
 from rest_framework.schemas import AutoSchema
 from rest_framework.views import APIView
+from constance.signals import config_updated
 
 logger = logging.getLogger('django')
 
@@ -32,7 +34,7 @@ def index(request):
 
 @login_required
 def home(request):
-    return HttpResponse(f"hello {request.user.username}")
+    return HttpResponse(f"<p>hello {request.user.username}!</p><a href='/admin'>Site Admin</a>")
 
 
 @swagger_auto_schema(method='delete',
@@ -292,3 +294,9 @@ def decorated_resource_view(slug):
         }
 
     return swagger_auto_schema(**arg_dict)(get_resource)
+
+
+@receiver(config_updated)
+def constance_updated(sender, key, old_value, new_value, **kwargs):
+    # TODO reload plugins ?
+    logger.info(f"Config updated: {key}: {old_value} -> {new_value}")

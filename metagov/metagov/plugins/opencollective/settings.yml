@@ -1,4 +1,6 @@
 opencollective_api_key:
   default: ''
 opencollective_webhook_receiver_slug:
-  default: ''
+  default: 'opencollective'
+  description: 'Slug to use for Open Collective webhook receiver endpoint. Must match static URL set in Open Collective.'
+  client: true
