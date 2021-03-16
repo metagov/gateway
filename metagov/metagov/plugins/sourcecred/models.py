@@ -1,6 +1,5 @@
 import json
 import requests
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound
 from metagov.core.plugin_models import register_resource, load_settings
 
 

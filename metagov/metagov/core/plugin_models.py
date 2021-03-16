@@ -44,9 +44,12 @@ def load_settings(plugin_dirname):
                 settings[key] = getattr(config, key)
             else:
                 # this is a server-side setting, get it from env file
-                default_value = value.get('default')
-                env_value = env(key.upper())
-                settings[key] = env_value or default_value
+                value = value.get('default')
+                try:
+                    value = env(key.upper())
+                except environ.environ.ImproperlyConfigured:
+                    pass
+                settings[key] = value
 
             if not settings[key]:
                 raise Exception(
