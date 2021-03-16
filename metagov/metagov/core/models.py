@@ -49,13 +49,11 @@ class GovernanceProcess(models.Model):
         process_state = ProcessState(self)
         PluginClass.start(process_state, parameters)
 
-    def cancel(self):
-        """cancel governance process"""
-        pass
-
     def close(self):
-        """close governance process, return outcome"""
-        return None
+        """close governance process, update outcome in state"""
+        PluginClass = self.plugins.get(self.name)
+        process_state = ProcessState(self)
+        PluginClass.close(process_state)
 
     def __str__(self):
         return self.name

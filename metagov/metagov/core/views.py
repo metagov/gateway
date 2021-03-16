@@ -38,9 +38,9 @@ def home(request):
 
 
 @swagger_auto_schema(method='delete',
-                     operation_description="Cancel governance process")
+                     operation_description="Close an existing governance process")
 @swagger_auto_schema(method='get',
-                     operation_description="Get status of governance process",
+                     operation_description="Get the status of an existing governance process",
                      responses={
                             200: openapi.Response(
                                 'Current process record. Check the `status` field to see if the process has completed. If the `errors` field has data, the process failed.', GovernanceProcessSerializer),
@@ -53,9 +53,10 @@ def get_process(request, process_id):
         return HttpResponseNotFound()
 
     if request.method == 'DELETE':
-        process.cancel()
-        # actually delete?
-        return HttpResponse(status=204)
+        # 'DELETE'  means close the process and return it
+        # If 'close' is implemented, it should set the status to COMPLETED
+        logger.info(f"Closing process {process_id}")
+        process.close()
 
     serializer = GovernanceProcessSerializer(process)
     logger.info(f"Returning serialized process: {serializer.data}")

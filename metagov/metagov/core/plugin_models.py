@@ -203,7 +203,6 @@ class GovernanceProcessProvider(metaclass=PluginMount):
     Plugins implementing this reference should provide the following static functions:
     ========  ========================================================
     start     kick off the governance process
-    cancel    cancel the governance process
     close     close the governance process
     ========  ========================================================
     """
@@ -219,11 +218,6 @@ class GovernanceProcessProvider(metaclass=PluginMount):
     def close(process_state, parameters) -> None:
         # close process, update state
         # returns outcome
-        pass
-
-    @staticmethod
-    def cancel(process_state) -> None:
-        # cancel job, update state
         pass
 
     @staticmethod

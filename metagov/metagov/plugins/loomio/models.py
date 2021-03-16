@@ -117,8 +117,3 @@ class Loomio(GovernanceProcessProvider):
                 outcome = response.get('polls')[0].get('stance_data')
                 process_state.set_outcome(outcome)
                 process_state.set_status(ProcessStatus.COMPLETED)
-
-    @staticmethod
-    def cancel(process_state: ProcessState) -> None:
-        # cancel poll
-        pass

@@ -204,18 +204,20 @@ class DiscoursePoll(GovernanceProcessProvider):
             }
         },
         "required": [
-            "title",
-            "closing_at"
+            "title"
         ]
     }
 
     @staticmethod
     def start(process_state: ProcessState, parameters) -> None:
         url = f"{discourse_server_url}/posts.json"
-        closes_at = parameters["closing_at"]
+
+        closes_at = ''
+        if parameters.get('closing_at'):
+            closes_at = "close=" + parameters["closing_at"]
         options = "".join([f"* {opt}\n" for opt in parameters['options']])
         raw = f"""
-[poll type=regular results=always chartType=bar close={closes_at}]
+[poll type=regular results=always chartType=bar {closes_at}]
 # {parameters["title"]}
 {options}
 [/poll]
@@ -249,7 +251,7 @@ class DiscoursePoll(GovernanceProcessProvider):
             logger.info(f"Poll created at {poll_url}")
 
             process_state.set_data_value(
-                'post_number', response.get('post_number'))
+                'post_id', response.get('id'))
             process_state.set_data_value('topic_id', response.get('topic_id'))
             process_state.set_data_value(
                 'topic_slug', response.get('topic_slug'))
@@ -262,9 +264,37 @@ class DiscoursePoll(GovernanceProcessProvider):
             body = json.loads(request.body)
         except ValueError:
             logger.error("unable to decode webhook body")
-        # logger.info(body)
 
     @staticmethod
-    def cancel(process_state: ProcessState) -> None:
-        # cancel poll
-        pass
+    def close(process_state: ProcessStatus) -> None:
+        url = f"{discourse_server_url}/polls/toggle_status"
+        post_id = process_state.get_data_value('post_id')
+        data = {
+            "post_id": post_id,
+            "poll_name": "poll",
+            "status": "closed"
+        }
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Api-Username': 'system',
+            'Api-Key': system_api_key
+        }
+        logger.info(data)
+        logger.info(url)
+        resp = requests.put(url, data=data, headers=headers)
+        if not resp.ok:
+            logger.error(f"{resp.status_code} {resp.reason} {resp.text}")
+            raise ValueError(resp.text)
+        response = resp.json()
+        logger.info(response)
+
+        # set outcome in process state
+        outcome = {}
+        for opt in response['poll']['options']:
+            outcome[opt['html']] = opt['votes']
+
+        # Lock the post
+        lock_post({'locked': True, 'id': post_id}, None)
+
+        process_state.set_outcome(outcome)
+        process_state.set_status(ProcessStatus.COMPLETED)

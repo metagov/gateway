@@ -25,10 +25,13 @@ schema_view = get_schema_view(
 plugin_patterns = []
 
 for slug in GovernanceProcessProvider.plugins.keys():
+    # Create a new governance process
     post_pattern = path(
         f"api/internal/process/{slug}", views.decorated_create_process_view(slug), name=f"create_process_{slug}")
+    # Get or close an existing governance process
     get_pattern = path(
         f"api/internal/process/{slug}/<int:process_id>", views.get_process, name=f"get_process_{slug}")
+
     plugin_patterns.append(post_pattern)
     plugin_patterns.append(get_pattern)
 
