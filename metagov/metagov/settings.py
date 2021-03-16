@@ -55,7 +55,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'social_django',
     'drf_yasg',
-    'constance',
+    'metagov.core.apps.CustomConstance',
     'metagov.core'
 ]
 
