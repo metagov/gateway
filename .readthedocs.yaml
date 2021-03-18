@@ -8,7 +8,7 @@ version: 2
 sphinx:
    configuration: metagov/docs/conf.py
 
-Optionally set the version of Python and requirements required to build your docs
+# Optionally set the version of Python and requirements required to build your docs
 python:
    version: 3.9
    install:
