@@ -9,6 +9,7 @@ metagov/env/
 metagov/static
 metagov/db.sqlite3
 .env
-metagov/docs/_build
-metagov/docs/_static
-metagov/docs/env
+
+# readthedocs
+docs/_build
+docs/env
