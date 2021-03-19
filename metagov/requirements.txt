@@ -45,4 +45,4 @@ social-auth-core==4.0.3
 sqlparse==0.4.1
 toml==0.10.2
 uritemplate==3.0.1
-urllib3==1.26.2
+urllib3==1.26.3
