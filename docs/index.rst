@@ -10,6 +10,7 @@ Welcome to Metagov's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+How does this documentation work?
 
 
 Indices and tables
