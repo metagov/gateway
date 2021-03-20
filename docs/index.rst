@@ -24,7 +24,7 @@ Currently supported platforms:
 
 * Discourse
 
-Metagov is a prototype under active development, so please send us feedback at [metagov.org](https://www.metagov.org).
+Metagov is a prototype under active development, so please send us feedback at (metagov.org)[https://www.metagov.org].
 
 
 Indices and tables
