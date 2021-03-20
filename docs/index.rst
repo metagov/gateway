@@ -12,14 +12,16 @@ Welcome to Metagov's documentation!
 
 Metagov is a unified API gateway for governance services. It's designed to support rapid prototyping of governance systems and experiments across a range of platforms. 
 
-Currently supported governance services
+Currently supported governance services:
+
 * OpenCollective
 * Web Monetization
 * SourceCred
 * PolicyKit
 * Stanford Participatory Budgeting Platform
 
-Currently supported platforms
+Currently supported platforms:
+
 * Discourse
 
 Metagov is a prototype under active development, so please send us feedback at [metagov.org](https://www.metagov.org).
