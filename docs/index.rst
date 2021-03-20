@@ -10,7 +10,7 @@ Welcome to Metagov's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-Metagov is a unified API gateway for governance services. It's designed to support rapid prototyping of governance systems and experiments across a range of platforms. 
+Metagov is a unified API gateway for governance services. It's designed to support rapid prototyping of governance systems across a range of platforms. 
 
 Currently supported governance services:
 
