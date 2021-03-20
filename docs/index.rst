@@ -10,7 +10,7 @@ Welcome to Metagov's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-Metagov is a unified API gateway for governance services. It's designed to support rapid prototyping of governance systems across a range of platforms. 
+Metagov is a unified API gateway for digital governance services. It's designed to support rapid prototyping of governance systems and workflows across a range of platforms. To help people prototype, Metagov ships with a powerful driver for authoring governance policies over multiple platforms, as well as a type system to help structure the connections between different services.
 
 Currently supported governance services:
 
@@ -19,12 +19,13 @@ Currently supported governance services:
 * SourceCred
 * PolicyKit
 * Stanford Participatory Budgeting Platform
+* NEAR (sort of)
 
 Currently supported platforms:
 
 * Discourse
 
-Metagov is a prototype under active development, so please send us feedback at hello@metagov.org.
+Metagov is a prototype under active development, so please help us out by sending us feedback at hello@metagov.org or by opening an issue on [our GitHub](https://github.com/metagov/metagov-prototype)!
 
 
 Indices and tables
