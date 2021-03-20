@@ -12,8 +12,6 @@ Welcome to Metagov's documentation!
 
 Metagov is a unified API gateway for governance services. It's designed to support rapid prototyping of governance systems and experiments across a range of platforms. 
 
-It currently wraps and installs a bunch of governance services and libraries such as . It also features built-in integrators to platforms like Discourse.
-
 Currently supported governance services
 * OpenCollective
 * Web Monetization
