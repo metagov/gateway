@@ -3,30 +3,38 @@ import logging
 from http import HTTPStatus
 
 import jsonschema
-from jsonschema_to_openapi.convert import convert
+from constance.signals import config_updated
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.dispatch import receiver
 from django.http import (HttpResponse, HttpResponseBadRequest,
                          HttpResponseNotFound, HttpResponseServerError,
                          JsonResponse, QueryDict)
 from django.shortcuts import render
 from django.template import loader
-from django.dispatch import receiver
+from django.utils.decorators import decorator_from_middleware
 from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from metagov.core.models import GovernanceProcess, GovernanceProcessSerializer
+from jsonschema_to_openapi.convert import convert
+from metagov.core.middleware import CommunityMiddleware
+from metagov.core.models import (Community, CommunitySerializer,
+                                 GovernanceProcess,
+                                 GovernanceProcessSerializer)
+from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.plugin_models import (GovernanceProcessProvider,
                                         action_function_registry,
                                         listener_registry,
                                         resource_retrieval_registry)
+from rest_framework import status
 from rest_framework.decorators import api_view
+from rest_framework.parsers import JSONParser
 from rest_framework.schemas import AutoSchema
 from rest_framework.views import APIView
-from constance.signals import config_updated
+
+community_middleware = decorator_from_middleware(CommunityMiddleware)
 
 logger = logging.getLogger('django')
-
 
 def index(request):
     return render(request, 'login.html', {})
@@ -63,21 +71,69 @@ def get_process(request, process_id):
     return JsonResponse(serializer.data)
 
 
+@api_view(['GET', 'PUT', 'DELETE'])
+def community(request, name):
+    if request.method == 'GET':
+        try:
+            community = Community.objects.get(name=name)
+        except Community.DoesNotExist:
+            return HttpResponseNotFound()
+
+        community_serializer = CommunitySerializer(community)
+        return JsonResponse(community_serializer.data, safe=False)
+
+    elif request.method == 'PUT':
+        data = JSONParser().parse(request)
+        try:
+            community = Community.objects.get(name=name)
+            community_serializer = CommunitySerializer(community, data=data)
+        except Community.DoesNotExist:
+            if data.get('name') != name:
+                # if creating a new community, the name and slug should match
+                return HttpResponseBadRequest(f"Expected name {name}, found {data.get('name')}")
+            community_serializer = CommunitySerializer(data=data)
+
+        if community_serializer.is_valid():
+            community_serializer.save()
+            return JsonResponse(community_serializer.data, status=status.HTTP_201_CREATED)
+        return JsonResponse(community_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        try:
+            community = Community.objects.get(name=name)
+        except Community.DoesNotExist:
+            return HttpResponseNotFound()
+        community.delete()
+        return JsonResponse({'message': 'Community was deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
 @csrf_exempt
-def receive_webhook(request, slug):
+def receive_webhook(request, community_id, plugin_name, webhook_slug):
     """
     API endpoint for receiving webhook requests from external services
     """
-    listener = listener_registry.get(slug)
-    if listener:
-        listener.function(request)
 
-    active_processes = GovernanceProcess.objects.filter(name=slug)
-    if active_processes.count() > 0:
-        logger.info(
-            f"invoking handlers for {active_processes.count()} active processes")
-        for p in active_processes:
-            p.handle_webhook(request)
+    try:
+        community = Community.objects.get(pk=community_id)
+    except Community.DoesNotExist:
+        return HttpResponseNotFound()
+
+    # Lookup plugin
+    plugin = get_plugin_instance(plugin_name, community)
+    if hasattr(plugin, "receive_webhook"):
+        plugin.receive_webhook(request)
+
+    # FIXME 📌 📌 📌 📌
+    # listener = listener_registry.get(slug)
+    # if listener:
+    #     listener.function(request)
+
+    # active_processes = GovernanceProcess.objects.filter(name=slug)
+    # if active_processes.count() > 0:
+    #     logger.info(
+    #         f"invoking handlers for {active_processes.count()} active processes")
+    #     for p in active_processes:
+    #         p.handle_webhook(request)
 
     return HttpResponse()
 
@@ -164,24 +220,28 @@ def decorated_create_process_view(slug):
     )(create_process)
 
 
-def decorated_perform_action_view(slug):
+def decorated_perform_action_view(plugin_name, slug):
+    cls = plugin_registry[plugin_name]
+    meta = cls._action_registry[slug]
+
+    @community_middleware
     @api_view(['POST'])
     def perform_action(request):
         """
         Perform an action on a platform
         """
-        payload = request_body(request)
-
-        # 1. Look up action function in registry
-        item = action_function_registry.get(slug)
-        if item is None:
-            return HttpResponseBadRequest(f"Action {slug} not registered")
+        # 1. Look up plugin instance
+        plugin = get_plugin_instance(plugin_name, request.community)
+        if not plugin:
+            return HttpResponseBadRequest(f"Plugin '{plugin_name}' not enabled for community '{request.community.name}'")
+        action_function = getattr(plugin, meta.function_name)
 
         # 2. Validate input parameters
+        payload = JSONParser().parse(request)
         parameters = payload.get('parameters')
-        if item.input_schema:
+        if meta.input_schema:
             try:
-                jsonschema.validate(parameters, item.input_schema)
+                jsonschema.validate(parameters, meta.input_schema)
             except jsonschema.exceptions.ValidationError as err:
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
@@ -190,25 +250,23 @@ def decorated_perform_action_view(slug):
             user_id = payload.get('initiator', {}).get('user_id')
             # provider = payload.get('initiator', {}).get('provider')
             # TODO lookup user in metagov, find identity for this provider
-            response = item.function(parameters, user_id)
+            response = action_function(parameters, user_id)
         except ValueError as err:  # FIXME use custom err type
             return HttpResponseServerError(f"Error executing action: {err}")
 
         # 4. Validate response
-        if item.output_schema:
+        if meta.output_schema:
             try:
-                jsonschema.validate(response, item.output_schema)
+                jsonschema.validate(response, meta.output_schema)
             except jsonschema.exceptions.ValidationError as err:
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
         # 5. Return response
         return JsonResponse(response)
 
-    item = action_function_registry.get(slug)
-
-    arg_dict = {'method': 'post', 'operation_description': item.description}
-    if item.input_schema:
-        schema = convert(item.input_schema)
+    arg_dict = {'method': 'post', 'operation_description': meta.description}
+    if meta.input_schema:
+        schema = convert(meta.input_schema)
         properties = {
             'parameters': openapi.Schema(
                 type=openapi.TYPE_OBJECT,
@@ -226,8 +284,8 @@ def decorated_perform_action_view(slug):
             properties={**properties}
         )
 
-    if item.output_schema:
-        schema = convert(item.output_schema)
+    if meta.output_schema:
+        schema = convert(meta.output_schema)
         arg_dict['responses'] = {
             200: openapi.Schema(
                 type=openapi.TYPE_OBJECT,
@@ -254,39 +312,57 @@ def jsonschema_to_parameters(schema):
     return parameters
 
 
-def decorated_resource_view(slug):
+def get_plugin_instance(plugin_name, community):
+    cls = plugin_registry.get(plugin_name)
+    if not cls:
+        raise Exception(f"No such plugin registered: {plugin_name}")
+
+    plugin = cls.objects.filter(name=plugin_name, community=community).first()
+    if not cls:
+        raise Exception(
+            f"No instance of plugin {plugin_name} for community {community.name}")
+    return plugin
+
+
+def decorated_resource_view(plugin_name, slug):
+    cls = plugin_registry[plugin_name]
+    meta = cls._resource_registry[slug]
+
+    @community_middleware
     @api_view(['GET'])
     def get_resource(request):
-        item = resource_retrieval_registry.get(slug)
-        if item is None:
-            return HttpResponseBadRequest(f"Resource retrieval function {slug} not registered")
+        # Look up plugin instance
+        plugin = cls.objects.filter(
+            name=plugin_name, community=request.community).first()
+        if not plugin:
+            return HttpResponseBadRequest(f"Plugin '{plugin_name}' not enabled for community '{request.community.name}'")
 
         parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
         # Validate parameters
-        if item.input_schema:
+        if meta.input_schema:
             try:
-                jsonschema.validate(parameters, item.input_schema)
+                jsonschema.validate(parameters, meta.input_schema)
             except jsonschema.exceptions.ValidationError as err:
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
-        resource = item.function(parameters)
+        # Call the resource retrieval function
+        function = getattr(plugin, meta.function_name)
+        resource = function(parameters)
+
         # Validate resource
-        if item.output_schema:
+        if meta.output_schema:
             try:
-                jsonschema.validate(resource, item.output_schema)
+                jsonschema.validate(resource, meta.output_schema)
             except jsonschema.exceptions.ValidationError as err:
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
-
         return JsonResponse(resource)
 
-    item = resource_retrieval_registry.get(slug)
-
-    arg_dict = {'method': 'get', 'operation_description': item.description}
-    if item.input_schema:
+    arg_dict = {'method': 'get', 'operation_description': meta.description}
+    if meta.input_schema:
         arg_dict['manual_parameters'] = jsonschema_to_parameters(
-            item.input_schema)
-    if item.output_schema:
-        schema = convert(item.output_schema)
+            meta.input_schema)
+    if meta.output_schema:
+        schema = convert(meta.output_schema)
         arg_dict['responses'] = {
             200: openapi.Schema(
                 type=openapi.TYPE_OBJECT,

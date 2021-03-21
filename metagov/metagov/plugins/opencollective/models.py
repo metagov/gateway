@@ -1,113 +1,118 @@
 
-import requests
-import logging
 import json
+import logging
 import time
+
+import metagov.core.plugin_decorators as Registry
 import metagov.plugins.opencollective.queries as Queries
 import metagov.plugins.opencollective.schemas as Schemas
-from metagov.core.plugin_models import (load_settings,
-                                        register_resource,
-                                        register_listener,
-                                        register_action,
-                                        send_platform_event,
-                                        BaseCommunity)
+import requests
+from metagov.core.models import Plugin
+from metagov.core.plugin_models import register_listener, send_platform_event
 
 logger = logging.getLogger('django')
-settings = load_settings("opencollective")
 
-api_key = settings['opencollective_api_key']
-webhook_receiver_slug = settings['opencollective_webhook_receiver_slug']
-collective = settings['opencollective_collective_slug']
+webhook_receiver_slug = "opencollective-4a58c7b2"  # FIXME
 
 opencollective_url = "https://opencollective.com"
 
 
-def run_query(query, variables):
-    request = requests.post(
-        "https://api.opencollective.com/graphql/v2", json={'query': query, 'variables': variables}, headers={"Api-Key": f"{api_key}"})
-    if request.status_code == 200:
-        return request.json()
-    else:
-        logger.info(request.text)
-        raise Exception("Query failed to run by returning code of {} {}. {}".format(
-            request.status_code, request.reason, query))
+@Registry.plugin
+class OpenCollective(Plugin):
+    name = "opencollective"
+    config_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "api_key": {
+                "type": "string"
+            },
+            "collective_slug": {
+                "type": "string",
+                "description": "Slug for the Open Collective collective (opencollective.com/<slug>)"
+            },
+            "webhook_receiver_slug": {
+                "type": "string",
+                "description": "Slug to use for webhook receiver endpoint in metagov. Must match static URL set in Open Collective."
+            },
+        },
+        "required": [
+            "api_key",
+            "collective_slug"
+        ]
+    }
 
+    class Meta:
+        proxy = True
 
-class OpenCollectiveCommunity(BaseCommunity):
-    def __init__(self,
-                 name: str,
-                 slug: str,
-                 collective_id: str,
-                 collective_legacy_id: int):
-        self.platform = 'opencollective'
-        self.name = name
-        self.unique_id = slug
-        self.slug = slug
-        self.collective_id = collective_id
-        self.collective_legacy_id = collective_legacy_id
+    def initialize(self):
+        slug = self.config['collective_slug']
+        response = self.run_query(Queries.collective, {'slug': slug})
+        result = response['data']['collective']
 
+        logger.info("Initialized Open Collective: " + str(result))
 
-def create_community():
-    result = run_query(Queries.collective, {'slug': collective})
-    logger.info("Initialized Open Collective: " + str(result))
-    return OpenCollectiveCommunity(
-        name=result['data']['collective']['name'],
-        slug=collective,
-        collective_id=result['data']['collective']['id'],
-        collective_legacy_id=result['data']['collective']['legacyId']
+        self.data.set('collective_name', result['name'])
+        self.data.set('collective_id', result['id'])
+        self.data.set('collective_legacy_id', result['legacyId'])
+
+    def run_query(self, query, variables):
+        api_key = self.config['api_key']
+        request = requests.post(
+            "https://api.opencollective.com/graphql/v2", json={'query': query, 'variables': variables}, headers={"Api-Key": f"{api_key}"})
+        if request.status_code == 200:
+            return request.json()
+        else:
+            logger.info(request.text)
+            raise Exception("Query failed to run by returning code of {} {}. {}".format(
+                request.status_code, request.reason, query))
+
+    @Registry.resource(
+        slug='members',
+        description='list members of the collective',
     )
+    def get_members(self, _parameters):
+        result = self.run_query(
+            Queries.members, {'slug': self.config['collective_slug']})
+        accounts = [a['account']
+                    for a in result['data']['collective']['members']['nodes']]
+        return {'accounts': accounts}
 
-
-# init - do this somewhere else
-community = create_community()
-
-
-"""
-ACTIONS
-"""
-
-
-@register_action(
-    slug="opencollective.create-conversation",
-    description="Start a new conversation on Open Collective",
-    input_schema=Schemas.create_conversation_parameters,
-    output_schema=Schemas.create_conversation_response,
-)
-def create_conversation(parameters, initiator):
-    variables = {
-        "html": parameters['raw'],
-        # "tags": [],
-        "title": parameters['title'],
-        "CollectiveId": community.collective_id
-    }
-    result = run_query(Queries.create_conversation, variables)
-    data = result['data']['createConversation']
-    url = f"{opencollective_url}/{collective}/conversations/{data['slug']}-{data['id']}"
-    return {'url': url, 'conversation_id': data['id']}
-
-
-@register_action(
-    slug="opencollective.create-comment",
-    description="Add a comment to a conversation on Open Collective",
-    input_schema=Schemas.create_comment_parameters,
-    output_schema=Schemas.create_comment_response,
-)
-def create_comment(parameters, initiator):
-    variables = {
-        "comment": {
+    @Registry.action(
+        slug="create-conversation",
+        description="Start a new conversation on Open Collective",
+        input_schema=Schemas.create_conversation_parameters,
+        output_schema=Schemas.create_conversation_response,
+    )
+    def create_conversation(self, parameters, initiator):
+        variables = {
             "html": parameters['raw'],
-            "ConversationId": parameters['conversation_id']
+            # "tags": [],
+            "title": parameters['title'],
+            "CollectiveId": self.data.get('collective_id')
         }
-    }
-    result = run_query(Queries.create_comment, variables)
-    data = result['data']['createComment']
-    logger.info(data)
-    return {'comment_id': data['id']}
+        result = self.run_query(Queries.create_conversation, variables)
+        data = result['data']['createConversation']
+        url = f"{opencollective_url}/{self.config['collective_slug']}/conversations/{data['slug']}-{data['id']}"
+        return {'url': url, 'conversation_id': data['id']}
 
-
-"""
-LISTENER
-"""
+    @Registry.action(
+        slug="create-comment",
+        description="Add a comment to a conversation on Open Collective",
+        input_schema=Schemas.create_comment_parameters,
+        output_schema=Schemas.create_comment_response,
+    )
+    def create_comment(self, parameters, initiator):
+        variables = {
+            "comment": {
+                "html": parameters['raw'],
+                "ConversationId": parameters['conversation_id']
+            }
+        }
+        result = self.run_query(Queries.create_comment, variables)
+        data = result['data']['createComment']
+        logger.info(data)
+        return {'comment_id': data['id']}
 
 
 @register_listener(
@@ -136,16 +141,3 @@ def listener(request):
             initiator=initiator,
             data=expense_data
         )
-
-
-"""
-RESOURCE RETRIEVALS
-"""
-
-
-@register_resource(slug='opencollective.members', description='list members of the collective')
-def get_members(_parameters):
-    result = run_query(Queries.members, {'slug': collective})
-    accounts = [a['account']
-                for a in result['data']['collective']['members']['nodes']]
-    return {'accounts': accounts}

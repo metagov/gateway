@@ -1,12 +1,22 @@
+import logging
+
 from django.conf.urls import url
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
 from django.urls import include, path
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
-from django.contrib.auth.decorators import login_required
+
 from metagov.core import views
-from metagov.core.plugin_models import GovernanceProcessProvider, action_function_registry, resource_retrieval_registry
+from metagov.core.plugin_decorators import plugin_registry
+from metagov.core.plugin_models import (GovernanceProcessProvider,
+                                        action_function_registry,
+                                        resource_retrieval_registry)
+
+logger = logging.getLogger('django')
+
+# TODO add community header to generated openapi docs
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -24,6 +34,7 @@ schema_view = get_schema_view(
 
 plugin_patterns = []
 
+# FIXME convert to new plugin system
 for slug in GovernanceProcessProvider.plugins.keys():
     # Create a new governance process
     post_pattern = path(
@@ -35,15 +46,23 @@ for slug in GovernanceProcessProvider.plugins.keys():
     plugin_patterns.append(post_pattern)
     plugin_patterns.append(get_pattern)
 
-for (slug, item) in action_function_registry.registry.items():
-    pattern = path(
-        f"api/internal/action/{slug}", views.decorated_perform_action_view(slug), name=f"perform_{slug}")
-    plugin_patterns.append(pattern)
 
-for (slug, item) in resource_retrieval_registry.registry.items():
-    pattern = path(
-        f"api/internal/resource/{slug}", views.decorated_resource_view(slug), name=f"resource_{slug}")
-    plugin_patterns.append(pattern)
+for (key, cls) in plugin_registry.items():
+    for (slug, meta) in cls._resource_registry.items():
+        prefixed_slug = f"{cls.name}.{slug}"
+        route = f"api/internal/resource/{prefixed_slug}"
+        logger.info(f"Adding route: {route}")
+        pattern = path(route, views.decorated_resource_view(
+            cls.name, slug), name=f"resource_{prefixed_slug}")
+        plugin_patterns.append(pattern)
+
+    for (slug, meta) in cls._action_registry.items():
+        prefixed_slug = f"{cls.name}.{slug}"
+        route = f"api/internal/action/{prefixed_slug}"
+        logger.info(f"Adding route: {route}")
+        pattern = path(route, views.decorated_perform_action_view(
+            cls.name, slug), name=f"perform_{prefixed_slug}")
+        plugin_patterns.append(pattern)
 
 # TODO: Add endpoints to expose schemas for actions, processes, and resources
 admin.site.login = login_required(admin.site.login)
@@ -60,6 +79,8 @@ urlpatterns = [
                                            cache_timeout=0), name='schema-swagger-ui'),
     url(r'^redoc/$', schema_view.with_ui('redoc',
                                          cache_timeout=0), name='schema-redoc'),
-    path('api/postreceive/<slug:slug>',
-         views.receive_webhook, name='receive_webhook')
+    path('api/postreceive/<int:community_id>/<slug:plugin_name>/<slug:webhook_slug>',
+         views.receive_webhook, name='receive_webhook'),
+    path('api/internal/community/<slug:name>',
+         views.community, name='community')
 ] + plugin_patterns
