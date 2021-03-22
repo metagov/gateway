@@ -17,7 +17,7 @@ Once you understand the general idea of the tool (feel free to ask questions!), 
 
 ![The life cycle of governance](https://github.com/thelastjosh/metagov-prototype/blob/master/Functional%20spec.svg "Functional spec")
 
-Roughly, we are prototyping **2, 1, and 3**, in that order. The final output has to port into a range of social platforms, from blockchains to social networks to certain online games, but currently we're ignoring questions of portability and just thinking about the basic logic and user experience. 
+Roughly, we are prototyping **1, 2, 3, and 8 concurrently, and the rest later**. The final output has to port into a range of social platforms, from blockchains to social networks to certain online games, but currently we're ignoring questions of portability and just thinking about the basic logic and user experience. 
 
 ## UI research
 1. [Agreement mockups](https://drive.google.com/open?id=1jCyOkpSSgoLUBBUsW0q9ediwtW6-OT0a)
