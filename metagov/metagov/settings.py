@@ -68,7 +68,7 @@ CONSTANCE_CONFIG_FIELDSETS = {}
 # Add plugins to INSTALLED_APPS
 PLUGINS_DIR = os.path.join(BASE_DIR, 'metagov', 'plugins')
 for item in os.listdir(PLUGINS_DIR):
-    if "sourcecred" not in item and "opencollective" not in item:
+    if "sourcecred" not in item and "opencollective" not in item and "discourse" not in item:
         continue #TODO fix rest of plugins
     if os.path.isdir(os.path.join(PLUGINS_DIR, item)) and not item.startswith('__'):
         app_name = 'metagov.plugins.%s' % item

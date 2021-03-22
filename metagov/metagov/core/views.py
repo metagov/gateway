@@ -120,8 +120,7 @@ def receive_webhook(request, community_id, plugin_name, webhook_slug):
 
     # Lookup plugin
     plugin = get_plugin_instance(plugin_name, community)
-    if hasattr(plugin, "receive_webhook"):
-        plugin.receive_webhook(request)
+    plugin.receive_webhook(request)
 
     # FIXME 📌 📌 📌 📌
     # listener = listener_registry.get(slug)
