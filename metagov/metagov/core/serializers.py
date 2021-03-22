@@ -1,9 +1,8 @@
 import logging
 
 import jsonschema
-from metagov.core.models import Community, Plugin, AsyncProcess
+from metagov.core.models import Community, Plugin, AsyncProcess, ProcessStatus
 from metagov.core.plugin_decorators import plugin_registry
-from metagov.core.plugin_models import ProcessStatus
 from metagov.core.validators import DefaultValidatingDraft7Validator
 from rest_framework import serializers
 

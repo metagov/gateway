@@ -7,8 +7,7 @@ import logging
 import metagov.plugins.discourse.schemas as Schemas
 import requests
 import metagov.core.plugin_decorators as Registry
-from metagov.core.models import Plugin, AsyncProcess
-from metagov.core.plugin_models import (ProcessStatus, send_platform_event)
+from metagov.core.models import Plugin, AsyncProcess, ProcessStatus
 
 logger = logging.getLogger('django')
 
@@ -147,12 +146,11 @@ class Discourse(Plugin):
                     'url': self.construct_post_url(post)}
             initiator = {'user_id': post['username'],
                          'provider': 'discourse'}
-            # send_platform_event(
-            #     event_type="post_created",
-            #     community=community,
-            #     initiator=initiator,
-            #     data=data
-            # )
+            self.send_event_to_driver(
+                event_type="post_created",
+                initiator=initiator,
+                data=data
+            )
 
 
 """

@@ -1,15 +1,13 @@
 import json
 import logging
 
+import metagov.core.plugin_decorators as Registry
 import requests
 from django.db import models
 from django.http import (HttpResponse, HttpResponseBadRequest,
                          HttpResponseNotFound)
 from drf_yasg import openapi
-from metagov.core.plugin_models import ProcessStatus
-
-import metagov.core.plugin_decorators as Registry
-from metagov.core.models import Plugin, AsyncProcess
+from metagov.core.models import AsyncProcess, Plugin, ProcessStatus
 
 logger = logging.getLogger('django')
 

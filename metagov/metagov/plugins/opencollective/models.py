@@ -8,7 +8,6 @@ import metagov.plugins.opencollective.queries as Queries
 import metagov.plugins.opencollective.schemas as Schemas
 import requests
 from metagov.core.models import Plugin
-from metagov.core.plugin_models import send_platform_event
 
 logger = logging.getLogger('django')
 
@@ -113,7 +112,6 @@ class OpenCollective(Plugin):
         logger.info(data)
         return {'comment_id': data['id']}
 
-
     def receive_webhook(self, request):
         body = json.loads(request.body)
         collective_legacy_id = self.state.get('collective_legacy_id')
@@ -129,12 +127,12 @@ class OpenCollective(Plugin):
                     'legacyId': body['data']['expense']['id']
                 }
             }
-            expense_data = self.run_query(Queries.expense, variables)['data']['expense']
+            expense_data = self.run_query(Queries.expense, variables)[
+                'data']['expense']
             initiator = {'user_id': expense_data['createdByAccount']['slug'],
-                        'provider': 'opencollective'}
-            # send_platform_event(
-            #     event_type="expense_created",
-            #     community=community,
-            #     initiator=initiator,
-            #     data=expense_data
-            # )
+                         'provider': 'opencollective'}
+            self.send_event_to_driver(
+                event_type="expense_created",
+                initiator=initiator,
+                data=expense_data
+            )

@@ -71,7 +71,6 @@ for item in os.listdir(PLUGINS_DIR):
     if os.path.isdir(os.path.join(PLUGINS_DIR, item)) and not item.startswith('__'):
         app_name = 'metagov.plugins.%s' % item
         if app_name not in INSTALLED_APPS:
-            print(f"Loading {app_name}")
             INSTALLED_APPS += (app_name, )
 
             settings_path = os.path.join(PLUGINS_DIR, item, 'settings.yml')

@@ -1,6 +1,9 @@
 import json
 import logging
+import time
+from enum import Enum
 
+import jsonpickle
 import requests
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -8,7 +11,6 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 from drf_yasg import openapi
-from metagov.core.plugin_models import ProcessStatus
 
 logger = logging.getLogger('django')
 
@@ -48,10 +50,10 @@ class Plugin(models.Model):
     config = models.JSONField(default=dict, null=True, blank=True,
                               help_text="Configuration for this plugin instance")
     state = models.OneToOneField(DataStore,
-                                models.CASCADE,
-                                help_text="Datastore to persist any state",
-                                null=True
-                                )
+                                 models.CASCADE,
+                                 help_text="Datastore to persist any state",
+                                 null=True
+                                 )
     config_schema = {}  # can be overridden to set jsonschema of config
 
     class Meta:
@@ -71,6 +73,28 @@ class Plugin(models.Model):
 
     def receive_webhook(self, request):
         pass
+
+    def send_event_to_driver(self, event_type: str, data: dict, initiator: dict):
+        event = {
+            'community': self.community.name,
+            'source': self.name,
+            'event_type': event_type,
+            'timestamp': str(time.time()),
+            'data': data,
+            'initiator': initiator
+        }
+        serialized = jsonpickle.encode(self, unpicklable=False)
+        logger.info("Sending event to Driver: " + serialized)
+        resp = requests.post(settings.DRIVER_ACTION_ENDPOINT, data=serialized)
+        if not resp.ok:
+            print(
+                f"Error sending event to driver: {resp.status_code} {resp.reason}")
+
+
+class ProcessStatus(Enum):
+    CREATED = 'created'
+    PENDING = 'pending'
+    COMPLETED = 'completed'
 
 
 class AsyncProcess(models.Model):
@@ -120,6 +144,21 @@ def notify_process_completed(sender, instance, **kwargs):
     """
     Pre-save receiver to notify caller that the governance processes has completed
     """
+
+    def notify_completed(process):
+        from metagov.core.serializers import AsyncProcessSerializer
+        if not process.callback_url:
+            logger.info("No callback url")
+            return
+        serializer = AsyncProcessSerializer(process)
+        logger.info(
+            f"Posting completed process outcome to {process.callback_url}")
+        logger.info(serializer.data)
+        resp = requests.post(process.callback_url, json=serializer.data)
+        if not resp.ok:
+            logger.error(
+                f"Error posting outcome to callback url: {resp.status_code} {resp.text}")
+
     try:
         obj = sender.objects.get(pk=instance.pk)
     except sender.DoesNotExist:
@@ -131,18 +170,3 @@ def notify_process_completed(sender, instance, **kwargs):
             logger.info(f"Status changed: {obj.status} -> {instance.status}")
             if instance.status == ProcessStatus.COMPLETED.value:
                 notify_completed(instance)
-
-
-# notify driver that process has completed
-def notify_completed(process):
-    from metagov.core.serializers import AsyncProcessSerializer
-    if not process.callback_url:
-        logger.info("No callback url")
-        return
-    serializer = AsyncProcessSerializer(process)
-    logger.info(f"Posting completed process outcome to {process.callback_url}")
-    logger.info(serializer.data)
-    resp = requests.post(process.callback_url, json=serializer.data)
-    if not resp.ok:
-        logger.error(
-            f"Error posting outcome to callback url: {resp.status_code} {resp.text}")
