@@ -3,33 +3,14 @@ import hashlib
 import hmac
 import json
 import logging
-import time
 
-import jsonpickle
 import metagov.plugins.discourse.schemas as Schemas
 import requests
-from drf_yasg import openapi
 import metagov.core.plugin_decorators as Registry
 from metagov.core.models import Plugin, AsyncProcess
-from metagov.core.plugin_models import (BaseCommunity,
-                                        GovernanceProcessProvider,
-                                        ProcessState, ProcessStatus,
-                                        load_settings, register_action,
-                                        register_listener, register_resource,
-                                        send_platform_event)
+from metagov.core.plugin_models import (ProcessStatus, send_platform_event)
 
 logger = logging.getLogger('django')
-
-settings = load_settings("discourse")
-
-discourse_server_url = settings['discourse_url']
-system_api_key = settings['discourse_api_key']
-discourse_webhook_secret = settings['discourse_webhook_secret']
-
-
-def construct_post_url(post):
-    return f"{discourse_server_url}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}?u={post['username']}"
-
 
 @Registry.plugin
 class Discourse(Plugin):
