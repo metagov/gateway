@@ -22,33 +22,19 @@ class Community(models.Model):
 
 
 class DataStore(models.Model):
-    # FIXME copied from policykit -- use JSON field instead
-    data_store = models.TextField()
-
-    def _get_data_store(self):
-        if self.data_store != '':
-            return json.loads(self.data_store)
-        else:
-            return {}
-
-    def _set_data_store(self, obj):
-        self.data_store = json.dumps(obj)
-        self.save()
+    datastore = models.JSONField(default=dict)
 
     def get(self, key):
-        obj = self._get_data_store()
-        return obj.get(key, None)
+        return self.datastore.get(key, None)
 
     def set(self, key, value):
-        obj = self._get_data_store()
-        obj[key] = value
-        self._set_data_store(obj)
+        self.datastore[key] = value
+        self.save()
         return True
 
     def remove(self, key):
-        obj = self._get_data_store()
-        res = obj.pop(key, None)
-        self._set_data_store(obj)
+        res = self.datastore.pop(key, None)
+        self.save()
         if not res:
             return False
         return True
@@ -61,9 +47,9 @@ class Plugin(models.Model):
                                   help_text="Community that this plugin instance belongs to")
     config = models.JSONField(default=dict, null=True, blank=True,
                               help_text="Configuration for this plugin instance")
-    data = models.OneToOneField(DataStore,
+    state = models.OneToOneField(DataStore,
                                 models.CASCADE,
-                                help_text="Datastore to persist any data",
+                                help_text="Datastore to persist any state",
                                 null=True
                                 )
     config_schema = {}  # can be overridden to set jsonschema of config
@@ -76,7 +62,7 @@ class Plugin(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.pk:
-            self.data = DataStore.objects.create()
+            self.state = DataStore.objects.create()
             self.initialize()
         super(Plugin, self).save(*args, **kwargs)
 

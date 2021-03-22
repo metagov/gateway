@@ -51,9 +51,9 @@ class OpenCollective(Plugin):
 
         logger.info("Initialized Open Collective: " + str(result))
 
-        self.data.set('collective_name', result['name'])
-        self.data.set('collective_id', result['id'])
-        self.data.set('collective_legacy_id', result['legacyId'])
+        self.state.set('collective_name', result['name'])
+        self.state.set('collective_id', result['id'])
+        self.state.set('collective_legacy_id', result['legacyId'])
 
     def run_query(self, query, variables):
         api_key = self.config['api_key']
@@ -88,7 +88,7 @@ class OpenCollective(Plugin):
             "html": parameters['raw'],
             # "tags": [],
             "title": parameters['title'],
-            "CollectiveId": self.data.get('collective_id')
+            "CollectiveId": self.state.get('collective_id')
         }
         result = self.run_query(Queries.create_conversation, variables)
         data = result['data']['createConversation']
@@ -116,7 +116,7 @@ class OpenCollective(Plugin):
 
     def receive_webhook(self, request):
         body = json.loads(request.body)
-        collective_legacy_id = self.data.get('collective_legacy_id')
+        collective_legacy_id = self.state.get('collective_legacy_id')
         if body.get('CollectiveId') != collective_legacy_id:
             raise Exception(
                 f"Received webhook for the wrong collective. Expected {collective_legacy_id}, found " + str(body.get('CollectiveId')))
