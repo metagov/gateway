@@ -69,7 +69,7 @@ admin.site.login = login_required(admin.site.login)
 urlpatterns = [
     url(r'^$', views.index, name='index'),
     url(r'home', views.home, name='home'),
-    url('', include('social_django.urls', namespace='social')),
+    # url('', include('social_django.urls', namespace='social')),
     path('', views.index, name='index'),
     path('admin/', admin.site.urls),
     url(r'^swagger(?P<format>\.json|\.yaml)$',

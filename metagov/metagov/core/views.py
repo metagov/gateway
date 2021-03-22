@@ -3,7 +3,7 @@ import logging
 from http import HTTPStatus
 
 import jsonschema
-from constance.signals import config_updated
+# from constance.signals import config_updated
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.dispatch import receiver
@@ -395,7 +395,7 @@ def decorated_resource_view(plugin_name, slug):
     return swagger_auto_schema(**arg_dict)(get_resource)
 
 
-@receiver(config_updated)
-def constance_updated(sender, key, old_value, new_value, **kwargs):
-    # TODO reload plugins ?
-    logger.info(f"Config updated: {key}: {old_value} -> {new_value}")
+# @receiver(config_updated)
+# def constance_updated(sender, key, old_value, new_value, **kwargs):
+#     # TODO reload plugins ?
+#     logger.info(f"Config updated: {key}: {old_value} -> {new_value}")

@@ -51,19 +51,19 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'constance.backends.database',
+    # 'constance.backends.database',
     'rest_framework',
-    'social_django',
+    # 'social_django',
     'drf_yasg',
-    'metagov.core.apps.CustomConstance',
+    # 'metagov.core.apps.CustomConstance',
     'metagov.core',
     'django_extensions',
 ]
 
-CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
-CONSTANCE_DATABASE_PREFIX = 'constance:metagov:'
-CONSTANCE_CONFIG = {}
-CONSTANCE_CONFIG_FIELDSETS = {}
+# CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
+# CONSTANCE_DATABASE_PREFIX = 'constance:metagov:'
+# CONSTANCE_CONFIG = {}
+# CONSTANCE_CONFIG_FIELDSETS = {}
 
 # Add plugins to INSTALLED_APPS
 PLUGINS_DIR = os.path.join(BASE_DIR, 'metagov', 'plugins')
@@ -73,17 +73,17 @@ for item in os.listdir(PLUGINS_DIR):
         if app_name not in INSTALLED_APPS:
             INSTALLED_APPS += (app_name, )
 
-            settings_path = os.path.join(PLUGINS_DIR, item, 'settings.yml')
-            with open(settings_path) as file:
-                settings_config = yaml.load(file, Loader=yaml.FullLoader)
-                settings = dict()
-                client_settings = [k for k in settings_config.keys(
-                ) if settings_config[k].get('client')]
-                CONSTANCE_CONFIG_FIELDSETS[item] = tuple(client_settings)
-                for key in client_settings:
-                    val = settings_config[key]
-                    CONSTANCE_CONFIG[key] = (
-                        val.get('default'), val.get('description', ''))
+            # settings_path = os.path.join(PLUGINS_DIR, item, 'settings.yml')
+            # with open(settings_path) as file:
+            #     settings_config = yaml.load(file, Loader=yaml.FullLoader)
+            #     settings = dict()
+            #     client_settings = [k for k in settings_config.keys(
+            #     ) if settings_config[k].get('client')]
+            #     CONSTANCE_CONFIG_FIELDSETS[item] = tuple(client_settings)
+            #     for key in client_settings:
+            #         val = settings_config[key]
+            #         CONSTANCE_CONFIG[key] = (
+            #             val.get('default'), val.get('description', ''))
 
 
 REST_FRAMEWORK = {
@@ -119,11 +119,11 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'request_logging.middleware.LoggingMiddleware',
-    'social_django.middleware.SocialAuthExceptionMiddleware',
+    # 'social_django.middleware.SocialAuthExceptionMiddleware',
 ]
 
 AUTHENTICATION_BACKENDS = [
-    'metagov.core.auth_backends.DiscourseSSOAuth',
+    # 'metagov.core.auth_backends.DiscourseSSOAuth',
     'django.contrib.auth.backends.ModelBackend'
 ]
 # SOCIAL_AUTH_PROTECTED_USER_FIELDS = ['email', 'groups']
@@ -164,8 +164,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'social_django.context_processors.backends',  # <--
-                'social_django.context_processors.login_redirect',  # <--
+                # 'social_django.context_processors.backends',  # <--
+                # 'social_django.context_processors.login_redirect',  # <--
             ],
         },
     },
