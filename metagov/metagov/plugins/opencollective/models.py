@@ -1,151 +1,135 @@
 
-import requests
-import logging
 import json
-import time
+import logging
+
+import metagov.core.plugin_decorators as Registry
 import metagov.plugins.opencollective.queries as Queries
 import metagov.plugins.opencollective.schemas as Schemas
-from metagov.core.plugin_models import (load_settings,
-                                        register_resource,
-                                        register_listener,
-                                        register_action,
-                                        send_platform_event,
-                                        BaseCommunity)
+import requests
+from metagov.core.models import Plugin
 
 logger = logging.getLogger('django')
-settings = load_settings("opencollective")
-
-api_key = settings['opencollective_api_key']
-webhook_receiver_slug = settings['opencollective_webhook_receiver_slug']
-collective = settings['opencollective_collective_slug']
 
 opencollective_url = "https://opencollective.com"
 
 
-def run_query(query, variables):
-    request = requests.post(
-        "https://api.opencollective.com/graphql/v2", json={'query': query, 'variables': variables}, headers={"Api-Key": f"{api_key}"})
-    if request.status_code == 200:
-        return request.json()
-    else:
-        logger.info(request.text)
-        raise Exception("Query failed to run by returning code of {} {}. {}".format(
-            request.status_code, request.reason, query))
+@Registry.plugin
+class OpenCollective(Plugin):
+    name = "opencollective"
+    config_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "api_key": {
+                "type": "string"
+            },
+            "collective_slug": {
+                "type": "string",
+                "description": "Slug for the Open Collective collective (opencollective.com/<slug>)"
+            },
+            "webhook_slug": {
+                "type": "string"
+            },
+        },
+        "required": [
+            "api_key",
+            "collective_slug"
+        ]
+    }
 
+    class Meta:
+        proxy = True
 
-class OpenCollectiveCommunity(BaseCommunity):
-    def __init__(self,
-                 name: str,
-                 slug: str,
-                 collective_id: str,
-                 collective_legacy_id: int):
-        self.platform = 'opencollective'
-        self.name = name
-        self.unique_id = slug
-        self.slug = slug
-        self.collective_id = collective_id
-        self.collective_legacy_id = collective_legacy_id
+    def initialize(self):
+        slug = self.config['collective_slug']
+        response = self.run_query(Queries.collective, {'slug': slug})
+        result = response['data']['collective']
 
+        logger.info("Initialized Open Collective: " + str(result))
 
-def create_community():
-    result = run_query(Queries.collective, {'slug': collective})
-    logger.info("Initialized Open Collective: " + str(result))
-    return OpenCollectiveCommunity(
-        name=result['data']['collective']['name'],
-        slug=collective,
-        collective_id=result['data']['collective']['id'],
-        collective_legacy_id=result['data']['collective']['legacyId']
+        self.state.set('collective_name', result['name'])
+        self.state.set('collective_id', result['id'])
+        self.state.set('collective_legacy_id', result['legacyId'])
+
+    def run_query(self, query, variables):
+        api_key = self.config['api_key']
+        request = requests.post(
+            "https://api.opencollective.com/graphql/v2", json={'query': query, 'variables': variables}, headers={"Api-Key": f"{api_key}"})
+        if request.status_code == 200:
+            return request.json()
+        else:
+            logger.info(request.text)
+            raise Exception("Query failed to run by returning code of {} {}. {}".format(
+                request.status_code, request.reason, query))
+
+    @Registry.resource(
+        slug='members',
+        description='list members of the collective',
     )
+    def get_members(self, _parameters):
+        result = self.run_query(
+            Queries.members, {'slug': self.config['collective_slug']})
+        accounts = [a['account']
+                    for a in result['data']['collective']['members']['nodes']]
+        return {'accounts': accounts}
 
-
-# init - do this somewhere else
-community = create_community()
-
-
-"""
-ACTIONS
-"""
-
-
-@register_action(
-    slug="opencollective.create-conversation",
-    description="Start a new conversation on Open Collective",
-    input_schema=Schemas.create_conversation_parameters,
-    output_schema=Schemas.create_conversation_response,
-)
-def create_conversation(parameters, initiator):
-    variables = {
-        "html": parameters['raw'],
-        # "tags": [],
-        "title": parameters['title'],
-        "CollectiveId": community.collective_id
-    }
-    result = run_query(Queries.create_conversation, variables)
-    data = result['data']['createConversation']
-    url = f"{opencollective_url}/{collective}/conversations/{data['slug']}-{data['id']}"
-    return {'url': url, 'conversation_id': data['id']}
-
-
-@register_action(
-    slug="opencollective.create-comment",
-    description="Add a comment to a conversation on Open Collective",
-    input_schema=Schemas.create_comment_parameters,
-    output_schema=Schemas.create_comment_response,
-)
-def create_comment(parameters, initiator):
-    variables = {
-        "comment": {
-            "html": parameters['raw'],
-            "ConversationId": parameters['conversation_id']
-        }
-    }
-    result = run_query(Queries.create_comment, variables)
-    data = result['data']['createComment']
-    logger.info(data)
-    return {'comment_id': data['id']}
-
-
-"""
-LISTENER
-"""
-
-
-@register_listener(
-    slug=webhook_receiver_slug,
-    description="receive events from Open Collective")
-def listener(request):
-    body = json.loads(request.body)
-    if body.get('CollectiveId') != community.collective_legacy_id:
-        raise Exception(
-            f"Received webhook for the wrong collective. Expected {community.collective_legacy_id}, found " + str(body.get('CollectiveId')))
-
-    event_type = body.get("type")
-    if event_type == "collective.expense.created":
-        # Hit API to get expense data
+    @Registry.action(
+        slug="create-conversation",
+        description="Start a new conversation on Open Collective",
+        input_schema=Schemas.create_conversation_parameters,
+        output_schema=Schemas.create_conversation_response,
+    )
+    def create_conversation(self, parameters, initiator):
         variables = {
-            "reference": {
-                'legacyId': body['data']['expense']['id']
+            "html": parameters['raw'],
+            # "tags": [],
+            "title": parameters['title'],
+            "CollectiveId": self.state.get('collective_id')
+        }
+        result = self.run_query(Queries.create_conversation, variables)
+        data = result['data']['createConversation']
+        url = f"{opencollective_url}/{self.config['collective_slug']}/conversations/{data['slug']}-{data['id']}"
+        return {'url': url, 'conversation_id': data['id']}
+
+    @Registry.action(
+        slug="create-comment",
+        description="Add a comment to a conversation on Open Collective",
+        input_schema=Schemas.create_comment_parameters,
+        output_schema=Schemas.create_comment_response,
+    )
+    def create_comment(self, parameters, initiator):
+        variables = {
+            "comment": {
+                "html": parameters['raw'],
+                "ConversationId": parameters['conversation_id']
             }
         }
-        expense_data = run_query(Queries.expense, variables)['data']['expense']
-        initiator = {'user_id': expense_data['createdByAccount']['slug'],
-                     'provider': 'opencollective'}
-        send_platform_event(
-            event_type="expense_created",
-            community=community,
-            initiator=initiator,
-            data=expense_data
-        )
+        result = self.run_query(Queries.create_comment, variables)
+        data = result['data']['createComment']
+        logger.info(data)
+        return {'comment_id': data['id']}
 
+    def receive_webhook(self, request):
+        body = json.loads(request.body)
+        collective_legacy_id = self.state.get('collective_legacy_id')
+        if body.get('CollectiveId') != collective_legacy_id:
+            raise Exception(
+                f"Received webhook for the wrong collective. Expected {collective_legacy_id}, found " + str(body.get('CollectiveId')))
 
-"""
-RESOURCE RETRIEVALS
-"""
-
-
-@register_resource(slug='opencollective.members', description='list members of the collective')
-def get_members(_parameters):
-    result = run_query(Queries.members, {'slug': collective})
-    accounts = [a['account']
-                for a in result['data']['collective']['members']['nodes']]
-    return {'accounts': accounts}
+        event_type = body.get("type")
+        if event_type == "collective.expense.created":
+            # Hit API to get expense data
+            variables = {
+                "reference": {
+                    'legacyId': body['data']['expense']['id']
+                }
+            }
+            expense_data = self.run_query(Queries.expense, variables)[
+                'data']['expense']
+            initiator = {'user_id': expense_data['createdByAccount']['slug'],
+                         'provider': 'opencollective'}
+            self.send_event_to_driver(
+                event_type="expense_created",
+                initiator=initiator,
+                data=expense_data
+            )

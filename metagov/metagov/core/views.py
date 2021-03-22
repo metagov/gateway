@@ -3,27 +3,34 @@ import logging
 from http import HTTPStatus
 
 import jsonschema
-from jsonschema_to_openapi.convert import convert
+# from constance.signals import config_updated
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.dispatch import receiver
 from django.http import (HttpResponse, HttpResponseBadRequest,
                          HttpResponseNotFound, HttpResponseServerError,
                          JsonResponse, QueryDict)
 from django.shortcuts import render
 from django.template import loader
-from django.dispatch import receiver
+from django.utils.decorators import decorator_from_middleware
 from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from metagov.core.models import GovernanceProcess, GovernanceProcessSerializer
-from metagov.core.plugin_models import (GovernanceProcessProvider,
-                                        action_function_registry,
-                                        listener_registry,
-                                        resource_retrieval_registry)
+from jsonschema_to_openapi.convert import convert
+from metagov.core.middleware import (CommunityMiddleware,
+                                     openapi_community_header)
+from metagov.core.models import Community, GovernanceProcess
+from metagov.core.openapi_schemas import community_schema
+from metagov.core.plugin_decorators import plugin_registry
+from metagov.core.serializers import (CommunitySerializer,
+                                      GovernanceProcessSerializer)
+from rest_framework import status
 from rest_framework.decorators import api_view
+from rest_framework.parsers import JSONParser
 from rest_framework.schemas import AutoSchema
 from rest_framework.views import APIView
-from constance.signals import config_updated
+
+community_middleware = decorator_from_middleware(CommunityMiddleware)
 
 logger = logging.getLogger('django')
 
@@ -63,87 +70,144 @@ def get_process(request, process_id):
     return JsonResponse(serializer.data)
 
 
+@swagger_auto_schema(method='delete',
+                     operation_description="Delete the community")
+@swagger_auto_schema(method='get',
+                     responses={200: community_schema})
+@swagger_auto_schema(method='put',
+                     request_body=community_schema,
+                     responses={200: community_schema, 200: community_schema})
+@api_view(['GET', 'PUT', 'DELETE'])
+def community(request, name):
+    if request.method == 'GET':
+        try:
+            community = Community.objects.get(name=name)
+        except Community.DoesNotExist:
+            return HttpResponseNotFound()
+
+        community_serializer = CommunitySerializer(community)
+        return JsonResponse(community_serializer.data, safe=False)
+
+    elif request.method == 'PUT':
+        data = JSONParser().parse(request)
+        created = False
+        try:
+            community = Community.objects.get(name=name)
+            community_serializer = CommunitySerializer(community, data=data)
+        except Community.DoesNotExist:
+            if data.get('name') != name:
+                # if creating a new community, the name and slug should match
+                return HttpResponseBadRequest(f"Expected name {name}, found {data.get('name')}")
+            community_serializer = CommunitySerializer(data=data)
+            created = True
+
+        if community_serializer.is_valid():
+            community_serializer.save()
+            s = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+            return JsonResponse(community_serializer.data, status=s)
+        return JsonResponse(community_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        try:
+            community = Community.objects.get(name=name)
+        except Community.DoesNotExist:
+            return HttpResponseNotFound()
+        community.delete()
+        return JsonResponse({'message': 'Community was deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
 @csrf_exempt
-def receive_webhook(request, slug):
+def receive_webhook(request, community, plugin_name, webhook_slug=None):
     """
     API endpoint for receiving webhook requests from external services
     """
-    listener = listener_registry.get(slug)
-    if listener:
-        listener.function(request)
 
-    active_processes = GovernanceProcess.objects.filter(name=slug)
-    if active_processes.count() > 0:
-        logger.info(
-            f"invoking handlers for {active_processes.count()} active processes")
-        for p in active_processes:
-            p.handle_webhook(request)
+    try:
+        community = Community.objects.get(name=community)
+    except Community.DoesNotExist:
+        return HttpResponseNotFound()
+
+    # Lookup plugin
+    try:
+        plugin = get_plugin_instance(plugin_name, community)
+    except Exception as e:
+        return HttpResponseBadRequest(e)
+
+    # Validate slug if the plugin has `webhook_slug` configured
+    expected_slug = plugin.config.get('webhook_slug')
+    if webhook_slug != expected_slug:
+        logger.error(
+            f"Received request at {webhook_slug}, expected {expected_slug}. Rejecting.")
+        return HttpResponseBadRequest()
+
+    logger.info(f"Passing webhook request to: {plugin}")
+    plugin.receive_webhook(request)
+
+    # Call `receive_webhook` on each of the GovernanceProcess proxy models
+    proxy_models = plugin_registry[plugin_name]._process_registry.values()
+    for cls in proxy_models:
+        processes = cls.objects.filter(plugin=plugin)
+        for process in processes:
+            logger.info(f"Passing webhook request to: {process}")
+            process.receive_webhook(request)
 
     return HttpResponse()
 
 
-def request_body(request):
-    try:
-        body_data = json.loads(request.body)
-    except ValueError:
-        return HttpResponseBadRequest("unable to read body as json")
-    return body_data
-
-
-def validate_process_input(slug, parameters):
-    cls = GovernanceProcessProvider.plugins.get(slug)
-    if cls.input_schema:
-        jsonschema.validate(parameters, cls.input_schema)
-
-
-def construct_openapi_schema(slug):
-    cls = GovernanceProcessProvider.plugins.get(slug)
-    if cls.input_schema:
-        return convert(cls.input_schema)
-
-
-def decorated_create_process_view(slug):
+def decorated_create_process_view(plugin_name, slug):
+    # get process model proxy class
+    cls = plugin_registry[plugin_name]._process_registry[slug]
     """
     Decorate the `create_process_endpoint` view with swagger schema properties defined by the plugin author
     """
+    @community_middleware
     @api_view(['POST'])
     def create_process(request):
-        payload = request_body(request)
-
-        new_process = GovernanceProcess(
-            name=slug, callback_url=payload.get('callback_url'))
+        # Look up plugin instance (throws if plugin is not installed for this community)
         try:
-            new_process.full_clean()
-        except ValidationError as e:
-            logger.error(e)
+            plugin = get_plugin_instance(plugin_name, request.community)
+        except Exception as e:
             return HttpResponseBadRequest(e)
 
-        new_process.save()  # save to create DataStore
+        payload = JSONParser().parse(request)
+        callback_url = payload.pop('callback_url', None)  # pop to remove it
 
         # Validate payload
         try:
-            validate_process_input(slug, payload)
+            if cls.input_schema:
+                jsonschema.validate(payload, cls.input_schema)
         except jsonschema.exceptions.ValidationError as err:
             return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
-        new_process.start(payload)
-        if new_process.errors:
-            logger.info("failed to start process")
-            new_process.delete()
-            return HttpResponseServerError(json.dumps(new_process.errors))
+        # Create new process instance
+        new_process = cls.objects.create(
+            name=slug,
+            callback_url=callback_url,
+            plugin=plugin
+        )
+        logger.info(f"Created process: {new_process}")
 
-        logger.info(
-            f"Started '{slug}' process with id {new_process.pk}")
+        # Start process
+        new_process.start(payload)
+
+        if new_process.errors:
+            logger.error(f"Failed to start process {new_process}")
+            errors = new_process.errors
+            new_process.delete()
+            return HttpResponseServerError(json.dumps(errors))
+
+        logger.info(f"Started process: {new_process}")
 
         # return 202 with resource location in header
         response = HttpResponse(status=HTTPStatus.ACCEPTED)
-        response['Location'] = f"/api/internal/process/{slug}/{new_process.pk}"
+        response['Location'] = f"/api/internal/process/{plugin_name}.{slug}/{new_process.pk}"
         return response
 
-    schema = construct_openapi_schema(slug)
     properties = {}
     required = {}
-    if schema:
+    # if jsonschema provided, convert it to openapi
+    if cls.input_schema:
+        schema = convert(cls.input_schema)
         properties = schema.get('properties')
         required = schema.get('required')
 
@@ -153,10 +217,14 @@ def decorated_create_process_view(slug):
             202: 'Process successfully started. Use the URL from the `Location` header in the response to get the status and outcome of the process.'
         },
         operation_description=f"Start a new governance process of type '{slug}'",
+        manual_parameters=[openapi_community_header],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                "callback_url": openapi.Schema(type=openapi.TYPE_STRING, description='URL to POST outcome to when process is completed'),
+                "callback_url": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='URL to POST outcome to when process is completed'
+                ),
                 **properties
             },
             required=required
@@ -164,24 +232,30 @@ def decorated_create_process_view(slug):
     )(create_process)
 
 
-def decorated_perform_action_view(slug):
+def decorated_perform_action_view(plugin_name, slug):
+    cls = plugin_registry[plugin_name]
+    meta = cls._action_registry[slug]
+
+    @community_middleware
     @api_view(['POST'])
     def perform_action(request):
         """
         Perform an action on a platform
         """
-        payload = request_body(request)
+        # 1. Look up plugin instance
+        try:
+            plugin = get_plugin_instance(plugin_name, request.community)
+        except Exception as e:
+            return HttpResponseBadRequest(e)
 
-        # 1. Look up action function in registry
-        item = action_function_registry.get(slug)
-        if item is None:
-            return HttpResponseBadRequest(f"Action {slug} not registered")
+        action_function = getattr(plugin, meta.function_name)
 
         # 2. Validate input parameters
+        payload = JSONParser().parse(request)
         parameters = payload.get('parameters')
-        if item.input_schema:
+        if meta.input_schema:
             try:
-                jsonschema.validate(parameters, item.input_schema)
+                jsonschema.validate(parameters, meta.input_schema)
             except jsonschema.exceptions.ValidationError as err:
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
@@ -190,25 +264,27 @@ def decorated_perform_action_view(slug):
             user_id = payload.get('initiator', {}).get('user_id')
             # provider = payload.get('initiator', {}).get('provider')
             # TODO lookup user in metagov, find identity for this provider
-            response = item.function(parameters, user_id)
+            response = action_function(parameters, user_id)
         except ValueError as err:  # FIXME use custom err type
             return HttpResponseServerError(f"Error executing action: {err}")
 
         # 4. Validate response
-        if item.output_schema:
+        if meta.output_schema:
             try:
-                jsonschema.validate(response, item.output_schema)
+                jsonschema.validate(response, meta.output_schema)
             except jsonschema.exceptions.ValidationError as err:
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
         # 5. Return response
         return JsonResponse(response)
 
-    item = action_function_registry.get(slug)
-
-    arg_dict = {'method': 'post', 'operation_description': item.description}
-    if item.input_schema:
-        schema = convert(item.input_schema)
+    arg_dict = {
+        'method': 'post',
+        'operation_description': meta.description,
+        'manual_parameters': [openapi_community_header],
+    }
+    if meta.input_schema:
+        schema = convert(meta.input_schema)
         properties = {
             'parameters': openapi.Schema(
                 type=openapi.TYPE_OBJECT,
@@ -226,8 +302,8 @@ def decorated_perform_action_view(slug):
             properties={**properties}
         )
 
-    if item.output_schema:
-        schema = convert(item.output_schema)
+    if meta.output_schema:
+        schema = convert(meta.output_schema)
         arg_dict['responses'] = {
             200: openapi.Schema(
                 type=openapi.TYPE_OBJECT,
@@ -254,39 +330,61 @@ def jsonschema_to_parameters(schema):
     return parameters
 
 
-def decorated_resource_view(slug):
+def get_plugin_instance(plugin_name, community):
+    cls = plugin_registry.get(plugin_name)
+    if not cls:
+        raise Exception(f"Plugin '{plugin_name}' not registered")
+
+    plugin = cls.objects.filter(name=plugin_name, community=community).first()
+    if not plugin:
+        raise Exception(
+            f"Plugin '{plugin_name}' not enabled for community '{community.name}'")
+    return plugin
+
+
+def decorated_resource_view(plugin_name, slug):
+    cls = plugin_registry[plugin_name]
+    meta = cls._resource_registry[slug]
+
+    @community_middleware
     @api_view(['GET'])
     def get_resource(request):
-        item = resource_retrieval_registry.get(slug)
-        if item is None:
-            return HttpResponseBadRequest(f"Resource retrieval function {slug} not registered")
+        # Look up plugin instance
+        plugin = cls.objects.filter(
+            name=plugin_name, community=request.community).first()
+        if not plugin:
+            return HttpResponseBadRequest(f"Plugin '{plugin_name}' not enabled for community '{request.community.name}'")
 
         parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
         # Validate parameters
-        if item.input_schema:
+        if meta.input_schema:
             try:
-                jsonschema.validate(parameters, item.input_schema)
+                jsonschema.validate(parameters, meta.input_schema)
             except jsonschema.exceptions.ValidationError as err:
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
-        resource = item.function(parameters)
+        # Call the resource retrieval function
+        function = getattr(plugin, meta.function_name)
+        resource = function(parameters)
+
         # Validate resource
-        if item.output_schema:
+        if meta.output_schema:
             try:
-                jsonschema.validate(resource, item.output_schema)
+                jsonschema.validate(resource, meta.output_schema)
             except jsonschema.exceptions.ValidationError as err:
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
-
         return JsonResponse(resource)
 
-    item = resource_retrieval_registry.get(slug)
-
-    arg_dict = {'method': 'get', 'operation_description': item.description}
-    if item.input_schema:
-        arg_dict['manual_parameters'] = jsonschema_to_parameters(
-            item.input_schema)
-    if item.output_schema:
-        schema = convert(item.output_schema)
+    arg_dict = {
+        'method': 'get',
+        'operation_description': meta.description,
+        'manual_parameters': [openapi_community_header],
+    }
+    if meta.input_schema:
+        arg_dict['manual_parameters'].extend(
+            jsonschema_to_parameters(meta.input_schema))
+    if meta.output_schema:
+        schema = convert(meta.output_schema)
         arg_dict['responses'] = {
             200: openapi.Schema(
                 type=openapi.TYPE_OBJECT,
@@ -297,7 +395,7 @@ def decorated_resource_view(slug):
     return swagger_auto_schema(**arg_dict)(get_resource)
 
 
-@receiver(config_updated)
-def constance_updated(sender, key, old_value, new_value, **kwargs):
-    # TODO reload plugins ?
-    logger.info(f"Config updated: {key}: {old_value} -> {new_value}")
+# @receiver(config_updated)
+# def constance_updated(sender, key, old_value, new_value, **kwargs):
+#     # TODO reload plugins ?
+#     logger.info(f"Config updated: {key}: {old_value} -> {new_value}")

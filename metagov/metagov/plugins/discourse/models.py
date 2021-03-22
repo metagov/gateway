@@ -1,187 +1,166 @@
+import base64
+import hashlib
+import hmac
 import json
 import logging
-import jsonpickle
-import requests
-import time
-import hmac
-import hashlib
-import base64
-from drf_yasg import openapi
-import metagov.plugins.discourse.schemas as Schemas
-from metagov.core.plugin_models import (GovernanceProcessProvider,
-                                        ProcessState, ProcessStatus,
-                                        load_settings,
-                                        register_listener,
-                                        BaseCommunity,
-                                        register_resource,
-                                        send_platform_event,
-                                        register_action)
 
+import metagov.plugins.discourse.schemas as Schemas
+import requests
+import metagov.core.plugin_decorators as Registry
+from metagov.core.models import Plugin, GovernanceProcess, ProcessStatus
 
 logger = logging.getLogger('django')
 
-settings = load_settings("discourse")
-
-discourse_server_url = settings['discourse_url']
-system_api_key = settings['discourse_api_key']
-discourse_webhook_secret = settings['discourse_webhook_secret']
-
-
-def construct_post_url(post):
-    return f"{discourse_server_url}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}?u={post['username']}"
-
-
-class DiscourseCommunity(BaseCommunity):
-    def __init__(self,
-                 name: str,
-                 server_url: str):
-        self.platform = 'discourse'
-        self.name = name
-        self.unique_id = server_url
-
-
-def create_discourse_community():
-    resp = requests.get(f"{discourse_server_url}/about.json")
-    response = resp.json()
-    community_name = response.get('about').get('title')
-    return DiscourseCommunity(name=community_name, server_url=discourse_server_url)
-
-
-# init - do this somewhere else
-community = create_discourse_community()
-
-
-def discourse_post_request(route, payload, username):
-    headers = {
-        'Content-Type': 'application/json',
-        'Api-Username': username,
-        'Api-Key': system_api_key
+@Registry.plugin
+class Discourse(Plugin):
+    name = "discourse"
+    config_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "api_key": {
+                "type": "string"
+            },
+            "server_url": {
+                "type": "string"
+            },
+            "webhook_secret": {
+                "type": "string"
+            },
+            "webhook_slug": {
+                "type": "string"
+            }
+        },
+        "required": [
+            "api_key",
+            "server_url",
+            "webhook_secret"
+        ]
     }
-    resp = requests.post(f"{discourse_server_url}/{route}",
-                         headers=headers, json=payload)
-    if not resp.ok:
-        logger.info(resp)
-        logger.error(f"{resp.status_code} {resp.reason}")
-        raise ValueError(resp.text)
-    return resp.json()
 
+    class Meta:
+        proxy = True
 
-"""
-ACTIONS
-"""
+    def initialize(self):
+        resp = requests.get(f"{self.config['server_url']}/about.json")
+        response = resp.json()
+        community_name = response.get('about').get('title')
+        logger.info(
+            f"Initialized Discourse plugin for community {community_name}")
+        self.state.set('community_name', community_name)
 
+    def construct_post_url(self, post):
+        return f"{self.config['server_url']}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}?u={post['username']}"
 
-@register_action(
-    slug="discourse.create-post",
-    description="Create a new post on discourse",
-    input_schema=Schemas.create_post_parameters,
-    output_schema=Schemas.create_post_response
-)
-def create_post(parameters, initiator):
-    payload = {'raw': parameters['raw'], 'topic_id': parameters['topic_id']}
-    username = initiator or 'system'
-    post = discourse_post_request("posts.json", payload, username)
-    return {'url': construct_post_url(post), 'id': post['id']}
+    def discourse_post_request(self, route, payload, username):
+        headers = {
+            'Content-Type': 'application/json',
+            'Api-Username': username,
+            'Api-Key': self.config['api_key']
+        }
+        resp = requests.post(f"{self.config['server_url']}/{route}",
+                             headers=headers, json=payload)
+        if not resp.ok:
+            logger.info(resp)
+            logger.error(f"{resp.status_code} {resp.reason}")
+            raise ValueError(resp.text)
+        return resp.json()
 
+    @Registry.action(
+        slug="create-post",
+        description="Create a new post on discourse",
+        input_schema=Schemas.create_post_parameters,
+        output_schema=Schemas.create_post_response
+    )
+    def create_post(self, parameters, initiator):
+        payload = {'raw': parameters['raw'],
+                   'topic_id': parameters['topic_id']}
+        username = initiator or 'system'
+        post = self.discourse_post_request("posts.json", payload, username)
+        return {'url': self.construct_post_url(post), 'id': post['id']}
 
-@register_action(
-    slug="discourse.delete-post",
-    description="Delete a post on discourse",
-    input_schema=Schemas.delete_post_parameters,
-    output_schema=None
-)
-def delete_post(parameters, initiator):
-    headers = {
-        'Api-Username': 'system',
-        'Api-Key': system_api_key
-    }
-    resp = requests.delete(
-        f"{discourse_server_url}/posts/{parameters['id']}", headers=headers)
-    if not resp.ok:
-        logger.error(f"{resp.status_code} {resp.reason}")
-        raise ValueError(resp.text)
-    return {}
+    @Registry.action(
+        slug="delete-post",
+        description="Delete a post on discourse",
+        input_schema=Schemas.delete_post_parameters,
+        output_schema=None
+    )
+    def delete_post(self, parameters, initiator):
+        headers = {
+            'Api-Username': 'system',
+            'Api-Key': self.config['api_key']
+        }
+        resp = requests.delete(
+            f"{self.config['server_url']}/posts/{parameters['id']}", headers=headers)
+        if not resp.ok:
+            logger.error(f"{resp.status_code} {resp.reason}")
+            raise ValueError(resp.text)
+        return {}
 
+    @Registry.action(
+        slug="lock-post",
+        description="Lock or unlock a post on discourse",
+        input_schema=Schemas.lock_post_parameters,
+        output_schema=Schemas.lock_post_response,
+    )
+    def lock_post(self, parameters, initiator):
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Api-Username': 'system',
+            'Api-Key': self.config['api_key']
+        }
+        data = {'locked': json.dumps(parameters['locked'])}
+        resp = requests.put(
+            f"{self.config['server_url']}/posts/{parameters['id']}/locked", headers=headers, data=data)
+        if not resp.ok:
+            logger.error(f"{resp.status_code} {resp.reason}")
+            raise ValueError(resp.text)
+        return resp.json()
 
-@register_action(
-    slug="discourse.lock-post",
-    description="Lock or unlock a post on discourse",
-    input_schema=Schemas.lock_post_parameters,
-    output_schema=Schemas.lock_post_response,
-)
-def lock_post(parameters, initiator):
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Api-Username': 'system',
-        'Api-Key': system_api_key
-    }
-    data = {'locked': json.dumps(parameters['locked'])}
-    resp = requests.put(
-        f"{discourse_server_url}/posts/{parameters['id']}/locked", headers=headers, data=data)
-    if not resp.ok:
-        logger.error(f"{resp.status_code} {resp.reason}")
-        raise ValueError(resp.text)
-    return resp.json()
+    def validate_request_signature(self, request):
+        event_signature = request.headers.get('X-Discourse-Event-Signature')
+        if not event_signature:
+            raise Exception('Missing event signature')
+        key = bytes(self.config['webhook_secret'], 'utf-8')
+        string_signature = hmac.new(
+            key, request.body, hashlib.sha256).hexdigest()
+        expected_signature = f"sha256={string_signature}"
+        if not hmac.compare_digest(event_signature, expected_signature):
+            raise Exception('Invalid signature header')
 
+        instance = request.headers['X-Discourse-Instance']
+        if instance != self.config['server_url']:
+            raise Exception("Unexpected X-Discourse-Instance")
 
-"""
-LISTENERS
-"""
+    def receive_webhook(self, request):
+        self.validate_request_signature(request)
+        event = request.headers.get('X-Discourse-Event')
+        body = json.loads(request.body)
+        logger.info(f"Received event '{event}' from Discourse")
 
-
-def validate_request_signature(request):
-    event_signature = request.headers['X-Discourse-Event-Signature']
-    key = bytes(discourse_webhook_secret, 'utf-8')
-    string_signature = hmac.new(key, request.body, hashlib.sha256).hexdigest()
-    expected_signature = f"sha256={string_signature}"
-    if not hmac.compare_digest(event_signature, expected_signature):
-        raise Exception('Invalid signature header')
-
-    instance = request.headers['X-Discourse-Instance']
-    if instance != discourse_server_url:
-        raise Exception("Unexpected X-Discourse-Instance")
-
-
-@register_listener("discourse", "receive events from Discourse")
-def listener(request):
-    validate_request_signature(request)
-    event = request.headers.get('X-Discourse-Event')
-    body = json.loads(request.body)
-    logger.info(f"Received event '{event}' from Discourse")
-
-    if event == "post_created":
-        post = body.get('post')
-        data = {'raw': post['raw'],
-                'topic_id': post['topic_id'],
-                'id': post['id'],
-                'url': construct_post_url(post)}
-        initiator = {'user_id': post['username'],
-                     'provider': 'discourse'}
-        send_platform_event(
-            event_type="post_created",
-            community=community,
-            initiator=initiator,
-            data=data
-        )
-
-
-"""
-RESOURCE RETRIEVALS
-"""
-
-
-@register_resource('discourse.badges', 'Discourse badges for a given user')
-def get_discourse_badges(parameters):
-    raise NotImplementedError
+        if event == "post_created":
+            post = body.get('post')
+            data = {'raw': post['raw'],
+                    'topic_id': post['topic_id'],
+                    'id': post['id'],
+                    'url': self.construct_post_url(post)}
+            initiator = {'user_id': post['username'],
+                         'provider': 'discourse'}
+            self.send_event_to_driver(
+                event_type="post_created",
+                initiator=initiator,
+                data=data
+            )
 
 
 """
 GOVERNANCE PROCESSES
 """
 
-
-class DiscoursePoll(GovernanceProcessProvider):
-    slug = 'discourse-poll'
+@Registry.governance_process
+class DiscoursePoll(GovernanceProcess):
+    name = 'poll'
+    plugin_name = 'discourse'
 
     input_schema = {
         "type": "object",
@@ -208,8 +187,11 @@ class DiscoursePoll(GovernanceProcessProvider):
         ]
     }
 
-    @staticmethod
-    def start(process_state: ProcessState, parameters) -> None:
+    class Meta:
+        proxy = True
+
+    def start(self, parameters) -> None:
+        discourse_server_url = self.plugin.config['server_url']
         url = f"{discourse_server_url}/posts.json"
 
         closes_at = ''
@@ -229,7 +211,7 @@ class DiscoursePoll(GovernanceProcessProvider):
         }
 
         headers = {
-            'Api-Key': system_api_key, 'Api-Username': 'system'}
+            'Api-Key': self.plugin.config['api_key'], 'Api-Username': 'system'}
         logger.info(payload)
         logger.info(url)
 
@@ -237,38 +219,36 @@ class DiscoursePoll(GovernanceProcessProvider):
         if not resp.ok:
             logger.error(
                 f"Error: {resp.status_code} {resp.text}")
-            process_state.set_errors({'text': resp.text or "unknown error"})
-            process_state.set_status(ProcessStatus.COMPLETED)
+            self.errors = {'text': resp.text or "unknown error"}
+            self.status = ProcessStatus.COMPLETED.value
+            self.save()
             return
 
         response = resp.json()
         logger.info(response)
         if response.get('errors'):
-            process_state.set_errors(response['errors'])
-            process_state.set_status(ProcessStatus.COMPLETED)
+            self.errors = response['errors']
+            self.status = ProcessStatus.COMPLETED.value
         else:
             poll_url = f"{discourse_server_url}/t/{response.get('topic_slug')}/{response.get('topic_id')}"
             logger.info(f"Poll created at {poll_url}")
 
-            process_state.set_data_value(
+            self.state.set(
                 'post_id', response.get('id'))
-            process_state.set_data_value('topic_id', response.get('topic_id'))
-            process_state.set_data_value(
+            self.state.set('topic_id', response.get('topic_id'))
+            self.state.set(
                 'topic_slug', response.get('topic_slug'))
-            process_state.set_data_value('poll_url', poll_url)
-            process_state.set_status(ProcessStatus.PENDING)
+            self.state.set('poll_url', poll_url)
+            self.data = { 'poll_url': poll_url } #this field gets serialized and returned
+            self.status = ProcessStatus.PENDING.value
+        self.save()
 
-    @staticmethod
-    def handle_webhook(process_state: ProcessState, request) -> None:
-        try:
-            body = json.loads(request.body)
-        except ValueError:
-            logger.error("unable to decode webhook body")
+    def receive_webhook(self, request):
+        pass
 
-    @staticmethod
-    def close(process_state: ProcessStatus) -> None:
-        url = f"{discourse_server_url}/polls/toggle_status"
-        post_id = process_state.get_data_value('post_id')
+    def close(self):
+        url = f"{self.plugin.config['server_url']}/polls/toggle_status"
+        post_id = self.state.get('post_id')
         data = {
             "post_id": post_id,
             "poll_name": "poll",
@@ -277,7 +257,7 @@ class DiscoursePoll(GovernanceProcessProvider):
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Api-Username': 'system',
-            'Api-Key': system_api_key
+            'Api-Key': self.plugin.config['api_key']
         }
         logger.info(data)
         logger.info(url)
@@ -294,7 +274,8 @@ class DiscoursePoll(GovernanceProcessProvider):
             outcome[opt['html']] = opt['votes']
 
         # Lock the post
-        lock_post({'locked': True, 'id': post_id}, None)
+        self.plugin.lock_post({'locked': True, 'id': post_id}, None)
 
-        process_state.set_outcome(outcome)
-        process_state.set_status(ProcessStatus.COMPLETED)
+        self.outcome = outcome
+        self.status = ProcessStatus.COMPLETED.value
+        self.save()
