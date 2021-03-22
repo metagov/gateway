@@ -82,6 +82,7 @@ def community(request, name):
 
     elif request.method == 'PUT':
         data = JSONParser().parse(request)
+        created = False
         try:
             community = Community.objects.get(name=name)
             community_serializer = CommunitySerializer(community, data=data)
@@ -90,10 +91,12 @@ def community(request, name):
                 # if creating a new community, the name and slug should match
                 return HttpResponseBadRequest(f"Expected name {name}, found {data.get('name')}")
             community_serializer = CommunitySerializer(data=data)
+            created = True
 
         if community_serializer.is_valid():
             community_serializer.save()
-            return JsonResponse(community_serializer.data, status=status.HTTP_201_CREATED)
+            s = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+            return JsonResponse(community_serializer.data, status=s)
         return JsonResponse(community_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     elif request.method == 'DELETE':

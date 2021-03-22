@@ -12,7 +12,7 @@ logger = logging.getLogger('django')
 def create_or_update_plugin(plugin_name, plugin_config, community):
     cls = plugin_registry.get(plugin_name)
     if not cls:
-        raise Exception(f"No such plugin registered: {plugin_name}")
+        raise serializers.ValidationError(f"No such plugin registered: {plugin_name}")
 
     if cls.config_schema:
         try:
@@ -89,7 +89,7 @@ class CommunitySerializer(serializers.ModelSerializer):
         return instance
 
     def create(self, validated_data):
-        plugins = validated_data.pop('plugins')
+        plugins = validated_data.pop('plugins', [])
         instance = Community.objects.create(**validated_data)
         for data in plugins:
             create_or_update_plugin(
