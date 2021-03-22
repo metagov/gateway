@@ -1,7 +1,6 @@
 
 import json
 import logging
-import time
 
 import metagov.core.plugin_decorators as Registry
 import metagov.plugins.opencollective.queries as Queries
@@ -10,8 +9,6 @@ import requests
 from metagov.core.models import Plugin
 
 logger = logging.getLogger('django')
-
-webhook_receiver_slug = "opencollective-4a58c7b2"  # FIXME
 
 opencollective_url = "https://opencollective.com"
 
