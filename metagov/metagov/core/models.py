@@ -97,7 +97,7 @@ class ProcessStatus(Enum):
     COMPLETED = 'completed'
 
 
-class AsyncProcess(models.Model):
+class GovernanceProcess(models.Model):
     """
     Model representing an instance of a governance process. There can be multiple
     active processes of the same type for a single community.
@@ -127,7 +127,7 @@ class AsyncProcess(models.Model):
     def save(self, *args, **kwargs):
         if not self.pk:
             self.state = DataStore.objects.create()
-        super(AsyncProcess, self).save(*args, **kwargs)
+        super(GovernanceProcess, self).save(*args, **kwargs)
 
     def start(self, parameters):
         pass
@@ -139,18 +139,18 @@ class AsyncProcess(models.Model):
         pass
 
 
-@receiver(pre_save, sender=AsyncProcess, dispatch_uid="process_saved")
+@receiver(pre_save, sender=GovernanceProcess, dispatch_uid="process_saved")
 def notify_process_completed(sender, instance, **kwargs):
     """
     Pre-save receiver to notify caller that the governance processes has completed
     """
 
     def notify_completed(process):
-        from metagov.core.serializers import AsyncProcessSerializer
+        from metagov.core.serializers import GovernanceProcessSerializer
         if not process.callback_url:
             logger.info("No callback url")
             return
-        serializer = AsyncProcessSerializer(process)
+        serializer = GovernanceProcessSerializer(process)
         logger.info(
             f"Posting completed process outcome to {process.callback_url}")
         logger.info(serializer.data)

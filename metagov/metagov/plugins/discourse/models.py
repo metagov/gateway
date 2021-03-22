@@ -7,7 +7,7 @@ import logging
 import metagov.plugins.discourse.schemas as Schemas
 import requests
 import metagov.core.plugin_decorators as Registry
-from metagov.core.models import Plugin, AsyncProcess, ProcessStatus
+from metagov.core.models import Plugin, GovernanceProcess, ProcessStatus
 
 logger = logging.getLogger('django')
 
@@ -158,7 +158,7 @@ GOVERNANCE PROCESSES
 """
 
 @Registry.governance_process
-class DiscoursePoll(AsyncProcess):
+class DiscoursePoll(GovernanceProcess):
     name = 'poll'
     plugin_name = 'discourse'
 

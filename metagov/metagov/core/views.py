@@ -19,9 +19,9 @@ from drf_yasg.utils import swagger_auto_schema
 from jsonschema_to_openapi.convert import convert
 from metagov.core.middleware import (CommunityMiddleware,
                                      openapi_community_header)
-from metagov.core.models import AsyncProcess, Community
+from metagov.core.models import GovernanceProcess, Community
 from metagov.core.plugin_decorators import plugin_registry
-from metagov.core.serializers import (AsyncProcessSerializer,
+from metagov.core.serializers import (GovernanceProcessSerializer,
                                       CommunitySerializer)
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -49,13 +49,13 @@ def home(request):
                      operation_description="Get the status of an existing governance process",
                      responses={
                             200: openapi.Response(
-                                'Current process record. Check the `status` field to see if the process has completed. If the `errors` field has data, the process failed.', AsyncProcessSerializer),
+                                'Current process record. Check the `status` field to see if the process has completed. If the `errors` field has data, the process failed.', GovernanceProcessSerializer),
                             404: 'Process not found'})
 @api_view(['GET', 'DELETE'])
 def get_process(request, process_id):
     try:
-        process = AsyncProcess.objects.get(pk=process_id)
-    except AsyncProcess.DoesNotExist:
+        process = GovernanceProcess.objects.get(pk=process_id)
+    except GovernanceProcess.DoesNotExist:
         return HttpResponseNotFound()
 
     if request.method == 'DELETE':
@@ -64,7 +64,7 @@ def get_process(request, process_id):
         logger.info(f"Closing process {process_id}")
         process.close()
 
-    serializer = AsyncProcessSerializer(process)
+    serializer = GovernanceProcessSerializer(process)
     logger.info(f"Returning serialized process: {serializer.data}")
     return JsonResponse(serializer.data)
 
@@ -135,7 +135,7 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
     logger.info(f"Passing webhook request to: {plugin}")
     plugin.receive_webhook(request)
 
-    # Call `receive_webhook` on each of the AsyncProcess proxy models
+    # Call `receive_webhook` on each of the GovernanceProcess proxy models
     proxy_models = plugin_registry[plugin_name]._process_registry.values()
     for cls in proxy_models:
         processes = cls.objects.filter(plugin=plugin)

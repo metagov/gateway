@@ -7,7 +7,7 @@ from django.db import models
 from django.http import (HttpResponse, HttpResponseBadRequest,
                          HttpResponseNotFound)
 from drf_yasg import openapi
-from metagov.core.models import AsyncProcess, Plugin, ProcessStatus
+from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
 logger = logging.getLogger('django')
 
@@ -36,7 +36,7 @@ class Loomio(Plugin):
 
 
 @Registry.governance_process
-class LoomioPoll(AsyncProcess):
+class LoomioPoll(GovernanceProcess):
     name = 'poll'
     plugin_name = 'loomio'
     input_schema = {
