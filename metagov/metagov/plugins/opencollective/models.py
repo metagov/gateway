@@ -31,9 +31,8 @@ class OpenCollective(Plugin):
                 "type": "string",
                 "description": "Slug for the Open Collective collective (opencollective.com/<slug>)"
             },
-            "webhook_receiver_slug": {
-                "type": "string",
-                "description": "Slug to use for webhook receiver endpoint in metagov. Must match static URL set in Open Collective."
+            "webhook_slug": {
+                "type": "string"
             },
         },
         "required": [

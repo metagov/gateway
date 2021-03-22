@@ -47,6 +47,9 @@ class Discourse(Plugin):
             "webhook_secret": {
                 "type": "string"
             },
+            "webhook_slug": {
+                "type": "string"
+            }
         },
         "required": [
             "api_key",
@@ -135,7 +138,9 @@ class Discourse(Plugin):
         return resp.json()
 
     def validate_request_signature(self, request):
-        event_signature = request.headers['X-Discourse-Event-Signature']
+        event_signature = request.headers.get('X-Discourse-Event-Signature')
+        if not event_signature:
+            raise Exception('Missing event signature')
         key = bytes(self.config['webhook_secret'], 'utf-8')
         string_signature = hmac.new(
             key, request.body, hashlib.sha256).hexdigest()
@@ -260,11 +265,7 @@ class DiscoursePoll(AsyncProcess):
         self.save()
 
     def receive_webhook(self, request):
-        logger.info(f"Processing webhook in {self}")
-        try:
-            body = json.loads(request.body)
-        except ValueError:
-            logger.error("unable to decode webhook body")
+        pass
 
     def close(self):
         url = f"{self.plugin.config['server_url']}/polls/toggle_status"

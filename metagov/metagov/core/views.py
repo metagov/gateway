@@ -111,13 +111,13 @@ def community(request, name):
 
 
 @csrf_exempt
-def receive_webhook(request, community_id, plugin_name, webhook_slug):
+def receive_webhook(request, community, plugin_name, webhook_slug=None):
     """
     API endpoint for receiving webhook requests from external services
     """
 
     try:
-        community = Community.objects.get(pk=community_id)
+        community = Community.objects.get(name=community)
     except Community.DoesNotExist:
         return HttpResponseNotFound()
 
@@ -126,19 +126,24 @@ def receive_webhook(request, community_id, plugin_name, webhook_slug):
         plugin = get_plugin_instance(plugin_name, community)
     except Exception as e:
         return HttpResponseBadRequest(e)
+
+    # Validate slug if the plugin has `webhook_slug` configured
+    expected_slug = plugin.config.get('webhook_slug')
+    if webhook_slug != expected_slug:
+        logger.error(
+            f"Received request at {webhook_slug}, expected {expected_slug}. Rejecting.")
+        return HttpResponseBadRequest()
+
+    logger.info(f"Passing webhook request to: {plugin}")
     plugin.receive_webhook(request)
 
-    # FIXME 📌 📌 📌 📌
-    # listener = listener_registry.get(slug)
-    # if listener:
-    #     listener.function(request)
-
-    # active_processes = GovernanceProcess.objects.filter(name=slug)
-    # if active_processes.count() > 0:
-    #     logger.info(
-    #         f"invoking handlers for {active_processes.count()} active processes")
-    #     for p in active_processes:
-    #         p.handle_webhook(request)
+    # Call `receive_webhook` on each of the AsyncProcess proxy models
+    proxy_models = plugin_registry[plugin_name]._process_registry.values()
+    for cls in proxy_models:
+        processes = cls.objects.filter(plugin=plugin)
+        for process in processes:
+            logger.info(f"Passing webhook request to: {process}")
+            process.receive_webhook(request)
 
     return HttpResponse()
 

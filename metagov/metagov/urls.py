@@ -51,13 +51,13 @@ for (key, cls) in plugin_registry.items():
             cls.name, slug), name=f"perform_{prefixed_slug}")
         plugin_patterns.append(pattern)
 
-
     for (slug, process_cls) in cls._process_registry.items():
         # Create a new governance process
         prefixed_slug = f"{cls.name}.{slug}"
         route = f"api/internal/process/{prefixed_slug}"
         logger.info(f"Adding route: {route}")
-        post_pattern = path(route, views.decorated_create_process_view(cls.name, slug), name=f"create_process_{prefixed_slug}")
+        post_pattern = path(route, views.decorated_create_process_view(
+            cls.name, slug), name=f"create_process_{prefixed_slug}")
 
         # Get or close an existing governance process
         get_pattern = path(
@@ -81,7 +81,9 @@ urlpatterns = [
                                            cache_timeout=0), name='schema-swagger-ui'),
     url(r'^redoc/$', schema_view.with_ui('redoc',
                                          cache_timeout=0), name='schema-redoc'),
-    path('api/postreceive/<int:community_id>/<slug:plugin_name>/<slug:webhook_slug>',
+    path('api/hooks/<slug:community>/<slug:plugin_name>',
+         views.receive_webhook, name='receive_webhook'),
+    path('api/hooks/<slug:community>/<slug:plugin_name>/<slug:webhook_slug>',
          views.receive_webhook, name='receive_webhook'),
     path('api/internal/community/<slug:name>',
          views.community, name='community')

@@ -122,7 +122,7 @@ class AsyncProcess(models.Model):
     input_schema = {}
 
     def __str__(self):
-        return f"'{self.name}' for '{self.plugin.community.name}' ({self.pk} - {self.status})"
+        return f"{self.plugin.name}.{self.name} for '{self.plugin.community.name}' ({self.pk}, {self.status})"
 
     def save(self, *args, **kwargs):
         if not self.pk:
@@ -132,7 +132,7 @@ class AsyncProcess(models.Model):
     def start(self, parameters):
         pass
 
-    def close(self, parameters):
+    def close(self):
         pass
 
     def receive_webhook(self, request):
