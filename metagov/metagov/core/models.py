@@ -1,7 +1,6 @@
 import json
 import logging
 
-
 import requests
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -9,7 +8,6 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 from drf_yasg import openapi
-
 from metagov.core.plugin_models import (GovernanceProcessProvider,
                                         ProcessState, ProcessStatus)
 
@@ -64,11 +62,12 @@ class Plugin(models.Model):
                                   help_text="Community that this plugin instance belongs to")
     config = models.JSONField(default=dict, null=True, blank=True,
                               help_text="Configuration for this plugin instance")
-    config_schema = {}  # can be overridden to set jsonschema of config
     data = models.OneToOneField(DataStore,
                                 models.CASCADE,
-                                help_text="Datastore to persist any data"
+                                help_text="Datastore to persist any data",
+                                null=True
                                 )
+    config_schema = {}  # can be overridden to set jsonschema of config
 
     class Meta:
         unique_together = ['name', 'community']
@@ -89,7 +88,6 @@ class Plugin(models.Model):
         pass
 
 
-
 def validate_process_name(name):
     PluginClass = GovernanceProcessProvider.plugins.get(name)
     if not PluginClass:
@@ -98,7 +96,47 @@ def validate_process_name(name):
             params={'name': name},
         )
 
-# FIXME 👽 👽 👽 👽 👽
+
+class AsyncProcess(models.Model):
+    """
+    Model representing an instance of a governance process. There can be multiple
+    active processes of the same type for a single community.
+    """
+    name = models.CharField(max_length=30)
+    callback_url = models.CharField(max_length=50, null=True, blank=True)
+    status = models.CharField(
+        max_length=15,
+        choices=[(s.value, s.name) for s in ProcessStatus],
+        default=ProcessStatus.CREATED.value
+    )
+    plugin = models.ForeignKey(Plugin, models.CASCADE, related_name='plugin',
+                               help_text="Plugin instance that this process belongs to")
+    state = models.OneToOneField(DataStore,
+                                 models.CASCADE,
+                                 help_text="Datastore to persist any data",
+                                 null=True)
+    data = models.JSONField(default=dict, blank=True,
+                            help_text="Data to serialize and send back to driver",)
+    errors = models.JSONField(default=dict, blank=True)
+    outcome = models.JSONField(default=dict, blank=True)
+    input_schema = {}
+
+    def __str__(self):
+        return f"'{self.name}' for '{self.plugin.community.name}' ({self.pk} - {self.status})"
+
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            self.state = DataStore.objects.create()
+        super(AsyncProcess, self).save(*args, **kwargs)
+
+    def start(self, parameters):
+        pass
+
+    def close(self, parameters):
+        pass
+
+    def receive_webhook(self, request):
+        pass
 
 
 class GovernanceProcess(models.Model):
@@ -142,7 +180,7 @@ class GovernanceProcess(models.Model):
         PluginClass.handle_webhook(process_state, request)
 
 
-@receiver(pre_save, sender=GovernanceProcess, dispatch_uid="process_saved")
+@receiver(pre_save, sender=AsyncProcess, dispatch_uid="process_saved")
 def notify_process_completed(sender, instance, **kwargs):
     """
     Pre-save receiver to notify caller that the governance processes has completed
@@ -162,11 +200,11 @@ def notify_process_completed(sender, instance, **kwargs):
 
 # notify driver that process has completed
 def notify_completed(process):
-    from metagov.core.serializers import GovernanceProcessSerializer
+    from metagov.core.serializers import AsyncProcessSerializer
     if not process.callback_url:
         logger.info("No callback url")
         return
-    serializer = GovernanceProcessSerializer(process)
+    serializer = AsyncProcessSerializer(process)
     logger.info(f"Posting completed process outcome to {process.callback_url}")
     logger.info(serializer.data)
     resp = requests.post(process.callback_url, json=serializer.data)

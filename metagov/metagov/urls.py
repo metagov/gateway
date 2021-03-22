@@ -34,19 +34,6 @@ schema_view = get_schema_view(
 
 plugin_patterns = []
 
-# FIXME convert to new plugin system
-for slug in GovernanceProcessProvider.plugins.keys():
-    # Create a new governance process
-    post_pattern = path(
-        f"api/internal/process/{slug}", views.decorated_create_process_view(slug), name=f"create_process_{slug}")
-    # Get or close an existing governance process
-    get_pattern = path(
-        f"api/internal/process/{slug}/<int:process_id>", views.get_process, name=f"get_process_{slug}")
-
-    plugin_patterns.append(post_pattern)
-    plugin_patterns.append(get_pattern)
-
-
 for (key, cls) in plugin_registry.items():
     for (slug, meta) in cls._resource_registry.items():
         prefixed_slug = f"{cls.name}.{slug}"
@@ -63,6 +50,21 @@ for (key, cls) in plugin_registry.items():
         pattern = path(route, views.decorated_perform_action_view(
             cls.name, slug), name=f"perform_{prefixed_slug}")
         plugin_patterns.append(pattern)
+
+
+    for (slug, process_cls) in cls._process_registry.items():
+        # Create a new governance process
+        prefixed_slug = f"{cls.name}.{slug}"
+        route = f"api/internal/process/{prefixed_slug}"
+        logger.info(f"Adding route: {route}")
+        post_pattern = path(route, views.decorated_create_process_view(cls.name, slug), name=f"create_process_{prefixed_slug}")
+
+        # Get or close an existing governance process
+        get_pattern = path(
+            f"api/internal/process/{prefixed_slug}/<int:process_id>", views.get_process, name=f"get_process_{prefixed_slug}")
+
+        plugin_patterns.append(post_pattern)
+        plugin_patterns.append(get_pattern)
 
 # TODO: Add endpoints to expose schemas for actions, processes, and resources
 admin.site.login = login_required(admin.site.login)

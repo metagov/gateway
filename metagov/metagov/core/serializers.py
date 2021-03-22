@@ -1,7 +1,7 @@
 import logging
 
 import jsonschema
-from metagov.core.models import Community, Plugin, GovernanceProcess
+from metagov.core.models import Community, Plugin, GovernanceProcess, AsyncProcess
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.plugin_models import ProcessStatus
 from metagov.core.validators import DefaultValidatingDraft7Validator
@@ -112,3 +112,18 @@ class GovernanceProcessSerializer(serializers.Serializer):
     def create(self, validated_data):
         return GovernanceProcess.objects.create(**validated_data)
 
+class AsyncProcessSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    community = serializers.SerializerMethodField()
+    #TODO nothing is actually validating this field
+    status = serializers.ChoiceField(choices=[(s.value, s.name) for s in ProcessStatus])
+
+    class Meta:
+        model = AsyncProcess
+        fields = ('id', 'name', 'community', 'status', 'data', 'errors', 'outcome')
+
+    def get_name(self, inst):
+        return f"{inst.plugin.name}.{inst.name}"
+
+    def get_community(self, inst):
+        return inst.plugin.community.name

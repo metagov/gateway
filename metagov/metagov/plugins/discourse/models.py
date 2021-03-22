@@ -10,7 +10,7 @@ import metagov.plugins.discourse.schemas as Schemas
 import requests
 from drf_yasg import openapi
 import metagov.core.plugin_decorators as Registry
-from metagov.core.models import Plugin
+from metagov.core.models import Plugin, AsyncProcess
 from metagov.core.plugin_models import (BaseCommunity,
                                         GovernanceProcessProvider,
                                         ProcessState, ProcessStatus,
@@ -64,7 +64,7 @@ class Discourse(Plugin):
         community_name = response.get('about').get('title')
         logger.info(
             f"Initialized Discourse plugin for community {community_name}")
-        self.data.set('community_name', community_name)
+        self.state.set('community_name', community_name)
 
     def construct_post_url(self, post):
         return f"{self.config['server_url']}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}?u={post['username']}"
@@ -173,9 +173,10 @@ class Discourse(Plugin):
 GOVERNANCE PROCESSES
 """
 
-
-class DiscoursePoll(GovernanceProcessProvider):
-    slug = 'discourse-poll'
+@Registry.governance_process
+class DiscoursePoll(AsyncProcess):
+    name = 'poll'
+    plugin_name = 'discourse'
 
     input_schema = {
         "type": "object",
@@ -202,8 +203,11 @@ class DiscoursePoll(GovernanceProcessProvider):
         ]
     }
 
-    @staticmethod
-    def start(process_state: ProcessState, parameters) -> None:
+    class Meta:
+        proxy = True
+
+    def start(self, parameters) -> None:
+        discourse_server_url = self.plugin.config['server_url']
         url = f"{discourse_server_url}/posts.json"
 
         closes_at = ''
@@ -223,7 +227,7 @@ class DiscoursePoll(GovernanceProcessProvider):
         }
 
         headers = {
-            'Api-Key': system_api_key, 'Api-Username': 'system'}
+            'Api-Key': self.plugin.config['api_key'], 'Api-Username': 'system'}
         logger.info(payload)
         logger.info(url)
 
@@ -231,38 +235,40 @@ class DiscoursePoll(GovernanceProcessProvider):
         if not resp.ok:
             logger.error(
                 f"Error: {resp.status_code} {resp.text}")
-            process_state.set_errors({'text': resp.text or "unknown error"})
-            process_state.set_status(ProcessStatus.COMPLETED)
+            self.errors = {'text': resp.text or "unknown error"}
+            self.status = ProcessStatus.COMPLETED.value
+            self.save()
             return
 
         response = resp.json()
         logger.info(response)
         if response.get('errors'):
-            process_state.set_errors(response['errors'])
-            process_state.set_status(ProcessStatus.COMPLETED)
+            self.errors = response['errors']
+            self.status = ProcessStatus.COMPLETED.value
         else:
             poll_url = f"{discourse_server_url}/t/{response.get('topic_slug')}/{response.get('topic_id')}"
             logger.info(f"Poll created at {poll_url}")
 
-            process_state.set_data_value(
+            self.state.set(
                 'post_id', response.get('id'))
-            process_state.set_data_value('topic_id', response.get('topic_id'))
-            process_state.set_data_value(
+            self.state.set('topic_id', response.get('topic_id'))
+            self.state.set(
                 'topic_slug', response.get('topic_slug'))
-            process_state.set_data_value('poll_url', poll_url)
-            process_state.set_status(ProcessStatus.PENDING)
+            self.state.set('poll_url', poll_url)
+            self.data = { 'poll_url': poll_url } #this field gets serialized and returned
+            self.status = ProcessStatus.PENDING.value
+        self.save()
 
-    @staticmethod
-    def handle_webhook(process_state: ProcessState, request) -> None:
+    def receive_webhook(self, request):
+        logger.info(f"Processing webhook in {self}")
         try:
             body = json.loads(request.body)
         except ValueError:
             logger.error("unable to decode webhook body")
 
-    @staticmethod
-    def close(process_state: ProcessStatus) -> None:
-        url = f"{discourse_server_url}/polls/toggle_status"
-        post_id = process_state.get_data_value('post_id')
+    def close(self):
+        url = f"{self.plugin.config['server_url']}/polls/toggle_status"
+        post_id = self.state.get('post_id')
         data = {
             "post_id": post_id,
             "poll_name": "poll",
@@ -271,7 +277,7 @@ class DiscoursePoll(GovernanceProcessProvider):
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Api-Username': 'system',
-            'Api-Key': system_api_key
+            'Api-Key': self.plugin.config['api_key']
         }
         logger.info(data)
         logger.info(url)
@@ -288,7 +294,8 @@ class DiscoursePoll(GovernanceProcessProvider):
             outcome[opt['html']] = opt['votes']
 
         # Lock the post
-        lock_post({'locked': True, 'id': post_id}, None)
+        self.plugin.lock_post({'locked': True, 'id': post_id}, None)
 
-        process_state.set_outcome(outcome)
-        process_state.set_status(ProcessStatus.COMPLETED)
+        self.outcome = outcome
+        self.status = ProcessStatus.COMPLETED.value
+        self.save()

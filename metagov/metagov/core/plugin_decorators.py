@@ -18,15 +18,17 @@ class SaferDraft7Validator(jsonschema.Draft7Validator):
 
 def plugin(cls):
     """
-    Plugin class decorator
+    Plugin model decorator
     """
     if not cls._meta.proxy:
-        raise Exception("Plugins must by proxy models")
+        raise Exception(f"Failed to register {cls.name}: must be a Django proxy model")
 
     if cls.config_schema:
         SaferDraft7Validator.check_schema(cls.config_schema)
     cls._resource_registry = {}
     cls._action_registry = {}
+    cls._process_registry = {}
+
     plugin_registry[cls.name] = cls
     for methodname in dir(cls):
         method = getattr(cls, methodname)
@@ -39,6 +41,21 @@ def plugin(cls):
                 cls._resource_registry[meta.slug] = method._meta
     return cls
 
+def governance_process(cls):
+    """
+    Process model decorator
+    """
+    if not cls._meta.proxy:
+        raise Exception(f"Failed to register {cls.name}: must be a Django proxy model")
+
+    if not plugin_registry.get(cls.plugin_name):
+        raise Exception(f"Failed to register {cls.name}: No such plugin '{cls.plugin_name}'. Plugin must be declared before process.")
+
+    if cls.input_schema:
+        SaferDraft7Validator.check_schema(cls.input_schema)
+
+    r = plugin_registry[cls.plugin_name]
+    r._process_registry[cls.name] = cls
 
 class ResourceFunctionMeta:
     def __init__(self, slug, function_name, description, input_schema, output_schema):

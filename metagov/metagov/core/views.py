@@ -17,14 +17,16 @@ from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from jsonschema_to_openapi.convert import convert
-from metagov.core.middleware import CommunityMiddleware
-from metagov.core.models import Community, GovernanceProcess
+from metagov.core.middleware import (CommunityMiddleware,
+                                     openapi_community_header)
+from metagov.core.models import AsyncProcess, Community, GovernanceProcess
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.plugin_models import (GovernanceProcessProvider,
                                         action_function_registry,
                                         listener_registry,
                                         resource_retrieval_registry)
-from metagov.core.serializers import (CommunitySerializer,
+from metagov.core.serializers import (AsyncProcessSerializer,
+                                      CommunitySerializer,
                                       GovernanceProcessSerializer)
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -35,6 +37,7 @@ from rest_framework.views import APIView
 community_middleware = decorator_from_middleware(CommunityMiddleware)
 
 logger = logging.getLogger('django')
+
 
 def index(request):
     return render(request, 'login.html', {})
@@ -56,8 +59,8 @@ def home(request):
 @api_view(['GET', 'DELETE'])
 def get_process(request, process_id):
     try:
-        process = GovernanceProcess.objects.get(pk=process_id)
-    except GovernanceProcess.DoesNotExist:
+        process = AsyncProcess.objects.get(pk=process_id)
+    except AsyncProcess.DoesNotExist:
         return HttpResponseNotFound()
 
     if request.method == 'DELETE':
@@ -66,7 +69,7 @@ def get_process(request, process_id):
         logger.info(f"Closing process {process_id}")
         process.close()
 
-    serializer = GovernanceProcessSerializer(process)
+    serializer = AsyncProcessSerializer(process)
     logger.info(f"Returning serialized process: {serializer.data}")
     return JsonResponse(serializer.data)
 
@@ -119,7 +122,10 @@ def receive_webhook(request, community_id, plugin_name, webhook_slug):
         return HttpResponseNotFound()
 
     # Lookup plugin
-    plugin = get_plugin_instance(plugin_name, community)
+    try:
+        plugin = get_plugin_instance(plugin_name, community)
+    except Exception as e:
+        return HttpResponseBadRequest(e)
     plugin.receive_webhook(request)
 
     # FIXME 📌 📌 📌 📌
@@ -137,68 +143,60 @@ def receive_webhook(request, community_id, plugin_name, webhook_slug):
     return HttpResponse()
 
 
-def request_body(request):
-    try:
-        body_data = json.loads(request.body)
-    except ValueError:
-        return HttpResponseBadRequest("unable to read body as json")
-    return body_data
-
-
-def validate_process_input(slug, parameters):
-    cls = GovernanceProcessProvider.plugins.get(slug)
-    if cls.input_schema:
-        jsonschema.validate(parameters, cls.input_schema)
-
-
-def construct_openapi_schema(slug):
-    cls = GovernanceProcessProvider.plugins.get(slug)
-    if cls.input_schema:
-        return convert(cls.input_schema)
-
-
-def decorated_create_process_view(slug):
+def decorated_create_process_view(plugin_name, slug):
+    # get process model proxy class
+    cls = plugin_registry[plugin_name]._process_registry[slug]
     """
     Decorate the `create_process_endpoint` view with swagger schema properties defined by the plugin author
     """
+    @community_middleware
     @api_view(['POST'])
     def create_process(request):
-        payload = request_body(request)
-
-        new_process = GovernanceProcess(
-            name=slug, callback_url=payload.get('callback_url'))
+        # Look up plugin instance (throws if plugin is not installed for this community)
         try:
-            new_process.full_clean()
-        except ValidationError as e:
-            logger.error(e)
+            plugin = get_plugin_instance(plugin_name, request.community)
+        except Exception as e:
             return HttpResponseBadRequest(e)
 
-        new_process.save()  # save to create DataStore
+        payload = JSONParser().parse(request)
+        callback_url = payload.pop('callback_url', None)  # pop to remove it
 
         # Validate payload
         try:
-            validate_process_input(slug, payload)
+            if cls.input_schema:
+                jsonschema.validate(payload, cls.input_schema)
         except jsonschema.exceptions.ValidationError as err:
             return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
-        new_process.start(payload)
-        if new_process.errors:
-            logger.info("failed to start process")
-            new_process.delete()
-            return HttpResponseServerError(json.dumps(new_process.errors))
+        # Create new process instance
+        new_process = cls.objects.create(
+            name=slug,
+            callback_url=callback_url,
+            plugin=plugin
+        )
+        logger.info(f"Created process: {new_process}")
 
-        logger.info(
-            f"Started '{slug}' process with id {new_process.pk}")
+        # Start process
+        new_process.start(payload)
+
+        if new_process.errors:
+            logger.error(f"Failed to start process {new_process}")
+            errors = new_process.errors
+            new_process.delete()
+            return HttpResponseServerError(json.dumps(errors))
+
+        logger.info(f"Started process: {new_process}")
 
         # return 202 with resource location in header
         response = HttpResponse(status=HTTPStatus.ACCEPTED)
-        response['Location'] = f"/api/internal/process/{slug}/{new_process.pk}"
+        response['Location'] = f"/api/internal/process/{plugin_name}.{slug}/{new_process.pk}"
         return response
 
-    schema = construct_openapi_schema(slug)
     properties = {}
     required = {}
-    if schema:
+    # if jsonschema provided, convert it to openapi
+    if cls.input_schema:
+        schema = convert(cls.input_schema)
         properties = schema.get('properties')
         required = schema.get('required')
 
@@ -208,6 +206,7 @@ def decorated_create_process_view(slug):
             202: 'Process successfully started. Use the URL from the `Location` header in the response to get the status and outcome of the process.'
         },
         operation_description=f"Start a new governance process of type '{slug}'",
+        manual_parameters=[openapi_community_header],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
@@ -230,9 +229,11 @@ def decorated_perform_action_view(plugin_name, slug):
         Perform an action on a platform
         """
         # 1. Look up plugin instance
-        plugin = get_plugin_instance(plugin_name, request.community)
-        if not plugin:
-            return HttpResponseBadRequest(f"Plugin '{plugin_name}' not enabled for community '{request.community.name}'")
+        try:
+            plugin = get_plugin_instance(plugin_name, request.community)
+        except Exception as e:
+            return HttpResponseBadRequest(e)
+
         action_function = getattr(plugin, meta.function_name)
 
         # 2. Validate input parameters
@@ -263,7 +264,11 @@ def decorated_perform_action_view(plugin_name, slug):
         # 5. Return response
         return JsonResponse(response)
 
-    arg_dict = {'method': 'post', 'operation_description': meta.description}
+    arg_dict = {
+        'method': 'post',
+        'operation_description': meta.description,
+        'manual_parameters': [openapi_community_header],
+    }
     if meta.input_schema:
         schema = convert(meta.input_schema)
         properties = {
@@ -314,12 +319,12 @@ def jsonschema_to_parameters(schema):
 def get_plugin_instance(plugin_name, community):
     cls = plugin_registry.get(plugin_name)
     if not cls:
-        raise Exception(f"No such plugin registered: {plugin_name}")
+        raise Exception(f"Plugin '{plugin_name}' not registered")
 
     plugin = cls.objects.filter(name=plugin_name, community=community).first()
-    if not cls:
+    if not plugin:
         raise Exception(
-            f"No instance of plugin {plugin_name} for community {community.name}")
+            f"Plugin '{plugin_name}' not enabled for community '{community.name}'")
     return plugin
 
 
@@ -356,10 +361,14 @@ def decorated_resource_view(plugin_name, slug):
                 return HttpResponseBadRequest(f"ValidationError: {err.message}")
         return JsonResponse(resource)
 
-    arg_dict = {'method': 'get', 'operation_description': meta.description}
+    arg_dict = {
+        'method': 'get',
+        'operation_description': meta.description,
+        'manual_parameters': [openapi_community_header],
+    }
     if meta.input_schema:
-        arg_dict['manual_parameters'] = jsonschema_to_parameters(
-            meta.input_schema)
+        arg_dict['manual_parameters'].extend(
+            jsonschema_to_parameters(meta.input_schema))
     if meta.output_schema:
         schema = convert(meta.output_schema)
         arg_dict['responses'] = {
