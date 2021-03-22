@@ -18,14 +18,14 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from jsonschema_to_openapi.convert import convert
 from metagov.core.middleware import CommunityMiddleware
-from metagov.core.models import (Community, CommunitySerializer,
-                                 GovernanceProcess,
-                                 GovernanceProcessSerializer)
+from metagov.core.models import Community, GovernanceProcess
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.plugin_models import (GovernanceProcessProvider,
                                         action_function_registry,
                                         listener_registry,
                                         resource_retrieval_registry)
+from metagov.core.serializers import (CommunitySerializer,
+                                      GovernanceProcessSerializer)
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
