@@ -19,15 +19,10 @@ from drf_yasg.utils import swagger_auto_schema
 from jsonschema_to_openapi.convert import convert
 from metagov.core.middleware import (CommunityMiddleware,
                                      openapi_community_header)
-from metagov.core.models import AsyncProcess, Community, GovernanceProcess
+from metagov.core.models import AsyncProcess, Community
 from metagov.core.plugin_decorators import plugin_registry
-from metagov.core.plugin_models import (GovernanceProcessProvider,
-                                        action_function_registry,
-                                        listener_registry,
-                                        resource_retrieval_registry)
 from metagov.core.serializers import (AsyncProcessSerializer,
-                                      CommunitySerializer,
-                                      GovernanceProcessSerializer)
+                                      CommunitySerializer)
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
@@ -54,7 +49,7 @@ def home(request):
                      operation_description="Get the status of an existing governance process",
                      responses={
                             200: openapi.Response(
-                                'Current process record. Check the `status` field to see if the process has completed. If the `errors` field has data, the process failed.', GovernanceProcessSerializer),
+                                'Current process record. Check the `status` field to see if the process has completed. If the `errors` field has data, the process failed.', AsyncProcessSerializer),
                             404: 'Process not found'})
 @api_view(['GET', 'DELETE'])
 def get_process(request, process_id):

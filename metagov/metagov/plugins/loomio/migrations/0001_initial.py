@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='SourceCred',
+            name='Loomio',
             fields=[
             ],
             options={
@@ -22,5 +22,16 @@ class Migration(migrations.Migration):
                 'constraints': [],
             },
             bases=('core.plugin',),
+        ),
+        migrations.CreateModel(
+            name='LoomioPoll',
+            fields=[
+            ],
+            options={
+                'proxy': True,
+                'indexes': [],
+                'constraints': [],
+            },
+            bases=('core.asyncprocess',),
         ),
     ]

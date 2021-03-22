@@ -8,8 +8,7 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 from drf_yasg import openapi
-from metagov.core.plugin_models import (GovernanceProcessProvider,
-                                        ProcessState, ProcessStatus)
+from metagov.core.plugin_models import ProcessStatus
 
 logger = logging.getLogger('django')
 
@@ -88,15 +87,6 @@ class Plugin(models.Model):
         pass
 
 
-def validate_process_name(name):
-    PluginClass = GovernanceProcessProvider.plugins.get(name)
-    if not PluginClass:
-        raise ValidationError(
-            _('%(name)s is not a registered governance process'),
-            params={'name': name},
-        )
-
-
 class AsyncProcess(models.Model):
     """
     Model representing an instance of a governance process. There can be multiple
@@ -137,47 +127,6 @@ class AsyncProcess(models.Model):
 
     def receive_webhook(self, request):
         pass
-
-
-class GovernanceProcess(models.Model):
-    name = models.CharField(max_length=30, validators=[
-                            validate_process_name], null=True)
-    callback_url = models.CharField(max_length=50, null=True, blank=True)
-    status = models.CharField(
-        max_length=15,
-        choices=[(s.value, s.name) for s in ProcessStatus],
-        default=ProcessStatus.CREATED.value
-    )
-    data = models.JSONField(default=dict, blank=True)
-    errors = models.JSONField(default=dict, blank=True)
-    outcome = models.JSONField(default=dict, blank=True)
-
-    # FIXME make nicer https://docs.djangoproject.com/en/3.1/ref/models/instances/
-    # only needs the one selected plugin
-    plugins = GovernanceProcessProvider.plugins
-
-    def save(self, *args, **kwargs):
-        super(GovernanceProcess, self).save(*args, **kwargs)
-
-    def start(self, parameters):
-        PluginClass = self.plugins.get(self.name)
-        process_state = ProcessState(self)
-        PluginClass.start(process_state, parameters)
-
-    def close(self):
-        """close governance process, update outcome in state"""
-        PluginClass = self.plugins.get(self.name)
-        process_state = ProcessState(self)
-        PluginClass.close(process_state)
-
-    def __str__(self):
-        return self.name
-
-    def handle_webhook(self, request):
-        """process webhook, possibly updating state"""
-        PluginClass = self.plugins.get(self.name)
-        process_state = ProcessState(self)
-        PluginClass.handle_webhook(process_state, request)
 
 
 @receiver(pre_save, sender=AsyncProcess, dispatch_uid="process_saved")

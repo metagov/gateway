@@ -10,9 +10,6 @@ from rest_framework import permissions
 
 from metagov.core import views
 from metagov.core.plugin_decorators import plugin_registry
-from metagov.core.plugin_models import (GovernanceProcessProvider,
-                                        action_function_registry,
-                                        resource_retrieval_registry)
 
 logger = logging.getLogger('django')
 

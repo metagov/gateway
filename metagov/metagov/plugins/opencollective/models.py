@@ -8,7 +8,7 @@ import metagov.plugins.opencollective.queries as Queries
 import metagov.plugins.opencollective.schemas as Schemas
 import requests
 from metagov.core.models import Plugin
-from metagov.core.plugin_models import register_listener, send_platform_event
+from metagov.core.plugin_models import send_platform_event
 
 logger = logging.getLogger('django')
 
@@ -114,29 +114,27 @@ class OpenCollective(Plugin):
         return {'comment_id': data['id']}
 
 
-@register_listener(
-    slug=webhook_receiver_slug,
-    description="receive events from Open Collective")
-def listener(request):
-    body = json.loads(request.body)
-    if body.get('CollectiveId') != community.collective_legacy_id:
-        raise Exception(
-            f"Received webhook for the wrong collective. Expected {community.collective_legacy_id}, found " + str(body.get('CollectiveId')))
+    def receive_webhook(self, request):
+        body = json.loads(request.body)
+        collective_legacy_id = self.data.get('collective_legacy_id')
+        if body.get('CollectiveId') != collective_legacy_id:
+            raise Exception(
+                f"Received webhook for the wrong collective. Expected {collective_legacy_id}, found " + str(body.get('CollectiveId')))
 
-    event_type = body.get("type")
-    if event_type == "collective.expense.created":
-        # Hit API to get expense data
-        variables = {
-            "reference": {
-                'legacyId': body['data']['expense']['id']
+        event_type = body.get("type")
+        if event_type == "collective.expense.created":
+            # Hit API to get expense data
+            variables = {
+                "reference": {
+                    'legacyId': body['data']['expense']['id']
+                }
             }
-        }
-        expense_data = run_query(Queries.expense, variables)['data']['expense']
-        initiator = {'user_id': expense_data['createdByAccount']['slug'],
-                     'provider': 'opencollective'}
-        send_platform_event(
-            event_type="expense_created",
-            community=community,
-            initiator=initiator,
-            data=expense_data
-        )
+            expense_data = self.run_query(Queries.expense, variables)['data']['expense']
+            initiator = {'user_id': expense_data['createdByAccount']['slug'],
+                        'provider': 'opencollective'}
+            # send_platform_event(
+            #     event_type="expense_created",
+            #     community=community,
+            #     initiator=initiator,
+            #     data=expense_data
+            # )
