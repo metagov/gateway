@@ -10,7 +10,7 @@ Welcome to Metagov's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-Metagov is a unified API gateway for digital governance services. It's designed to support rapid prototyping of governance systems, decision-making processes, and social workflows across a range of platforms. To help people prototype, Metagov ships with a powerful driver `powerful driver <https://www.policykit.org/>`_ for authoring governance policies over multiple platforms, as well as a type system to help structure the connections between different services.
+Metagov is a unified API gateway for digital governance services. It's designed to support rapid prototyping of governance systems, decision-making processes, and social workflows across a range of platforms, from forums to chat services to blockchains. To help people prototype, Metagov ships with a powerful driver `powerful driver <https://www.policykit.org/>`_ for authoring governance policies over multiple platforms, as well as a type system to help structure the connections between different services.
 
 Currently supported governance services:
 
