@@ -20,6 +20,9 @@ def plugin(cls):
     """
     Plugin class decorator
     """
+    if not cls._meta.proxy:
+        raise Exception("Plugins must by proxy models")
+
     if cls.config_schema:
         SaferDraft7Validator.check_schema(cls.config_schema)
     cls._resource_registry = {}
