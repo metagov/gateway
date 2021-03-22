@@ -70,10 +70,10 @@ class ApiTests(TestCase):
         self.assertEqual(plugins.count(), 1)
         self.assertEqual(plugins.first().config['server_url'], sc_server)
 
-        # bad sourcecred request (plugin is activated)
+        # good sourcecred request (plugin is activated)
         sourcecred_request_url = "/api/internal/resource/sourcecred.cred?username=miriam"
         response = client.get(sourcecred_request_url, content_type='application/json', **headers)
-        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "\"value\":", status_code=200)
 
         # good request to deactivate plugin
         data['plugins'] = []
