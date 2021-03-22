@@ -19,10 +19,11 @@ from drf_yasg.utils import swagger_auto_schema
 from jsonschema_to_openapi.convert import convert
 from metagov.core.middleware import (CommunityMiddleware,
                                      openapi_community_header)
-from metagov.core.models import GovernanceProcess, Community
+from metagov.core.models import Community, GovernanceProcess
+from metagov.core.openapi_schemas import community_schema
 from metagov.core.plugin_decorators import plugin_registry
-from metagov.core.serializers import (GovernanceProcessSerializer,
-                                      CommunitySerializer)
+from metagov.core.serializers import (CommunitySerializer,
+                                      GovernanceProcessSerializer)
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
@@ -69,6 +70,13 @@ def get_process(request, process_id):
     return JsonResponse(serializer.data)
 
 
+@swagger_auto_schema(method='delete',
+                     operation_description="Delete the community")
+@swagger_auto_schema(method='get',
+                     responses={200: community_schema})
+@swagger_auto_schema(method='put',
+                     request_body=community_schema,
+                     responses={200: community_schema, 200: community_schema})
 @api_view(['GET', 'PUT', 'DELETE'])
 def community(request, name):
     if request.method == 'GET':
@@ -213,7 +221,10 @@ def decorated_create_process_view(plugin_name, slug):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                "callback_url": openapi.Schema(type=openapi.TYPE_STRING, description='URL to POST outcome to when process is completed'),
+                "callback_url": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description='URL to POST outcome to when process is completed'
+                ),
                 **properties
             },
             required=required
