@@ -43,9 +43,7 @@ class DataStore(models.Model):
 
 
 class Plugin(models.Model):
-    """Represents an instance of an activated plugin.
-
-    Create a proxy model subclass to implement a plugin."""
+    """Represents an instance of an activated plugin."""
     name = models.CharField(max_length=30, blank=True,
                             help_text="Name of the plugin")
     community = models.ForeignKey(Community, models.CASCADE, related_name='plugins',
@@ -104,9 +102,7 @@ class ProcessStatus(Enum):
 
 
 class GovernanceProcess(models.Model):
-    """Represents an instance of a governance process.
-
-    Create a proxy model subclass to implement a governance process."""
+    """Represents an instance of a governance process."""
     name = models.CharField(max_length=30)
     callback_url = models.CharField(max_length=50, null=True, blank=True)
     status = models.CharField(
@@ -122,38 +118,74 @@ class GovernanceProcess(models.Model):
                                  null=True)
     data = models.JSONField(default=dict, blank=True,
                             help_text="Data to serialize and send back to driver")
-    errors = models.JSONField(default=dict, blank=True, help_text="Errors to serialize and send back to driver")
-    outcome = models.JSONField(default=dict, blank=True, help_text="Outcome to serialize and send back to driver")
+    errors = models.JSONField(
+        default=dict, blank=True, help_text="Errors to serialize and send back to driver")
+    outcome = models.JSONField(
+        default=dict, blank=True, help_text="Outcome to serialize and send back to driver")
     input_schema = {}
 
     def __str__(self):
         return f"{self.plugin.name}.{self.name} for '{self.plugin.community.name}' ({self.pk}, {self.status})"
 
     def save(self, *args, **kwargs):
-        """Save the model. Has a pre-save hook that will send the serialized process to the Driver
-        if the `status` was changed to `completed`"""
+        """Save the process. Has a pre-save hook that will send the serialized process to the Driver
+        if the ``status`` was changed to ``completed``."""
         if not self.pk:
             self.state = DataStore.objects.create()
         super(GovernanceProcess, self).save(*args, **kwargs)
 
     def start(self, parameters):
-        """Start the governance process"""
+        """Start the governance process and return immediately. (REQUIRED).
+
+        Most implementations of this function will:
+        - Make a request to start a governance process in an external system
+
+        - Store some private state in ``self.state``
+
+        - If process was started successfully, set ``self.status`` to ``PENDING`` and put data that should be returned to the caller into ``self.data``.
+
+        - If process failed to start, set ``self.status`` to ``COMPLETED`` and put errors into ``self.errors``.
+
+        - Call ``self.save()`` to persist changes."""
         pass
 
     def close(self):
-        """Close the governance process"""
+        """Close the governance process and update the ``outcome``. (OPTIONAL)
+
+        Most implementations of this function will:
+        - Make a request to close the governance process in an external system
+
+        - Store some private state in ``self.state``
+
+        - If process was closed successfully, set ``self.status`` to ``COMPLETED`` and put the outcome into ``self.outcome``.
+
+        - If process failed, set ``self.status`` to ``COMPLETED`` and put errors into ``self.errors``.
+
+        - Call ``self.save()`` to persist changes.
+        """
+        pass
+
+    def poll(self):
+        """Poll the process, and possibly update the status. (OPTIONAL)"""
         pass
 
     def receive_webhook(self, request):
-        """Receive webhook event"""
+        """Receive an incoming webhook from an external system. (OPTIONAL)
+
+        Most implementations of this function will:
+        - Check if the webhook request pertains to this process instance.
+
+        - Store some private state in ``self.state``.
+
+        - If the webhook request indicates that the process has ended, update ``self.status`` and ``self.outcome`` or ``self.errors``.
+
+        - Call ``self.save()`` to persist changes."""
         pass
 
 
 @receiver(pre_save, sender=GovernanceProcess, dispatch_uid="process_saved")
 def notify_process_completed(sender, instance, **kwargs):
-    """
-    Pre-save receiver to notify caller that the governance processes has completed
-    """
+    """Pre-save receiver to notify caller that the governance processes has completed"""
 
     def notify_completed(process):
         from metagov.core.serializers import GovernanceProcessSerializer

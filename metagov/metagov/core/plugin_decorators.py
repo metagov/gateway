@@ -10,9 +10,7 @@ class FunctionType(Enum):
 plugin_registry = {}
 
 def plugin(cls):
-    """
-    Plugin model decorator
-    """
+    """Use this decorator on a sublcass of :class:`~metagov.core.models.Plugin` to register it as a plugin."""
     if not cls._meta.proxy:
         raise Exception(f"Failed to register {cls.name}: must be a Django proxy model")
 
@@ -35,9 +33,7 @@ def plugin(cls):
     return cls
 
 def governance_process(cls):
-    """
-    Process model decorator
-    """
+    """Use this decorator on a sublcass of :class:`~metagov.core.models.GovernanceProcess` to register it as a governance process."""
     if not cls._meta.proxy:
         raise Exception(f"Failed to register {cls.name}: must be a Django proxy model")
 
@@ -71,8 +67,14 @@ class ActionFunctionMeta:
 
 
 def resource(slug, description, input_schema=None, output_schema=None):
-    """
-    Resource function decorator
+    """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register a resource retrieval.
+
+    Metagov will expose the decorated function at endpoint ``/resource/<plugin-name>.<slug>``
+
+    :param str slug: resource slug
+    :param str description: resource description
+    :param obj input_schema: jsonschema defining the input parameter object, optional
+    :param obj output_schema: jsonschema defining the response object, optional
     """
     def wrapper(function):
         if input_schema:
@@ -92,8 +94,14 @@ def resource(slug, description, input_schema=None, output_schema=None):
 
 
 def action(slug, description, input_schema=None, output_schema=None):
-    """
-    Action function decorator
+    """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register a platform action.
+
+    Metagov will expose the decorated function at endpoint ``/action/<plugin-name>.<slug>``
+
+    :param str slug: action slug
+    :param str description: action description
+    :param obj input_schema: jsonschema defining the input parameter object, optional
+    :param obj output_schema: jsonschema defining the response object, optional
     """
     def wrapper(function):
         if input_schema:
