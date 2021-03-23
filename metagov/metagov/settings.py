@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     # 'metagov.core.apps.CustomConstance',
     'metagov.core',
     'django_extensions',
+    'schema_graph',
 ]
 
 # CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'

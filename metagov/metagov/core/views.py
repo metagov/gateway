@@ -24,6 +24,7 @@ from metagov.core.openapi_schemas import community_schema
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.serializers import (CommunitySerializer,
                                       GovernanceProcessSerializer)
+from metagov.core import utils
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
@@ -157,6 +158,7 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
 def decorated_create_process_view(plugin_name, slug):
     # get process model proxy class
     cls = plugin_registry[plugin_name]._process_registry[slug]
+    prefixed_slug = f"{plugin_name}.{slug}"
     """
     Decorate the `create_process_endpoint` view with swagger schema properties defined by the plugin author
     """
@@ -200,7 +202,7 @@ def decorated_create_process_view(plugin_name, slug):
 
         # return 202 with resource location in header
         response = HttpResponse(status=HTTPStatus.ACCEPTED)
-        response['Location'] = f"/api/internal/process/{plugin_name}.{slug}/{new_process.pk}"
+        response['Location'] = f"/{utils.construct_process_url(plugin_name, slug)}/{new_process.pk}"
         return response
 
     properties = {}
@@ -216,7 +218,8 @@ def decorated_create_process_view(plugin_name, slug):
         responses={
             202: 'Process successfully started. Use the URL from the `Location` header in the response to get the status and outcome of the process.'
         },
-        operation_description=f"Start a new governance process of type '{slug}'",
+        operation_id=f"Start {prefixed_slug}",
+        operation_description=f"Start a new governance process of type '{prefixed_slug}'",
         manual_parameters=[openapi_community_header],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
@@ -235,6 +238,7 @@ def decorated_create_process_view(plugin_name, slug):
 def decorated_perform_action_view(plugin_name, slug):
     cls = plugin_registry[plugin_name]
     meta = cls._action_registry[slug]
+    prefixed_slug = f"{plugin_name}.{slug}"
 
     @community_middleware
     @api_view(['POST'])
@@ -282,6 +286,7 @@ def decorated_perform_action_view(plugin_name, slug):
         'method': 'post',
         'operation_description': meta.description,
         'manual_parameters': [openapi_community_header],
+        'operation_id': f"Perform {prefixed_slug}"
     }
     if meta.input_schema:
         schema = convert(meta.input_schema)
@@ -345,6 +350,7 @@ def get_plugin_instance(plugin_name, community):
 def decorated_resource_view(plugin_name, slug):
     cls = plugin_registry[plugin_name]
     meta = cls._resource_registry[slug]
+    prefixed_slug = f"{plugin_name}.{slug}"
 
     @community_middleware
     @api_view(['GET'])
@@ -379,6 +385,7 @@ def decorated_resource_view(plugin_name, slug):
         'method': 'get',
         'operation_description': meta.description,
         'manual_parameters': [openapi_community_header],
+        'operation_id': f"Retrieve {prefixed_slug} resource"
     }
     if meta.input_schema:
         arg_dict['manual_parameters'].extend(
