@@ -22,7 +22,8 @@ env = environ.Env(
     # set casting, default value
     DEBUG=(bool, False),
     ALLOWED_HOSTS=(list, []),
-    DATABASE_PATH=(str, os.path.join(BASE_DIR, 'db.sqlite3'))
+    DATABASE_PATH=(str, os.path.join(BASE_DIR, 'db.sqlite3')),
+    DRIVER_ACTION_ENDPOINT=(str, "")
 )
 # reading .env file
 environ.Env.read_env()
@@ -36,8 +37,8 @@ DEBUG = env('DEBUG')
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 
-DISCOURSE_URL = env('DISCOURSE_URL')
-DISCOURSE_SSO_SECRET = env('DISCOURSE_SSO_SECRET')
+# DISCOURSE_URL = env('DISCOURSE_URL')
+# DISCOURSE_SSO_SECRET = env('DISCOURSE_SSO_SECRET')
 DRIVER_ACTION_ENDPOINT = env('DRIVER_ACTION_ENDPOINT')
 
 LOGIN_REDIRECT_URL = '/home'
