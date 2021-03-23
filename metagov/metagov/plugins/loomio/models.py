@@ -3,10 +3,6 @@ import logging
 
 import metagov.core.plugin_decorators as Registry
 import requests
-from django.db import models
-from django.http import (HttpResponse, HttpResponseBadRequest,
-                         HttpResponseNotFound)
-from drf_yasg import openapi
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
 logger = logging.getLogger('django')

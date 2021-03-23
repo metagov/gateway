@@ -15,7 +15,8 @@ class WebMonetization(Plugin):
         "properties": {
             "revshare_config": {
                 "description": "json blob as a string",
-                "type": "string"
+                "type": "string",
+                "default": "{\"$alice.example\": 50,\"$bob.example\": 40,\"$connie.example\": 9.5,\"$dave.example\": 0.5}"
             }
         },
         "required": [

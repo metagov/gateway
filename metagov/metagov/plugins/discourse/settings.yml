@@ -1,7 +1,0 @@
-discourse_url:
-  default: 'https://discourse.metagov.org'
-  client: true
-discourse_api_key:
-  default: ''
-discourse_webhook_secret:
-  default: ''
