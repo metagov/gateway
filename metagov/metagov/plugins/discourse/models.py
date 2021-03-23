@@ -4,10 +4,10 @@ import hmac
 import json
 import logging
 
+import metagov.core.plugin_decorators as Registry
 import metagov.plugins.discourse.schemas as Schemas
 import requests
-import metagov.core.plugin_decorators as Registry
-from metagov.core.models import Plugin, GovernanceProcess, ProcessStatus
+from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
 logger = logging.getLogger('django')
 

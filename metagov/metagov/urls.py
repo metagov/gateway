@@ -53,7 +53,8 @@ for (key, cls) in plugin_registry.items():
         plugin_patterns.append(path(route, view))
 
         # Get or close an existing governance process
-        plugin_patterns.append(path(f"{route}/<int:process_id>", views.get_process))
+        view = views.decorated_get_process_view(cls.name, slug)
+        plugin_patterns.append(path(f"{route}/<int:process_id>", view))
 
 # admin.site.login = login_required(admin.site.login)
 

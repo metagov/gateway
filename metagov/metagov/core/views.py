@@ -46,32 +46,6 @@ def home(request):
 
 
 @swagger_auto_schema(method='delete',
-                     operation_description="Close an existing governance process")
-@swagger_auto_schema(method='get',
-                     operation_description="Get the status of an existing governance process",
-                     responses={
-                            200: openapi.Response(
-                                'Current process record. Check the `status` field to see if the process has completed. If the `errors` field has data, the process failed.', GovernanceProcessSerializer),
-                            404: 'Process not found'})
-@api_view(['GET', 'DELETE'])
-def get_process(request, process_id):
-    try:
-        process = GovernanceProcess.objects.get(pk=process_id)
-    except GovernanceProcess.DoesNotExist:
-        return HttpResponseNotFound()
-
-    if request.method == 'DELETE':
-        # 'DELETE'  means close the process and return it
-        # If 'close' is implemented, it should set the status to COMPLETED
-        logger.info(f"Closing process {process_id}")
-        process.close()
-
-    serializer = GovernanceProcessSerializer(process)
-    logger.info(f"Returning serialized process: {serializer.data}")
-    return JsonResponse(serializer.data)
-
-
-@swagger_auto_schema(method='delete',
                      operation_description="Delete the community")
 @swagger_auto_schema(method='get',
                      responses={200: community_schema})
@@ -235,6 +209,38 @@ def decorated_create_process_view(plugin_name, slug):
     )(create_process)
 
 
+def decorated_get_process_view(plugin_name, slug):
+    # get process model proxy class
+    cls = plugin_registry[plugin_name]._process_registry[slug]
+
+    @swagger_auto_schema(method='delete',
+                         operation_description="Close an existing governance process")
+    @swagger_auto_schema(method='get',
+                         operation_description="Get the status of an existing governance process",
+                         responses={
+                                200: openapi.Response(
+                                    'Current process record. Check the `status` field to see if the process has completed. If the `errors` field has data, the process failed.', GovernanceProcessSerializer),
+                                404: 'Process not found'})
+    @api_view(['GET', 'DELETE'])
+    def get_process(request, process_id):
+        # cls = plugin_registry[plugin_name]._process_registry[slug]
+        try:
+            process = cls.objects.get(pk=process_id)
+        except cls.DoesNotExist:
+            return HttpResponseNotFound()
+
+        if request.method == 'DELETE':
+            # 'DELETE'  means close the process and return it
+            # If 'close' is implemented, it should set the status to COMPLETED
+            logger.info(f"Closing process {process_id}")
+            process.close()
+
+        serializer = GovernanceProcessSerializer(process)
+        logger.info(f"Returning serialized process: {serializer.data}")
+        return JsonResponse(serializer.data)
+    return get_process
+
+
 def decorated_perform_action_view(plugin_name, slug):
     cls = plugin_registry[plugin_name]
     meta = cls._action_registry[slug]
@@ -336,6 +342,7 @@ def jsonschema_to_parameters(schema):
 
 
 def get_plugin_instance(plugin_name, community):
+    """get the right proxy of a plugin instance"""
     cls = plugin_registry.get(plugin_name)
     if not cls:
         raise Exception(f"Plugin '{plugin_name}' not registered")
