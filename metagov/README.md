@@ -8,10 +8,11 @@ The Metagov Prototype is a Django app with a plugin architecture. It is meant to
 
 Plugins are located at [metagov/plugins](./metagov/plugins). Each plugin implements 1 or more of the following types of interfaces:
 
-1. Resource retrieval (example: get SourceCred value for user X)
-2. Asynchronous governance process (example: perform a vote on Loomio)
-3. Listener/actor (TODO)
-4. Widget (TODO)
+1. Retrieve resource (example: get SourceCred value for user X)
+2. Perform async governance process (example: perform a vote on Loomio)
+3. Perform action (example: suspend a user on Discourse)
+4. Listen to events (example: implement webhook received for OpenCollective events)
+5. UI widget (possible TODO)
 
 ### API endpoints
 
