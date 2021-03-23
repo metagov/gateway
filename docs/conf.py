@@ -14,6 +14,16 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
+import os
+import sys
+import django
+
+path = os.path.abspath('../metagov')
+print(f'Inserting {path}')
+sys.path.insert(0, path)
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'metagov.settings')
+django.setup()
 
 # -- Project information -----------------------------------------------------
 
@@ -28,6 +38,8 @@ author = 'The Metagovernance Project'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinx.ext.autodoc',
+    'sphinxcontrib_django',
 ]
 
 # Add any paths that contain templates here, relative to this directory.

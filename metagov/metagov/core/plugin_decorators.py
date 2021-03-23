@@ -1,7 +1,6 @@
 from enum import Enum
 
-import jsonschema
-
+from metagov.core.utils import SaferDraft7Validator
 
 class FunctionType(Enum):
     RESOURCE = "resource"
@@ -9,12 +8,6 @@ class FunctionType(Enum):
 
 
 plugin_registry = {}
-
-
-class SaferDraft7Validator(jsonschema.Draft7Validator):
-    META_SCHEMA = {**jsonschema.Draft7Validator.META_SCHEMA,
-                   "additionalProperties": False}
-
 
 def plugin(cls):
     """

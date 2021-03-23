@@ -43,6 +43,9 @@ class DataStore(models.Model):
 
 
 class Plugin(models.Model):
+    """Represents an instance of an activated plugin.
+
+    Create a proxy model subclass to implement a plugin."""
     name = models.CharField(max_length=30, blank=True,
                             help_text="Name of the plugin")
     community = models.ForeignKey(Community, models.CASCADE, related_name='plugins',
@@ -69,12 +72,15 @@ class Plugin(models.Model):
         super(Plugin, self).save(*args, **kwargs)
 
     def initialize(self):
+        """Initialize the plugin. Invoked once, when the plugin instance is created."""
         pass
 
     def receive_webhook(self, request):
+        """Receive webhook event"""
         pass
 
     def send_event_to_driver(self, event_type: str, data: dict, initiator: dict):
+        """Send an event to the driver"""
         event = {
             'community': self.community.name,
             'source': self.name,
@@ -98,10 +104,9 @@ class ProcessStatus(Enum):
 
 
 class GovernanceProcess(models.Model):
-    """
-    Model representing an instance of a governance process. There can be multiple
-    active processes of the same type for a single community.
-    """
+    """Represents an instance of a governance process.
+
+    Create a proxy model subclass to implement a governance process."""
     name = models.CharField(max_length=30)
     callback_url = models.CharField(max_length=50, null=True, blank=True)
     status = models.CharField(
@@ -113,29 +118,34 @@ class GovernanceProcess(models.Model):
                                help_text="Plugin instance that this process belongs to")
     state = models.OneToOneField(DataStore,
                                  models.CASCADE,
-                                 help_text="Datastore to persist any data",
+                                 help_text="Datastore to persist any state",
                                  null=True)
     data = models.JSONField(default=dict, blank=True,
-                            help_text="Data to serialize and send back to driver",)
-    errors = models.JSONField(default=dict, blank=True)
-    outcome = models.JSONField(default=dict, blank=True)
+                            help_text="Data to serialize and send back to driver")
+    errors = models.JSONField(default=dict, blank=True, help_text="Errors to serialize and send back to driver")
+    outcome = models.JSONField(default=dict, blank=True, help_text="Outcome to serialize and send back to driver")
     input_schema = {}
 
     def __str__(self):
         return f"{self.plugin.name}.{self.name} for '{self.plugin.community.name}' ({self.pk}, {self.status})"
 
     def save(self, *args, **kwargs):
+        """Save the model. Has a pre-save hook that will send the serialized process to the Driver
+        if the `status` was changed to `completed`"""
         if not self.pk:
             self.state = DataStore.objects.create()
         super(GovernanceProcess, self).save(*args, **kwargs)
 
     def start(self, parameters):
+        """Start the governance process"""
         pass
 
     def close(self):
+        """Close the governance process"""
         pass
 
     def receive_webhook(self, request):
+        """Receive webhook event"""
         pass
 
 

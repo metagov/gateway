@@ -36,3 +36,11 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+   :caption: Autodocs
+
+   Core <autodocs/core>
