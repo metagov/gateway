@@ -9,11 +9,15 @@ class FunctionType(Enum):
 
 plugin_registry = {}
 
-def plugin(cls):
-    """Use this decorator on a sublcass of :class:`~metagov.core.models.Plugin` to register it as a plugin."""
-    if not cls._meta.proxy:
+def validate_proxy_model(cls):
+    if not isinstance(cls.name, str):
+        raise Exception(f"Failed to register model, missing name attribute")
+    if not hasattr(cls, '_meta') or not cls._meta.proxy:
         raise Exception(f"Failed to register {cls.name}: must be a Django proxy model")
 
+def plugin(cls):
+    """Use this decorator on a sublcass of :class:`~metagov.core.models.Plugin` to register it as a plugin."""
+    validate_proxy_model(cls)
     if cls.config_schema:
         SaferDraft7Validator.check_schema(cls.config_schema)
     cls._resource_registry = {}
@@ -34,9 +38,10 @@ def plugin(cls):
 
 def governance_process(cls):
     """Use this decorator on a sublcass of :class:`~metagov.core.models.GovernanceProcess` to register it as a governance process."""
-    if not cls._meta.proxy:
-        raise Exception(f"Failed to register {cls.name}: must be a Django proxy model")
+    validate_proxy_model(cls)
 
+    if not hasattr(cls, 'plugin_name'):
+        raise Exception(f"Failed to register {cls.name}: Missing plugin name")
     if not plugin_registry.get(cls.plugin_name):
         raise Exception(f"Failed to register {cls.name}: No such plugin '{cls.plugin_name}'. Plugin must be declared before process.")
 
@@ -45,6 +50,7 @@ def governance_process(cls):
 
     r = plugin_registry[cls.plugin_name]
     r._process_registry[cls.name] = cls
+    return cls
 
 class ResourceFunctionMeta:
     def __init__(self, slug, function_name, description, input_schema, output_schema):

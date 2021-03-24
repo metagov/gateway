@@ -41,6 +41,13 @@ class DataStore(models.Model):
             return False
         return True
 
+class PluginManager(models.Manager):
+    def get_queryset(self):
+        qs = super(PluginManager, self).get_queryset()
+        if self.model._meta.proxy:
+            # this is a proxy model, so only return plugins of this proxy type
+            return qs.filter(name=self.model.name)
+        return qs
 
 class Plugin(models.Model):
     """Represents an instance of an activated plugin."""
@@ -56,6 +63,8 @@ class Plugin(models.Model):
                                  null=True
                                  )
     config_schema = {}  # can be overridden to set jsonschema of config
+
+    objects = PluginManager()
 
     class Meta:
         unique_together = ['name', 'community']
