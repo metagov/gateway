@@ -1,5 +1,5 @@
-How to Write a Plugin
-#####################
+How to create a new plugin
+==========================
 
 Create a new plugin to connect Metagov to one or more external platforms or governance tools.
 
@@ -8,12 +8,12 @@ The plugin can implement one or several of the following capabilities:
 1. Perform actions
 2. Perform asynchronous governance processes
 
-Create a New Plugin
-*******************
+Create and register a plugin
+**************************
 
-Begin by creating a proxy subclass of the ``Plugin`` Django model for our new plugin, ``ExamplePlugin``. This model goes in the ``models.py`` in the new plugin directory.
+Create a new file at ``metagov/plugins/exampl-plugin/models.py``. Begin by creating a proxy subclass of the ``Plugin`` Django model for our new plugin, ``ExamplePlugin``. This model goes in the ``models.py``.
 
-Decorate it with the ``@Registry.plugin`` decorator so that Metagov core picks it up.
+Decorate the class with the ``@Registry.plugin`` decorator so that Metagov core picks it up.
 
 If the plugin requires any configuration, such as an API key or server URL, define a ``jsonschema`` for the config shape. Metagov core will validate the configuration that is provided to the ``/community`` endpoint.
 

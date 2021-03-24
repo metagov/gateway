@@ -1,5 +1,5 @@
-Autodocumentation
-=================
+Reference Documentation
+=======================
 .. _autodocs-ref:
 
 Models
@@ -15,6 +15,11 @@ Plugin authors implement `Proxy Models <https://docs.djangoproject.com/en/3.1/to
     :members:
     :exclude-members: DoesNotExist, MultipleObjectsReturned
 |
+.. autoclass:: metagov.core.models.Community
+    :members:
+    :exclude-members: DoesNotExist, MultipleObjectsReturned
+|
+
 Decorators
 ##########
 Add decorators to register classes and functions with metagov core.
