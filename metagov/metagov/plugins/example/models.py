@@ -39,7 +39,7 @@ class ExamplePlugin(Plugin):
         import random
         low = parameters.get('low', 0)
         high = parameters.get('high', 9)
-        return {'value': random.randint(low, high)}
+        return {'value': random.randint(low, high-1)}
 
 
 @Registry.governance_process
@@ -80,8 +80,8 @@ class StochasticVote(GovernanceProcess):
 
         options = self.state.get('options')
 
-        # use plugin function
-        result = self.plugin.rand_int({'low': 0, 'high': len(options)})
+        # use `get_plugin()` to get access to plugin functions
+        result = self.get_plugin().rand_int({'low': 0, 'high': len(options)})
         rand_index = result['value']
         print(f"Winner is {options[rand_index]}!")
 

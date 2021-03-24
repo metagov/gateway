@@ -274,7 +274,7 @@ class DiscoursePoll(GovernanceProcess):
             outcome[opt['html']] = opt['votes']
 
         # Lock the post
-        self.plugin.lock_post({'locked': True, 'id': post_id}, None)
+        self.get_plugin().lock_post({'locked': True, 'id': post_id}, None)
 
         self.outcome = outcome
         self.status = ProcessStatus.COMPLETED.value

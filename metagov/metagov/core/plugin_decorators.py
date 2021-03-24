@@ -48,8 +48,17 @@ def governance_process(cls):
     if cls.input_schema:
         SaferDraft7Validator.check_schema(cls.input_schema)
 
-    r = plugin_registry[cls.plugin_name]
-    r._process_registry[cls.name] = cls
+    plugin_cls = plugin_registry[cls.plugin_name]
+    plugin_cls._process_registry[cls.name] = cls
+
+    # add function to get plugin proxy instance, so process can invoke proxy-specific functions
+    def get_plugin(self):
+        try:
+            return plugin_cls.objects.get(pk=self.plugin.pk)
+        except plugin_cls.DoesNotExist:
+            return None
+
+    cls.add_to_class('get_plugin', get_plugin)
     return cls
 
 class ResourceFunctionMeta:
