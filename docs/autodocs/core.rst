@@ -1,5 +1,6 @@
 Autodocumentation
 =================
+.. _autodocs-ref:
 
 Models
 ######

@@ -30,17 +30,7 @@ Metagov is a unified API gateway for digital governance services. It's designed 
 
 Metagov is a prototype under active development, so please help us out by sending us feedback at hello@metagov.org or by opening an issue on `our GitHub <https://github.com/metagov/metagov-prototype>`_.
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
 
 .. toctree::
-   :hidden:
-   :maxdepth: 2
-   :caption: Autodocs
-
-   Core <autodocs/core>
+   Write a Plugin <write_a_plugin>
+   Autodocs <autodocs/core>
