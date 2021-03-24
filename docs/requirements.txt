@@ -69,7 +69,7 @@ packaging==20.9
 parso==0.5.2
 pexpect==4.7.0
 pickleshare==0.7.5
-Pillow==8.0.1
+Pillow==8.1.1
 pluggy==0.13.1
 prompt-toolkit==3.0.2
 ptyprocess==0.6.0
