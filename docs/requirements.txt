@@ -9,7 +9,7 @@ Babel==2.9.0
 backcall==0.1.0
 billiard==3.6.1.0
 cairocffi==1.2.0
-CairoSVG==2.5.0
+CairoSVG>=2.5.1
 celery==4.4.0
 certifi==2020.12.5
 cffi==1.14.5
@@ -24,7 +24,7 @@ cryptography==3.4.6
 cssselect2==0.4.1
 decorator==4.4.1
 defusedxml==0.7.0rc2
-Django==3.1.5
+Django==3.1.6
 django-activity-stream==0.9.0
 django-celery-beat==1.5.0
 django-celery-results==1.1.2
@@ -69,7 +69,7 @@ packaging==20.9
 parso==0.5.2
 pexpect==4.7.0
 pickleshare==0.7.5
-Pillow==8.0.1
+Pillow>=8.1.1
 pluggy==0.13.1
 prompt-toolkit==3.0.2
 ptyprocess==0.6.0
@@ -77,7 +77,6 @@ py==1.10.0
 pycairo==1.20.0
 pycodestyle==2.6.0
 pycparser==2.20
-pycrypto==2.6.1
 pycycle==0.0.8
 Pygments==2.8.1
 PyJWT==2.0.1
