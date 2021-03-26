@@ -1,4 +1,3 @@
-import ast
 import json
 import logging
 import random
@@ -19,7 +18,7 @@ class WebMonetization(Plugin):
 
     def initialize(self):
         # This state only lasts as long as the plugin does.
-        # If the community deletes and re-enables this plugin, the state is lost.
+        # If the community decides to de-activates the plugin, the plugin instance is deleted and the state is lost.
         self.state.set('pointers', {})
 
     @Registry.action(
@@ -66,7 +65,7 @@ class WebMonetization(Plugin):
         return self.state.get('pointers')
 
     @Registry.resource(
-        slug='revshare-pointer',
+        slug='pick-pointer',
         description='Randomly selected pointer',
         input_schema=None,
         output_schema=Schemas.pointer

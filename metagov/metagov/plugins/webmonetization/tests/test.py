@@ -37,6 +37,6 @@ class ApiTests(TestCase):
         self.assertContains(response, "$alice.example")
 
         # request a random pointer
-        response = self.client.get("/api/internal/resource/webmonetization.revshare-pointer",
+        response = self.client.get("/api/internal/resource/webmonetization.pick-pointer",
                                    content_type='application/json', **self.headers)
         self.assertContains(response, "$alice.example")
