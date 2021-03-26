@@ -5,6 +5,7 @@ from enum import Enum
 
 import jsonpickle
 import requests
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.signals import post_save, pre_save
@@ -41,6 +42,7 @@ class DataStore(models.Model):
             return False
         return True
 
+
 class PluginManager(models.Manager):
     def get_queryset(self):
         qs = super(PluginManager, self).get_queryset()
@@ -48,6 +50,7 @@ class PluginManager(models.Manager):
             # this is a proxy model, so only return plugins of this proxy type
             return qs.filter(name=self.model.name)
         return qs
+
 
 class Plugin(models.Model):
     """Represents an instance of an activated plugin."""
@@ -96,7 +99,7 @@ class Plugin(models.Model):
             'data': data,
             'initiator': initiator
         }
-        serialized = jsonpickle.encode(self, unpicklable=False)
+        serialized = jsonpickle.encode(event, unpicklable=False)
         logger.info("Sending event to Driver: " + serialized)
         resp = requests.post(settings.DRIVER_ACTION_ENDPOINT, data=serialized)
         if not resp.ok:
