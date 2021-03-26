@@ -75,7 +75,7 @@ class LoomioPoll(GovernanceProcess):
             'closing_at': parameters['closing_at'],
             'api_key': self.plugin.config['api_key']
         }
-        return
+
         resp = requests.post(url, loomio_data)
         if not resp.ok:
             logger.error(
