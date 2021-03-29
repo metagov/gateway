@@ -1,7 +1,7 @@
 from django.test import TestCase
 from metagov.core.models import Community, Plugin
 from metagov.plugins.sourcecred.models import SourceCred
-from metagov.plugins.example.models import ExamplePlugin, StochasticVote
+from metagov.plugins.example.models import Randomness, StochasticVote
 from django.test import Client
 
 
@@ -89,12 +89,13 @@ class ApiTests(TestCase):
                               content_type='application/json', **headers)
         self.assertContains(response, "\"value\":")
 
-        # activate example-plugin
+        # activate randomness plugin
         data['plugins'].append(
             {
-                "name": "example-plugin",
+                "name": "randomness",
                 "config": {
-                    "lucky_number": 4
+                    "default_low": 2,
+                    "default_high": 200
                 }
             })
         response = client.put(url, data=data, content_type='application/json')
@@ -103,15 +104,15 @@ class ApiTests(TestCase):
         # there are two active plugins: sourcecred and example-plugin
         self.assertEqual(Plugin.objects.filter(community=community).count(), 2)
         # only returns matching proxy models
-        self.assertEqual(ExamplePlugin.objects.filter(community=community).count(), 1)
+        self.assertEqual(Randomness.objects.filter(community=community).count(), 1)
 
-        self.assertEqual(Plugin.objects.get(name="example-plugin").config['lucky_number'], 4)
+        self.assertEqual(Plugin.objects.get(name="randomness").config['default_high'], 200)
 
         # perform stochastic-vote process
 
         # start process
-        vote_input = {"options": ["one", "two", "three"]}
-        response = client.post("/api/internal/process/example-plugin.stochastic-vote",
+        vote_input = {"options": ["one", "two", "three"], "delay": 2}
+        response = client.post("/api/internal/process/randomness.delayed-stochastic-vote",
                                data=vote_input, content_type='application/json', **headers)
         self.assertEqual(response.status_code, 202)
         self.assertTrue(response.has_header('location'))
@@ -121,11 +122,11 @@ class ApiTests(TestCase):
         self.assertEqual(StochasticVote.objects.all().count(), 1)
         process = StochasticVote.objects.all().first()
 
-        # get process
+        # poll process
         response = client.get(location, content_type='application/json')
         self.assertContains(response, "pending")
 
-        # close process
+        # close process early
         response = client.delete(location, content_type='application/json')
         self.assertContains(response, "completed")
         self.assertContains(response, "winner")
