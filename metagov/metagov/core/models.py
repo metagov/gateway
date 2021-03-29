@@ -18,7 +18,7 @@ logger = logging.getLogger("django")
 
 
 class Community(models.Model):
-    name = models.CharField(max_length=30, primary_key=True)
+    name = models.CharField(max_length=50, primary_key=True)
     readable_name = models.CharField(max_length=50, blank=True)
 
     def __str__(self):
