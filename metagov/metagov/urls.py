@@ -7,20 +7,21 @@ from django.urls import include, path
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
+
 # from schema_graph.views import Schema
 
 from metagov.core import views
 from metagov.core import utils
 from metagov.core.plugin_decorators import plugin_registry
 
-logger = logging.getLogger('django')
+logger = logging.getLogger("django")
 
 # TODO: Add endpoints to expose schemas for actions, processes, and resources
 
 schema_view = get_schema_view(
     openapi.Info(
         title="Metagov API",
-        default_version='v1',
+        default_version="v1",
         description="""
         Service for accessing governance resources and invoking governance processes.
 
@@ -62,26 +63,24 @@ for (key, cls) in plugin_registry.items():
 new_routes = [str(p.pattern) for p in plugin_patterns]
 new_routes.sort()
 logger.info(f"Adding routes:")
-logger.info('\n'.join(new_routes))
+logger.info("\n".join(new_routes))
 
 
 urlpatterns = [
     # url(r'^$', views.index, name='index'),
     # url(r'home', views.home, name='home'),
     # url('', include('social_django.urls', namespace='social')),
-    path('', views.index, name='index'),
+    path("", views.index, name="index"),
     # path("schema/", Schema.as_view()),
-    path('admin/', admin.site.urls),
-    url(r'^swagger(?P<format>\.json|\.yaml)$',
-        schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    url(r'^swagger/$', schema_view.with_ui('swagger',
-                                           cache_timeout=0), name='schema-swagger-ui'),
-    url(r'^redoc/$', schema_view.with_ui('redoc',
-                                         cache_timeout=0), name='schema-redoc'),
-    path('api/hooks/<slug:community>/<slug:plugin_name>',
-         views.receive_webhook, name='receive_webhook'),
-    path('api/hooks/<slug:community>/<slug:plugin_name>/<slug:webhook_slug>',
-         views.receive_webhook, name='receive_webhook'),
-    path(f"{utils.internal_path}/community/<slug:name>",
-         views.community, name='community')
+    path("admin/", admin.site.urls),
+    url(r"^swagger(?P<format>\.json|\.yaml)$", schema_view.without_ui(cache_timeout=0), name="schema-json"),
+    url(r"^swagger/$", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
+    url(r"^redoc/$", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"),
+    path("api/hooks/<slug:community>/<slug:plugin_name>", views.receive_webhook, name="receive_webhook"),
+    path(
+        "api/hooks/<slug:community>/<slug:plugin_name>/<slug:webhook_slug>",
+        views.receive_webhook,
+        name="receive_webhook",
+    ),
+    path(f"{utils.internal_path}/community/<slug:name>", views.community, name="community"),
 ] + plugin_patterns

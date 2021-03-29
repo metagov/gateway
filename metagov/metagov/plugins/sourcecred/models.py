@@ -8,25 +8,15 @@ input_schema = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "username": {
-            "description": "Username on the platform used with this sourcecred instance",
-            "type": "string"
-        }
+        "username": {"description": "Username on the platform used with this sourcecred instance", "type": "string"}
     },
-    "required": [
-        "username"
-    ]
+    "required": ["username"],
 }
 
 output_schema = {
     "type": "object",
     "additionalProperties": False,
-    "properties": {
-        "value": {
-            "description": "Users most recent Cred value",
-            "type": "number"
-        }
-    }
+    "properties": {"value": {"description": "Users most recent Cred value", "type": "number"}},
 }
 
 
@@ -36,25 +26,15 @@ class SourceCred(Plugin):
     config_schema = {
         "type": "object",
         "additionalProperties": False,
-        "properties": {
-            "server_url": {
-                "description": "URL of the SourceCred server",
-                "type": "string"
-            }
-        },
-        "required": [
-            "server_url"
-        ]
+        "properties": {"server_url": {"description": "URL of the SourceCred server", "type": "string"}},
+        "required": ["server_url"],
     }
 
     class Meta:
         proxy = True
 
     @Registry.resource(
-        slug='cred',
-        description='Cred value for given user',
-        input_schema=input_schema,
-        output_schema=output_schema
+        slug="cred", description="Cred value for given user", input_schema=input_schema, output_schema=output_schema
     )
     def get_cred(self, parameters):
         username = parameters["username"]
@@ -65,10 +45,7 @@ class SourceCred(Plugin):
         return {"value": cred}
 
     @Registry.action(
-        slug='getcred',
-        description='Cred value for given user',
-        input_schema=input_schema,
-        output_schema=output_schema
+        slug="getcred", description="Cred value for given user", input_schema=input_schema, output_schema=output_schema
     )
     def cred_as_an_action(self, parameters, user_id):
         username = parameters["username"]
@@ -78,7 +55,7 @@ class SourceCred(Plugin):
         return {"value": cred}
 
     def get_user_cred(self, username):
-        server = self.config['server_url']
+        server = self.config["server_url"]
         url = f"{server}/output/accounts.json"
         resp = requests.get(url)
         cred_data = resp.json()

@@ -2,6 +2,7 @@ from enum import Enum
 
 from metagov.core.utils import SaferDraft7Validator
 
+
 class FunctionType(Enum):
     RESOURCE = "resource"
     ACTION = "action"
@@ -9,11 +10,13 @@ class FunctionType(Enum):
 
 plugin_registry = {}
 
+
 def validate_proxy_model(cls):
     if not isinstance(cls.name, str):
         raise Exception(f"Failed to register model, missing name attribute")
-    if not hasattr(cls, '_meta') or not cls._meta.proxy:
+    if not hasattr(cls, "_meta") or not cls._meta.proxy:
         raise Exception(f"Failed to register {cls.name}: must be a Django proxy model")
+
 
 def plugin(cls):
     """Use this decorator on a sublcass of :class:`~metagov.core.models.Plugin` to register it as a plugin."""
@@ -27,23 +30,26 @@ def plugin(cls):
     plugin_registry[cls.name] = cls
     for methodname in dir(cls):
         method = getattr(cls, methodname)
-        if hasattr(method, '_meta'):
+        if hasattr(method, "_meta"):
             meta = method._meta
-            assert(meta.function_name == methodname)
+            assert meta.function_name == methodname
             if meta.type is FunctionType.ACTION:
                 cls._action_registry[meta.slug] = method._meta
             elif meta.type is FunctionType.RESOURCE:
                 cls._resource_registry[meta.slug] = method._meta
     return cls
 
+
 def governance_process(cls):
     """Use this decorator on a sublcass of :class:`~metagov.core.models.GovernanceProcess` to register it as a governance process."""
     validate_proxy_model(cls)
 
-    if not hasattr(cls, 'plugin_name'):
+    if not hasattr(cls, "plugin_name"):
         raise Exception(f"Failed to register {cls.name}: Missing plugin name")
     if not plugin_registry.get(cls.plugin_name):
-        raise Exception(f"Failed to register {cls.name}: No such plugin '{cls.plugin_name}'. Plugin must be declared before process.")
+        raise Exception(
+            f"Failed to register {cls.name}: No such plugin '{cls.plugin_name}'. Plugin must be declared before process."
+        )
 
     if cls.input_schema:
         SaferDraft7Validator.check_schema(cls.input_schema)
@@ -58,8 +64,9 @@ def governance_process(cls):
         except plugin_cls.DoesNotExist:
             return None
 
-    cls.add_to_class('get_plugin', get_plugin)
+    cls.add_to_class("get_plugin", get_plugin)
     return cls
+
 
 class ResourceFunctionMeta:
     def __init__(self, slug, function_name, description, input_schema, output_schema):
@@ -91,6 +98,7 @@ def resource(slug, description, input_schema=None, output_schema=None):
     :param obj input_schema: jsonschema defining the input parameter object, optional
     :param obj output_schema: jsonschema defining the response object, optional
     """
+
     def wrapper(function):
         if input_schema:
             SaferDraft7Validator.check_schema(input_schema)
@@ -102,9 +110,10 @@ def resource(slug, description, input_schema=None, output_schema=None):
             function_name=function.__name__,
             description=description,
             input_schema=input_schema,
-            output_schema=output_schema
+            output_schema=output_schema,
         )
         return function
+
     return wrapper
 
 
@@ -118,6 +127,7 @@ def action(slug, description, input_schema=None, output_schema=None):
     :param obj input_schema: jsonschema defining the input parameter object, optional
     :param obj output_schema: jsonschema defining the response object, optional
     """
+
     def wrapper(function):
         if input_schema:
             SaferDraft7Validator.check_schema(input_schema)
@@ -129,7 +139,8 @@ def action(slug, description, input_schema=None, output_schema=None):
             function_name=function.__name__,
             description=description,
             input_schema=input_schema,
-            output_schema=output_schema
+            output_schema=output_schema,
         )
         return function
+
     return wrapper

@@ -42,10 +42,7 @@ class Randomness(Plugin):
     @Registry.resource(
         slug="random-int",
         description="Get a random integer in range",
-        input_schema={
-            "type": "object",
-            "properties": {"low": {"type": "integer"}, "high": {"type": "integer"}}
-        }
+        input_schema={"type": "object", "properties": {"low": {"type": "integer"}, "high": {"type": "integer"}}},
     )
     def rand_int(self, parameters):
         import random
@@ -82,7 +79,7 @@ class StochasticVote(GovernanceProcess):
         print(f'Starting process with options {parameters["options"]}')
 
         # can safely access plugin state and config
-        print(self.plugin.config['default_high'])
+        print(self.plugin.config["default_high"])
         print(self.plugin.state.get("lucky_number"))
 
         # save options to internal state

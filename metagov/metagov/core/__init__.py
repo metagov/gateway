@@ -1,1 +1,1 @@
-default_app_config = 'metagov.core.apps.CoreConfig'
+default_app_config = "metagov.core.apps.CoreConfig"

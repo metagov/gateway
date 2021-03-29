@@ -2,12 +2,14 @@ from django.http import HttpResponseBadRequest
 from metagov.core.models import Community
 from drf_yasg import openapi
 
-COMMUNITY_HEADER = 'X-Metagov-Community'
+COMMUNITY_HEADER = "X-Metagov-Community"
+
 
 class CommunityMiddleware:
     """
     Middleware for attaching Community to request object
     """
+
     def __init__(self, get_response):
         self.get_response = get_response
 
@@ -24,10 +26,7 @@ class CommunityMiddleware:
             return HttpResponseBadRequest(f"Community '{community_name}' not found")
         request.community = community
 
+
 openapi_community_header = openapi.Parameter(
-    COMMUNITY_HEADER,
-    openapi.IN_HEADER,
-    required=True,
-    type=openapi.TYPE_STRING,
-    description="Valid community name"
+    COMMUNITY_HEADER, openapi.IN_HEADER, required=True, type=openapi.TYPE_STRING, description="Valid community name"
 )

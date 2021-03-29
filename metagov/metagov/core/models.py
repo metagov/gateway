@@ -14,7 +14,7 @@ from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 from drf_yasg import openapi
 
-logger = logging.getLogger('django')
+logger = logging.getLogger("django")
 
 
 class Community(models.Model):
@@ -56,23 +56,19 @@ class PluginManager(models.Manager):
 
 class Plugin(models.Model):
     """Represents an instance of an activated plugin."""
-    name = models.CharField(max_length=30, blank=True,
-                            help_text="Name of the plugin")
-    community = models.ForeignKey(Community, models.CASCADE, related_name='plugins',
-                                  help_text="Community that this plugin instance belongs to")
-    config = models.JSONField(default=dict, null=True, blank=True,
-                              help_text="Configuration for this plugin instance")
-    state = models.OneToOneField(DataStore,
-                                 models.CASCADE,
-                                 help_text="Datastore to persist any state",
-                                 null=True
-                                 )
+
+    name = models.CharField(max_length=30, blank=True, help_text="Name of the plugin")
+    community = models.ForeignKey(
+        Community, models.CASCADE, related_name="plugins", help_text="Community that this plugin instance belongs to"
+    )
+    config = models.JSONField(default=dict, null=True, blank=True, help_text="Configuration for this plugin instance")
+    state = models.OneToOneField(DataStore, models.CASCADE, help_text="Datastore to persist any state", null=True)
     config_schema = {}  # can be overridden to set jsonschema of config
 
     objects = PluginManager()
 
     class Meta:
-        unique_together = ['name', 'community']
+        unique_together = ["name", "community"]
 
     def __str__(self):
         return f"{self.name} for {self.community.name}"
@@ -94,48 +90,41 @@ class Plugin(models.Model):
     def send_event_to_driver(self, event_type: str, data: dict, initiator: dict):
         """Send an event to the driver"""
         event = {
-            'community': self.community.name,
-            'source': self.name,
-            'event_type': event_type,
-            'timestamp': str(time.time()),
-            'data': data,
-            'initiator': initiator
+            "community": self.community.name,
+            "source": self.name,
+            "event_type": event_type,
+            "timestamp": str(time.time()),
+            "data": data,
+            "initiator": initiator,
         }
         serialized = jsonpickle.encode(event, unpicklable=False)
         logger.info("Sending event to Driver: " + serialized)
         resp = requests.post(settings.DRIVER_ACTION_ENDPOINT, data=serialized)
         if not resp.ok:
-            print(
-                f"Error sending event to driver: {resp.status_code} {resp.reason}")
+            print(f"Error sending event to driver: {resp.status_code} {resp.reason}")
 
 
 class ProcessStatus(Enum):
-    CREATED = 'created'
-    PENDING = 'pending'
-    COMPLETED = 'completed'
+    CREATED = "created"
+    PENDING = "pending"
+    COMPLETED = "completed"
 
 
 class GovernanceProcess(models.Model):
     """Represents an instance of a governance process."""
+
     name = models.CharField(max_length=30)
     callback_url = models.CharField(max_length=50, null=True, blank=True)
     status = models.CharField(
-        max_length=15,
-        choices=[(s.value, s.name) for s in ProcessStatus],
-        default=ProcessStatus.CREATED.value
+        max_length=15, choices=[(s.value, s.name) for s in ProcessStatus], default=ProcessStatus.CREATED.value
     )
-    plugin = models.ForeignKey(Plugin, models.CASCADE, related_name='plugin',
-                               help_text="Plugin instance that this process belongs to")
-    state = models.OneToOneField(DataStore,
-                                 models.CASCADE,
-                                 help_text="Datastore to persist any state",
-                                 null=True)
-    data = models.JSONField(default=dict, blank=True,
-                            help_text="Data to serialize and send back to driver")
-    errors = models.JSONField(
-        default=dict, blank=True, help_text="Errors to serialize and send back to driver")
-    outcome = models.JSONField(
-        default=dict, blank=True, help_text="Outcome to serialize and send back to driver")
+    plugin = models.ForeignKey(
+        Plugin, models.CASCADE, related_name="plugin", help_text="Plugin instance that this process belongs to"
+    )
+    state = models.OneToOneField(DataStore, models.CASCADE, help_text="Datastore to persist any state", null=True)
+    data = models.JSONField(default=dict, blank=True, help_text="Data to serialize and send back to driver")
+    errors = models.JSONField(default=dict, blank=True, help_text="Errors to serialize and send back to driver")
+    outcome = models.JSONField(default=dict, blank=True, help_text="Outcome to serialize and send back to driver")
     input_schema = {}
 
     def __str__(self):
@@ -203,17 +192,16 @@ def notify_process_completed(sender, instance, **kwargs):
 
     def notify_completed(process):
         from metagov.core.serializers import GovernanceProcessSerializer
+
         if not process.callback_url:
             logger.info("No callback url")
             return
         serializer = GovernanceProcessSerializer(process)
-        logger.info(
-            f"Posting completed process outcome to {process.callback_url}")
+        logger.info(f"Posting completed process outcome to {process.callback_url}")
         logger.info(serializer.data)
         resp = requests.post(process.callback_url, json=serializer.data)
         if not resp.ok:
-            logger.error(
-                f"Error posting outcome to callback url: {resp.status_code} {resp.text}")
+            logger.error(f"Error posting outcome to callback url: {resp.status_code} {resp.text}")
 
     try:
         obj = sender.objects.get(pk=instance.pk)

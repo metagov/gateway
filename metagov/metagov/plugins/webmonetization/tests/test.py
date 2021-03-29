@@ -9,34 +9,31 @@ class ApiTests(TestCase):
         self.client = Client()
 
         self.community_name = "revshare-test-community"
-        self.headers = {'HTTP_X_METAGOV_COMMUNITY': self.community_name}
+        self.headers = {"HTTP_X_METAGOV_COMMUNITY": self.community_name}
         self.community_url = f"/api/internal/community/{self.community_name}"
         self.community_data = {
-            'name': self.community_name,
-            'readable_name': 'miriams new community',
-            'plugins': [
-                {
-                    "name": "webmonetization",
-                    "config": {}
-                }
-            ]
+            "name": self.community_name,
+            "readable_name": "miriams new community",
+            "plugins": [{"name": "webmonetization", "config": {}}],
         }
         # create a community with the webmonetization plugin enabled
-        self.client.put(self.community_url, data=self.community_data,
-                        content_type='application/json')
+        self.client.put(self.community_url, data=self.community_data, content_type="application/json")
 
     def test_revshare(self):
         self.assertEqual(WebMonetization.objects.all().count(), 1)
 
         # add a pointer
-        parameters = {'pointer': '$alice.example', 'weight': 1}
-        response = self.client.post("/api/internal/action/webmonetization.update-pointer",
-                                    data={'parameters': parameters},
-                                    content_type='application/json',
-                                    **self.headers)
+        parameters = {"pointer": "$alice.example", "weight": 1}
+        response = self.client.post(
+            "/api/internal/action/webmonetization.update-pointer",
+            data={"parameters": parameters},
+            content_type="application/json",
+            **self.headers,
+        )
         self.assertContains(response, "$alice.example")
 
         # request a random pointer
-        response = self.client.get("/api/internal/resource/webmonetization.pick-pointer",
-                                   content_type='application/json', **self.headers)
+        response = self.client.get(
+            "/api/internal/resource/webmonetization.pick-pointer", content_type="application/json", **self.headers
+        )
         self.assertContains(response, "$alice.example")
