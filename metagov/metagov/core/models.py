@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import jsonpickle
 from enum import Enum
 
 import jsonpickle
@@ -28,10 +29,11 @@ class DataStore(models.Model):
     datastore = models.JSONField(default=dict)
 
     def get(self, key):
-        return self.datastore.get(key, None)
+        value = self.datastore.get(key, None)
+        return jsonpickle.decode(value)
 
     def set(self, key, value):
-        self.datastore[key] = value
+        self.datastore[key] = jsonpickle.encode(value)
         self.save()
         return True
 

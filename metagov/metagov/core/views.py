@@ -19,7 +19,7 @@ from drf_yasg.utils import swagger_auto_schema
 from jsonschema_to_openapi.convert import convert
 from metagov.core.middleware import (CommunityMiddleware,
                                      openapi_community_header)
-from metagov.core.models import Community, GovernanceProcess
+from metagov.core.models import Community, GovernanceProcess, ProcessStatus
 from metagov.core.openapi_schemas import community_schema
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.serializers import (CommunitySerializer,
@@ -230,11 +230,17 @@ def decorated_get_process_view(plugin_name, slug):
             return HttpResponseNotFound()
 
         if request.method == 'DELETE':
+            if process.status == ProcessStatus.COMPLETED.value:
+                return HttpResponseBadRequest("Can't close process, it has already completed")
             # 'DELETE'  means close the process and return it
             # If 'close' is implemented, it should set the status to COMPLETED
-            logger.info(f"Closing process {process_id}")
+            logger.info(f"Closing: {process}")
             process.close()
 
+        # If the process is pending, poll it
+        if process.status == ProcessStatus.PENDING.value:
+            logger.info(f"Polling: {process}")
+            process.poll() # This may update the outcome or status
         serializer = GovernanceProcessSerializer(process)
         logger.info(f"Returning serialized process: {serializer.data}")
         return JsonResponse(serializer.data)
@@ -353,7 +359,6 @@ def get_plugin_instance(plugin_name, community):
             f"Plugin '{plugin_name}' not enabled for community '{community.name}'")
     return plugin
 
-
 def decorated_resource_view(plugin_name, slug):
     cls = plugin_registry[plugin_name]
     meta = cls._resource_registry[slug]
@@ -369,12 +374,19 @@ def decorated_resource_view(plugin_name, slug):
             return HttpResponseBadRequest(f"Plugin '{plugin_name}' not enabled for community '{request.community.name}'")
 
         parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
+
         # Validate parameters
         if meta.input_schema:
             try:
                 jsonschema.validate(parameters, meta.input_schema)
             except jsonschema.exceptions.ValidationError as err:
-                return HttpResponseBadRequest(f"ValidationError: {err.message}")
+                # if validation failed, try reading values as json (str '1' -> integer 1)
+                for (k,v) in parameters.items():
+                    parameters[k] = json.loads(v)
+                try:
+                    jsonschema.validate(parameters, meta.input_schema)
+                except jsonschema.exceptions.ValidationError:
+                    return HttpResponseBadRequest(f"ValidationError: {err.message}")
 
         # Call the resource retrieval function
         function = getattr(plugin, meta.function_name)
