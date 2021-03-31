@@ -29,8 +29,10 @@ class DataStore(models.Model):
     datastore = models.JSONField(default=dict)
 
     def get(self, key):
-        value = self.datastore.get(key, None)
-        return jsonpickle.decode(value)
+        value = self.datastore.get(key)
+        if value is not None:
+            return jsonpickle.decode(value)
+        return value
 
     def set(self, key, value):
         self.datastore[key] = jsonpickle.encode(value)

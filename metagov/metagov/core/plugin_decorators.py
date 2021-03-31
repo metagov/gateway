@@ -34,8 +34,12 @@ def plugin(cls):
             meta = method._meta
             assert meta.function_name == methodname
             if meta.type is FunctionType.ACTION:
+                if meta.slug in cls._action_registry:
+                    raise Exception(f"'{cls.name}.{meta.slug}' already registered")
                 cls._action_registry[meta.slug] = method._meta
             elif meta.type is FunctionType.RESOURCE:
+                if meta.slug in cls._resource_registry:
+                    raise Exception(f"'{cls.name}.{meta.slug}' already registered")
                 cls._resource_registry[meta.slug] = method._meta
     return cls
 
