@@ -283,7 +283,7 @@ def decorated_perform_action_view(plugin_name, slug):
             # provider = payload.get('initiator', {}).get('provider')
             # TODO lookup user in metagov, find identity for this provider
             response = action_function(parameters, user_id)
-        except ValueError as err:  # FIXME use custom err type
+        except Exception as err:
             return HttpResponseServerError(f"Error executing action: {err}")
 
         # 4. Validate response
