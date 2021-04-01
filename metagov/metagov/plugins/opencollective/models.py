@@ -58,11 +58,11 @@ class OpenCollective(Plugin):
                 "Query failed to run by returning code of {} {}. {}".format(request.status_code, request.reason, query)
             )
 
-    @Registry.resource(
-        slug="members",
+    @Registry.action(
+        slug="list-members",
         description="list members of the collective",
     )
-    def get_members(self, _parameters):
+    def list_members(self, _parameters):
         result = self.run_query(Queries.members, {"slug": self.config["collective_slug"]})
         accounts = [a["account"] for a in result["data"]["collective"]["members"]["nodes"]]
         return {"accounts": accounts}
@@ -73,7 +73,7 @@ class OpenCollective(Plugin):
         input_schema=Schemas.create_conversation_parameters,
         output_schema=Schemas.create_conversation_response,
     )
-    def create_conversation(self, parameters, initiator):
+    def create_conversation(self, parameters):
         variables = {
             "html": parameters["raw"],
             # "tags": [],
@@ -91,7 +91,7 @@ class OpenCollective(Plugin):
         input_schema=Schemas.create_comment_parameters,
         output_schema=Schemas.create_comment_response,
     )
-    def create_comment(self, parameters, initiator):
+    def create_comment(self, parameters):
         variables = {"comment": {"html": parameters["raw"], "ConversationId": parameters["conversation_id"]}}
         result = self.run_query(Queries.create_comment, variables)
         data = result["data"]["createComment"]

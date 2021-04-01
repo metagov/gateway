@@ -1,6 +1,6 @@
 from django.test import Client, TestCase
 from metagov.core.models import Community, Plugin
-from metagov.plugins.webmonetization.models import WebMonetization
+from metagov.plugins.revshare.models import RevShare
 
 
 class ApiTests(TestCase):
@@ -14,18 +14,18 @@ class ApiTests(TestCase):
         self.community_data = {
             "name": self.community_name,
             "readable_name": "miriams new community",
-            "plugins": [{"name": "webmonetization", "config": {}}],
+            "plugins": [{"name": "revshare", "config": {}}],
         }
-        # create a community with the webmonetization plugin enabled
+        # create a community with the revshare plugin enabled
         self.client.put(self.community_url, data=self.community_data, content_type="application/json")
 
     def test_revshare(self):
-        self.assertEqual(WebMonetization.objects.all().count(), 1)
+        self.assertEqual(RevShare.objects.all().count(), 1)
 
         # add a pointer
         parameters = {"pointer": "$alice.example", "weight": 1}
         response = self.client.post(
-            "/api/internal/action/webmonetization.update-pointer",
+            "/api/internal/action/revshare.add-pointer",
             data={"parameters": parameters},
             content_type="application/json",
             **self.headers,
@@ -34,6 +34,6 @@ class ApiTests(TestCase):
 
         # request a random pointer
         response = self.client.get(
-            "/api/internal/resource/webmonetization.pick-pointer", content_type="application/json", **self.headers
+            "/api/action/revshare.pick-pointer", content_type="application/json", **self.headers
         )
         self.assertContains(response, "$alice.example")

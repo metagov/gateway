@@ -241,13 +241,12 @@ def decorated_get_process_view(plugin_name, slug):
         # If the process is pending, poll it
         if process.status == ProcessStatus.PENDING.value:
             logger.info(f"Polling: {process}")
-            process.poll()  # This may update the outcome or status
+            process.check_status()  # This may update the outcome or status
         serializer = GovernanceProcessSerializer(process)
         logger.info(f"Returning serialized process: {serializer.data}")
         return JsonResponse(serializer.data)
 
     return get_process
-
 
 def decorated_perform_action_view(plugin_name, slug):
     cls = plugin_registry[plugin_name]
@@ -255,7 +254,7 @@ def decorated_perform_action_view(plugin_name, slug):
     prefixed_slug = f"{plugin_name}.{slug}"
 
     @community_middleware
-    @api_view(["POST"])
+    @api_view(["POST", "GET"])
     def perform_action(request):
         """
         Perform an action on a platform
@@ -269,8 +268,14 @@ def decorated_perform_action_view(plugin_name, slug):
         action_function = getattr(plugin, meta.function_name)
 
         # 2. Validate input parameters
-        payload = JSONParser().parse(request)
-        parameters = payload.get("parameters")
+        parameters = {}
+        if request.method == "POST":
+            payload = JSONParser().parse(request)
+            parameters = payload.get("parameters")
+        if request.method == "GET":
+            parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
+            utils.restruct(parameters)
+
         if meta.input_schema:
             try:
                 jsonschema.validate(parameters, meta.input_schema)
@@ -279,10 +284,7 @@ def decorated_perform_action_view(plugin_name, slug):
 
         # 3. Invoke action function
         try:
-            user_id = payload.get("initiator", {}).get("user_id")
-            # provider = payload.get('initiator', {}).get('provider')
-            # TODO lookup user in metagov, find identity for this provider
-            response = action_function(parameters, user_id)
+            response = action_function(parameters)
         except Exception as err:
             return HttpResponseServerError(f"Error executing action: {err}")
 
@@ -307,15 +309,7 @@ def decorated_perform_action_view(plugin_name, slug):
         properties = {
             "parameters": openapi.Schema(
                 type=openapi.TYPE_OBJECT, properties=schema.get("properties", {}), required=schema.get("required", [])
-            ),
-            "initiator": openapi.Schema(
-                type=openapi.TYPE_OBJECT,
-                description="Perform the action on behalf of this user. If not provided, or if plugin does not have sufficient access, the action will be performed by the system or bot user.",
-                properties={
-                    "user_id": {"type": "string", "description": "User identifier from the identity provider"},
-                    "provider": {"type": "string", "description": "Name of the identity provider"},
-                },
-            ),
+            )
         }
 
         arg_dict["request_body"] = openapi.Schema(type=openapi.TYPE_OBJECT, properties={**properties})

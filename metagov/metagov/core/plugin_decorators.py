@@ -2,12 +2,6 @@ from enum import Enum
 
 from metagov.core.utils import SaferDraft7Validator
 
-
-class FunctionType(Enum):
-    RESOURCE = "resource"
-    ACTION = "action"
-
-
 plugin_registry = {}
 
 
@@ -23,7 +17,7 @@ def plugin(cls):
     validate_proxy_model(cls)
     if cls.config_schema:
         SaferDraft7Validator.check_schema(cls.config_schema)
-    cls._resource_registry = {}
+
     cls._action_registry = {}
     cls._process_registry = {}
 
@@ -33,14 +27,9 @@ def plugin(cls):
         if hasattr(method, "_meta"):
             meta = method._meta
             assert meta.function_name == methodname
-            if meta.type is FunctionType.ACTION:
-                if meta.slug in cls._action_registry:
-                    raise Exception(f"'{cls.name}.{meta.slug}' already registered")
-                cls._action_registry[meta.slug] = method._meta
-            elif meta.type is FunctionType.RESOURCE:
-                if meta.slug in cls._resource_registry:
-                    raise Exception(f"'{cls.name}.{meta.slug}' already registered")
-                cls._resource_registry[meta.slug] = method._meta
+            if meta.slug in cls._action_registry:
+                raise Exception(f"'{cls.name}.{meta.slug}' already registered")
+            cls._action_registry[meta.slug] = method._meta
     return cls
 
 
@@ -72,57 +61,18 @@ def governance_process(cls):
     return cls
 
 
-class ResourceFunctionMeta:
-    def __init__(self, slug, function_name, description, input_schema, output_schema):
-        self.type = FunctionType.RESOURCE
-        self.slug = slug
-        self.function_name = function_name
-        self.description = description
-        self.input_schema = input_schema
-        self.output_schema = output_schema
-
-
 class ActionFunctionMeta:
-    def __init__(self, slug, function_name, description, input_schema, output_schema):
-        self.type = FunctionType.ACTION
+    def __init__(self, slug, function_name, description, input_schema, output_schema, is_public):
         self.slug = slug
         self.function_name = function_name
         self.description = description
         self.input_schema = input_schema
         self.output_schema = output_schema
+        self.is_public = is_public
 
 
-def resource(slug, description, input_schema=None, output_schema=None):
-    """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register a resource retrieval.
-
-    Metagov will expose the decorated function at endpoint ``/resource/<plugin-name>.<slug>``
-
-    :param str slug: resource slug
-    :param str description: resource description
-    :param obj input_schema: jsonschema defining the input parameter object, optional
-    :param obj output_schema: jsonschema defining the response object, optional
-    """
-
-    def wrapper(function):
-        if input_schema:
-            SaferDraft7Validator.check_schema(input_schema)
-        if output_schema:
-            SaferDraft7Validator.check_schema(output_schema)
-
-        function._meta = ResourceFunctionMeta(
-            slug=slug,
-            function_name=function.__name__,
-            description=description,
-            input_schema=input_schema,
-            output_schema=output_schema,
-        )
-        return function
-
-    return wrapper
-
-
-def action(slug, description, input_schema=None, output_schema=None):
-    """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register a platform action.
+def action(slug, description, input_schema=None, output_schema=None, is_public=False):
+    """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register an action endpoint.
 
     Metagov will expose the decorated function at endpoint ``/action/<plugin-name>.<slug>``
 
@@ -144,6 +94,7 @@ def action(slug, description, input_schema=None, output_schema=None):
             description=description,
             input_schema=input_schema,
             output_schema=output_schema,
+            is_public=is_public,
         )
         return function
 

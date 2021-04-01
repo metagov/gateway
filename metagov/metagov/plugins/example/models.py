@@ -33,16 +33,18 @@ class Randomness(Plugin):
             "properties": {"lucky_number": {"type": "integer"}},
             "required": ["lucky_number"],
         },
+        output_schema={"type": "object", "properties": {"lucky_number": {"type": "integer"}}},
     )
-    def set_lucky_number(self, parameters, initiator):
+    def set_lucky_number(self, parameters):
         # [useless example] expose an action for updating plugin state
         self.state.set("lucky_number", parameters["lucky_number"])
         return {"lucky_number": parameters["lucky_number"]}
 
-    @Registry.resource(
+    @Registry.action(
         slug="random-int",
         description="Get a random integer in range",
         input_schema={"type": "object", "properties": {"low": {"type": "integer"}, "high": {"type": "integer"}}},
+        output_schema={"type": "object", "properties": {"value": {"type": "integer"}}},
     )
     def rand_int(self, parameters):
         import random
@@ -93,7 +95,7 @@ class StochasticVote(GovernanceProcess):
         self.status = ProcessStatus.PENDING.value
         self.save()
 
-    def poll(self):
+    def check_status(self):
         closing_at = self.state.get("closing_at")
         if datetime.now(timezone.utc) >= closing_at:
             self.close()

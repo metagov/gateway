@@ -42,13 +42,13 @@ class ApiTests(TestCase):
         self.assertContains(response, "Schema validation error", status_code=400)
 
         # bad sourcecred request (missing header)
-        sourcecred_request_url = "/api/internal/resource/sourcecred.cred?username=miriam"
+        sourcecred_request_url = "/api/internal/action/sourcecred.user-cred?username=miriam"
         response = client.get(sourcecred_request_url)
         self.assertContains(response, "Missing required header 'X-Metagov-Community'", status_code=400)
 
         # bad sourcecred request (plugin not activated)
         headers = {"HTTP_X_METAGOV_COMMUNITY": community_name}
-        sourcecred_request_url = "/api/internal/resource/sourcecred.cred?username=miriam"
+        sourcecred_request_url = "/api/internal/action/sourcecred.user-cred?username=miriam"
         response = client.get(sourcecred_request_url, content_type="application/json", **headers)
         self.assertContains(
             response, "Plugin 'sourcecred' not enabled for community 'miriams-community'", status_code=400
@@ -67,7 +67,7 @@ class ApiTests(TestCase):
         self.assertEqual(sc_proxy_plugins.first().config["server_url"], sc_server)
 
         # good sourcecred request (plugin is activated)
-        sourcecred_request_url = "/api/internal/resource/sourcecred.cred?username=miriam"
+        sourcecred_request_url = "/api/internal/action/sourcecred.user-cred?username=miriam"
         response = client.get(sourcecred_request_url, content_type="application/json", **headers)
         self.assertContains(response, '"value":')
 

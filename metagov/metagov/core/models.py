@@ -170,8 +170,8 @@ class GovernanceProcess(models.Model):
         """
         pass
 
-    def poll(self):
-        """Poll the process, and possibly update the status. (OPTIONAL)"""
+    def check_status(self):
+        """Check the status of the process, and possibly update the status. (OPTIONAL)"""
         pass
 
     def receive_webhook(self, request):

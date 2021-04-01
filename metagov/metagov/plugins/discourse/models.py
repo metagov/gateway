@@ -55,9 +55,9 @@ class Discourse(Plugin):
         input_schema=Schemas.create_post_parameters,
         output_schema=Schemas.create_post_response,
     )
-    def create_post(self, parameters, initiator):
+    def create_post(self, parameters):
         payload = {"raw": parameters["raw"], "topic_id": parameters["topic_id"]}
-        username = initiator or "system"
+        username = parameters.get("initiator", "system")
         post = self.discourse_post_request("posts.json", payload, username)
         return {"url": self.construct_post_url(post), "id": post["id"]}
 
@@ -67,7 +67,7 @@ class Discourse(Plugin):
         input_schema=Schemas.delete_post_parameters,
         output_schema=None,
     )
-    def delete_post(self, parameters, initiator):
+    def delete_post(self, parameters):
         headers = {"Api-Username": "system", "Api-Key": self.config["api_key"]}
         resp = requests.delete(f"{self.config['server_url']}/posts/{parameters['id']}", headers=headers)
         if not resp.ok:
@@ -81,7 +81,7 @@ class Discourse(Plugin):
         input_schema=Schemas.lock_post_parameters,
         output_schema=Schemas.lock_post_response,
     )
-    def lock_post(self, parameters, initiator):
+    def lock_post(self, parameters):
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
             "Api-Username": "system",
