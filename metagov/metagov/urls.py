@@ -23,8 +23,21 @@ schema_view = get_schema_view(
     openapi.Info(
         title="Metagov Prototype API",
         default_version="v1",
-        description="""Endpoints that are prefixed with `/internal` are exposed **only to the local network** and accessed by the collocated "governance driver."
+        description="""
+Metagov is a unified API gateway for digital governance services. It’s designed to support rapid prototyping of governance systems, decision-making processes, and social workflows across a range of platforms, from forums to chat services to blockchains. To help people prototype, Metagov ships with a powerful driver for authoring governance policies over multiple platforms.
+
+Metagov is a prototype under active development, so please help us out by sending us feedback at hello@metagov.org or by opening an issue on our GitHub.
+
+See the full documentation at https://docs.metagov.org/
+
+> Endpoints that are prefixed with `/internal` are exposed **only to the local network** and accessed by the collocated "governance driver."
 """,
+        # contact=openapi.Contact(email="hello@metagov.org"),
+        # license=openapi.License(name="MIT License"),
+        x_logo={
+            "url": "https://metagov.org/wp-content/uploads/2019/09/logo-copy-150x150.png",
+            "href": "#"
+        }
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
