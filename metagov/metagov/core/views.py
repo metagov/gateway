@@ -3,18 +3,13 @@ import logging
 from http import HTTPStatus
 
 import jsonschema
-
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.dispatch import receiver
-from django.http import (
-    HttpResponse,
-    HttpResponseBadRequest,
-    HttpResponseNotFound,
-    HttpResponseServerError,
-    JsonResponse,
-    QueryDict,
-)
+from django.http import (HttpResponse, HttpResponseBadRequest,
+                         HttpResponseNotFound, HttpResponseServerError,
+                         JsonResponse, QueryDict)
 from django.shortcuts import render
 from django.template import loader
 from django.utils.decorators import decorator_from_middleware
@@ -22,11 +17,14 @@ from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from metagov.core import utils
-from metagov.core.middleware import CommunityMiddleware, openapi_community_header
-from metagov.core.models import Community, GovernanceProcess, ProcessStatus
+from metagov.core.middleware import (CommunityMiddleware,
+                                     openapi_community_header)
+from metagov.core.models import (Community, GovernanceProcess, Plugin,
+                                 ProcessStatus)
 from metagov.core.openapi_schemas import Tags, community_schema
 from metagov.core.plugin_decorators import plugin_registry
-from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer
+from metagov.core.serializers import (CommunitySerializer,
+                                      GovernanceProcessSerializer)
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
@@ -37,6 +35,7 @@ community_middleware = decorator_from_middleware(CommunityMiddleware)
 
 logger = logging.getLogger("django")
 
+WEBHOOK_SLUG_CONFIG_KEY = "webhook_slug"
 
 def index(request):
     return render(request, "login.html", {})
@@ -102,7 +101,29 @@ def community(request, name):
         return JsonResponse({"message": "Community was deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
 
 
+@swagger_auto_schema(
+    method="get", operation_id="List community web hook receivers", tags=[Tags.COMMUNITY]
+)
+@api_view(["GET"])
+def list_hooks(request, name):
+    try:
+        community = Community.objects.get(name=name)
+    except Community.DoesNotExist:
+        return HttpResponseNotFound()
+
+    plugins = Plugin.objects.filter(community=community)
+    hooks = []
+    for p in list(plugins):
+        url = f"{settings.SERVER_URL}/api/hooks/{name}/{p.name}"
+        if p.config and p.config.get(WEBHOOK_SLUG_CONFIG_KEY):
+            url += "/" + p.config.get(WEBHOOK_SLUG_CONFIG_KEY)
+        hooks.append(url)
+    return JsonResponse({"hooks": hooks})
+
+
 @csrf_exempt
+@swagger_auto_schema(method='post', auto_schema=None)
+@api_view(["POST"])
 def receive_webhook(request, community, plugin_name, webhook_slug=None):
     """
     API endpoint for receiving webhook requests from external services
@@ -120,7 +141,7 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
         return HttpResponseBadRequest(e)
 
     # Validate slug if the plugin has `webhook_slug` configured
-    expected_slug = plugin.config.get("webhook_slug")
+    expected_slug = plugin.config.get(WEBHOOK_SLUG_CONFIG_KEY)
     if webhook_slug != expected_slug:
         logger.error(f"Received request at {webhook_slug}, expected {expected_slug}. Rejecting.")
         return HttpResponseBadRequest()

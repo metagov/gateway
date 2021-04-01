@@ -24,13 +24,14 @@ env = environ.Env(
     ALLOWED_HOSTS=(list, []),
     DATABASE_PATH=(str, os.path.join(BASE_DIR, "db.sqlite3")),
     DRIVER_ACTION_ENDPOINT=(str, ""),
+    SERVER_URL=(str, "http://127.0.0.1:8000"),
 )
 # reading .env file
 environ.Env.read_env()
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
-
+SERVER_URL = env("SERVER_URL")
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 
 DEBUG = env("DEBUG")
