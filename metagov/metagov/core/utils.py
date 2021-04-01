@@ -1,6 +1,8 @@
 import json
 
 import jsonschema
+from drf_yasg import openapi
+from jsonschema_to_openapi.convert import convert
 
 internal_path = "api/internal"
 
@@ -17,6 +19,13 @@ def construct_process_url(plugin_name: str, slug: str) -> str:
 
 class SaferDraft7Validator(jsonschema.Draft7Validator):
     META_SCHEMA = {**jsonschema.Draft7Validator.META_SCHEMA, "additionalProperties": False}
+
+
+def json_schema_to_openapi_object(json_schema):
+    schema = convert(json_schema)
+    return openapi.Schema(
+        type=openapi.TYPE_OBJECT, properties=schema.get("properties", {}), required=schema.get("required", [])
+    )
 
 
 def restruct(d):
@@ -37,3 +46,21 @@ def restruct(d):
                 d[k] = int(d[k])
             except ValueError:
                 d[k] = d[k]
+
+
+# def jsonschema_to_parameters(schema):
+#     #arg_dict["manual_parameters"].extend(jsonschema_to_parameters(meta.input_schema
+#     schema = convert(schema)
+#     properties = schema.get("properties", {})
+#     required = schema.get("required", [])
+#     parameters = []
+#     for (name, prop) in properties.items():
+#         param = openapi.Parameter(
+#             name=name,
+#             in_="query",
+#             description=prop.get("description"),
+#             type=prop.get("type"),
+#             required=name in required,
+#         )
+#         parameters.append(param)
+#     return parameters

@@ -4,7 +4,6 @@ from http import HTTPStatus
 
 import jsonschema
 
-# from constance.signals import config_updated
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.dispatch import receiver
@@ -22,13 +21,12 @@ from django.utils.decorators import decorator_from_middleware
 from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from jsonschema_to_openapi.convert import convert
+from metagov.core import utils
 from metagov.core.middleware import CommunityMiddleware, openapi_community_header
 from metagov.core.models import Community, GovernanceProcess, ProcessStatus
-from metagov.core.openapi_schemas import community_schema
+from metagov.core.openapi_schemas import Tags, community_schema
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer
-from metagov.core import utils
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
@@ -49,10 +47,21 @@ def home(request):
     return HttpResponse(f"<p>hello {request.user.username}!</p><a href='/admin'>Site Admin</a>")
 
 
-@swagger_auto_schema(method="delete", operation_description="Delete the community")
-@swagger_auto_schema(method="get", responses={200: community_schema})
 @swagger_auto_schema(
-    method="put", request_body=community_schema, responses={200: community_schema, 200: community_schema}
+    method="delete",
+    operation_id="Delete community",
+    operation_description="Delete the community",
+    tags=[Tags.COMMUNITY],
+)
+@swagger_auto_schema(
+    method="get", operation_id="Get community", responses={200: community_schema}, tags=[Tags.COMMUNITY]
+)
+@swagger_auto_schema(
+    method="put",
+    operation_id="Create or update community",
+    request_body=community_schema,
+    responses={200: community_schema, 200: community_schema},
+    tags=[Tags.COMMUNITY],
 )
 @api_view(["GET", "PUT", "DELETE"])
 def community(request, name):
@@ -177,13 +186,7 @@ def decorated_create_process_view(plugin_name, slug):
         response["Location"] = f"/{utils.construct_process_url(plugin_name, slug)}/{new_process.pk}"
         return response
 
-    properties = {}
-    required = {}
-    # if jsonschema provided, convert it to openapi
-    if cls.input_schema:
-        schema = convert(cls.input_schema)
-        properties = schema.get("properties")
-        required = schema.get("required")
+    request_body_schema = utils.json_schema_to_openapi_object(cls.input_schema) if cls.input_schema else {}
 
     return swagger_auto_schema(
         method="post",
@@ -191,6 +194,7 @@ def decorated_create_process_view(plugin_name, slug):
             202: "Process successfully started. Use the URL from the `Location` header in the response to get the status and outcome of the process."
         },
         operation_id=f"Start {prefixed_slug}",
+        tags=[Tags.GOVERNANCE_PROCESS],
         operation_description=f"Start a new governance process of type '{prefixed_slug}'",
         manual_parameters=[openapi_community_header],
         request_body=openapi.Schema(
@@ -199,9 +203,9 @@ def decorated_create_process_view(plugin_name, slug):
                 "callback_url": openapi.Schema(
                     type=openapi.TYPE_STRING, description="URL to POST outcome to when process is completed"
                 ),
-                **properties,
+                **request_body_schema.get("properties", {}),
             },
-            required=required,
+            required=request_body_schema.get("required", []),
         ),
     )(create_process)
 
@@ -209,11 +213,19 @@ def decorated_create_process_view(plugin_name, slug):
 def decorated_get_process_view(plugin_name, slug):
     # get process model proxy class
     cls = plugin_registry[plugin_name]._process_registry[slug]
+    prefixed_slug = f"{plugin_name}.{slug}"
 
-    @swagger_auto_schema(method="delete", operation_description="Close an existing governance process")
+    @swagger_auto_schema(
+        method="delete",
+        operation_id=f"Close {prefixed_slug}",
+        operation_description=f"Close the {prefixed_slug} process",
+        tags=[Tags.GOVERNANCE_PROCESS],
+    )
     @swagger_auto_schema(
         method="get",
-        operation_description="Get the status of an existing governance process",
+        operation_id=f"Check status of {prefixed_slug}",
+        operation_description=f"Poll the pending {prefixed_slug} governance process",
+        tags=[Tags.GOVERNANCE_PROCESS],
         responses={
             200: openapi.Response(
                 "Current process record. Check the `status` field to see if the process has completed. If the `errors` field has data, the process failed.",
@@ -248,13 +260,14 @@ def decorated_get_process_view(plugin_name, slug):
 
     return get_process
 
-def decorated_perform_action_view(plugin_name, slug):
+
+def decorated_perform_action_view(plugin_name, slug, tags=[]):
     cls = plugin_registry[plugin_name]
     meta = cls._action_registry[slug]
     prefixed_slug = f"{plugin_name}.{slug}"
 
     @community_middleware
-    @api_view(["POST", "GET"])
+    @api_view(["POST"])
     def perform_action(request):
         """
         Perform an action on a platform
@@ -302,43 +315,20 @@ def decorated_perform_action_view(plugin_name, slug):
         "method": "post",
         "operation_description": meta.description,
         "manual_parameters": [openapi_community_header],
-        "operation_id": f"Perform {prefixed_slug}",
+        "operation_id": prefixed_slug,
+        "tags": tags or [Tags.ACTION],
     }
     if meta.input_schema:
-        schema = convert(meta.input_schema)
-        properties = {
-            "parameters": openapi.Schema(
-                type=openapi.TYPE_OBJECT, properties=schema.get("properties", {}), required=schema.get("required", [])
-            )
-        }
+        properties = {"parameters": utils.json_schema_to_openapi_object(meta.input_schema)}
 
         arg_dict["request_body"] = openapi.Schema(type=openapi.TYPE_OBJECT, properties={**properties})
 
     if meta.output_schema:
-        schema = convert(meta.output_schema)
-        arg_dict["responses"] = {
-            200: openapi.Schema(type=openapi.TYPE_OBJECT, properties=schema.get("properties", {}))
-        }
+        arg_dict["responses"] = {200: utils.json_schema_to_openapi_object(meta.output_schema)}
     else:
         arg_dict["responses"] = {200: "action was performed successfully"}
+
     return swagger_auto_schema(**arg_dict)(perform_action)
-
-
-def jsonschema_to_parameters(schema):
-    schema = convert(schema)
-    properties = schema.get("properties", {})
-    required = schema.get("required", [])
-    parameters = []
-    for (name, prop) in properties.items():
-        param = openapi.Parameter(
-            name=name,
-            in_="query",
-            description=prop.get("description"),
-            type=prop.get("type"),
-            required=name in required,
-        )
-        parameters.append(param)
-    return parameters
 
 
 def get_plugin_instance(plugin_name, community):
@@ -351,68 +341,3 @@ def get_plugin_instance(plugin_name, community):
     if not plugin:
         raise Exception(f"Plugin '{plugin_name}' not enabled for community '{community.name}'")
     return plugin
-
-
-def decorated_resource_view(plugin_name, slug):
-    cls = plugin_registry[plugin_name]
-    meta = cls._resource_registry[slug]
-    prefixed_slug = f"{plugin_name}.{slug}"
-
-    @community_middleware
-    @api_view(["GET"])
-    def get_resource(request):
-        # Look up plugin instance
-        plugin = cls.objects.filter(name=plugin_name, community=request.community).first()
-        if not plugin:
-            return HttpResponseBadRequest(
-                f"Plugin '{plugin_name}' not enabled for community '{request.community.name}'"
-            )
-
-        parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
-
-        # Validate parameters
-        if meta.input_schema:
-            try:
-                jsonschema.validate(parameters, meta.input_schema)
-            except jsonschema.exceptions.ValidationError as err:
-                # if validation failed, try reading values as json (str '1' -> integer 1)
-                for (k, v) in parameters.items():
-                    parameters[k] = json.loads(v)
-                try:
-                    jsonschema.validate(parameters, meta.input_schema)
-                except jsonschema.exceptions.ValidationError:
-                    return HttpResponseBadRequest(f"ValidationError: {err.message}")
-
-        # Call the resource retrieval function
-        function = getattr(plugin, meta.function_name)
-        resource = function(parameters)
-
-        # Validate resource
-        if meta.output_schema:
-            try:
-                jsonschema.validate(resource, meta.output_schema)
-            except jsonschema.exceptions.ValidationError as err:
-                return HttpResponseBadRequest(f"ValidationError: {err.message}")
-        return JsonResponse(resource)
-
-    arg_dict = {
-        "method": "get",
-        "operation_description": meta.description,
-        "manual_parameters": [openapi_community_header],
-        "operation_id": f"Retrieve {prefixed_slug} resource",
-    }
-    if meta.input_schema:
-        arg_dict["manual_parameters"].extend(jsonschema_to_parameters(meta.input_schema))
-    if meta.output_schema:
-        schema = convert(meta.output_schema)
-        arg_dict["responses"] = {
-            200: openapi.Schema(type=openapi.TYPE_OBJECT, properties=schema.get("properties", {}))
-        }
-
-    return swagger_auto_schema(**arg_dict)(get_resource)
-
-
-# @receiver(config_updated)
-# def constance_updated(sender, key, old_value, new_value, **kwargs):
-#     # TODO reload plugins ?
-#     logger.info(f"Config updated: {key}: {old_value} -> {new_value}")

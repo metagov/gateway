@@ -90,6 +90,11 @@ for item in os.listdir(PLUGINS_DIR):
 
 REST_FRAMEWORK = {"DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.coreapi.AutoSchema"}
 
+REDOC_SETTINGS = {
+    "LAZY_RENDERING": True,
+    "HIDE_HOSTNAME": False,
+}
+
 SWAGGER_SETTINGS = {
     "USE_SESSION_AUTH": False,
     "SECURITY_DEFINITIONS": {},

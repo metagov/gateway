@@ -9,6 +9,7 @@ from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 
 from metagov.core import utils, views
+from metagov.core.openapi_schemas import Tags
 from metagov.core.plugin_decorators import plugin_registry
 
 # from schema_graph.views import Schema
@@ -20,9 +21,10 @@ logger = logging.getLogger("django")
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="Metagov API",
+        title="Metagov Prototype API",
         default_version="v1",
-        description="""Endpoints are meant to be exposed **only to the local network** and accessed by the collocated "governance driver.""",
+        description="""Endpoints that are prefixed with `/internal` are exposed **only to the local network** and accessed by the collocated "governance driver."
+""",
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
@@ -40,6 +42,7 @@ for (key, cls) in plugin_registry.items():
         # If action is PUBLIC, add a second endpoint (keep "internal" path for Driver's convenience)
         if meta.is_public:
             route = utils.construct_action_url(cls.name, slug, is_public=True)
+            view = views.decorated_perform_action_view(cls.name, slug, tags=[Tags.PUBLIC_ACTION])
             plugin_patterns.append(path(route, view))
 
     for (slug, process_cls) in cls._process_registry.items():

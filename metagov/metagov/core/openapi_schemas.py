@@ -4,7 +4,7 @@ community_schema = openapi.Schema(
     type=openapi.TYPE_OBJECT,
     properties={
         "name": openapi.Schema(type=openapi.TYPE_STRING, description="Unique community slug"),
-        "readable_name": openapi.Schema(type=openapi.TYPE_STRING, description="Verbose community name"),
+        "readable_name": openapi.Schema(type=openapi.TYPE_STRING, description="Human-readable community name"),
         "plugins": openapi.Schema(
             type=openapi.TYPE_ARRAY,
             description="List of activated plugins and their configs",
@@ -25,3 +25,9 @@ community_schema = openapi.Schema(
         # ),
     },
 )
+
+class Tags(object):
+    GOVERNANCE_PROCESS = "Governance Processes"
+    PUBLIC_ACTION = "Actions (Public)"
+    ACTION = "Actions"
+    COMMUNITY = "Community Configuration"
