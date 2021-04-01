@@ -73,7 +73,7 @@ class RevShare(Plugin):
         pointers = self.state.get("pointers")
         if len(pointers) == 0:
             raise Exception("No pointers")
-        # based on https://revshare.org/docs/probabilistic-rev-sharing/
+        # based on https://webmonetization.org/docs/probabilistic-rev-sharing/
         sum_ = sum(list(pointers.values()))
         choice = random.random() * sum_
         for (pointer, weight) in pointers.items():

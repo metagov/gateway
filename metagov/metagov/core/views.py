@@ -252,7 +252,7 @@ def decorated_get_process_view(plugin_name, slug):
 
         # If the process is pending, poll it
         if process.status == ProcessStatus.PENDING.value:
-            logger.info(f"Polling: {process}")
+            logger.info(f"Checking status of: {process}")
             process.check_status()  # This may update the outcome or status
         serializer = GovernanceProcessSerializer(process)
         logger.info(f"Returning serialized process: {serializer.data}")
