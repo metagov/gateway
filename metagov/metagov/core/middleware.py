@@ -28,5 +28,5 @@ class CommunityMiddleware:
 
 
 openapi_community_header = openapi.Parameter(
-    COMMUNITY_HEADER, openapi.IN_HEADER, required=True, type=openapi.TYPE_STRING, description="Valid community name"
+    COMMUNITY_HEADER, openapi.IN_HEADER, required=True, type=openapi.TYPE_STRING, description="Unique community slug"
 )

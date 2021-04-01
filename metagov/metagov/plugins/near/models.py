@@ -54,7 +54,7 @@ class Near(Plugin):
         description="Makes a contract call which can only view state.",
         input_schema=Schemas.view_parameters,
     )
-    def view(self, parameters, initiator):
+    def view(self, parameters):
         contract_id = self.config["contract_id"]
         method_name = parameters["method_name"]
         args = parameters.get("args", {})
@@ -69,7 +69,7 @@ class Near(Plugin):
         description="Makes a contract call which can modify or view state.",
         input_schema=Schemas.call_parameters,
     )
-    def call(self, parameters, initiator):
+    def call(self, parameters):
         """
         'Contract calls require a transaction fee (gas) so you will need an
         access key for the --accountId that will be charged. (near login)'

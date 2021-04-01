@@ -1,7 +1,7 @@
 create_post_parameters = {
     "type": "object",
     "additionalProperties": False,
-    "properties": {"raw": {"type": "string"}, "topic_id": {"type": "integer"}},
+    "properties": {"raw": {"type": "string"}, "topic_id": {"type": "integer"}, "initiator": {"type": "string"}},
     "required": ["raw", "topic_id"],
 }
 create_post_response = {

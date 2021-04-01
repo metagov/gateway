@@ -8,11 +8,12 @@ from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 
+from metagov.core import utils, views
+from metagov.core.openapi_schemas import Tags
+from metagov.core.plugin_decorators import plugin_registry
+
 # from schema_graph.views import Schema
 
-from metagov.core import views
-from metagov.core import utils
-from metagov.core.plugin_decorators import plugin_registry
 
 logger = logging.getLogger("django")
 
@@ -20,13 +21,23 @@ logger = logging.getLogger("django")
 
 schema_view = get_schema_view(
     openapi.Info(
-        title="Metagov API",
+        title="Metagov Prototype API",
         default_version="v1",
         description="""
-        Service for accessing governance resources and invoking governance processes.
+Metagov is a unified API gateway for digital governance services. It’s designed to support rapid prototyping of governance systems, decision-making processes, and social workflows across a range of platforms, from forums to chat services to blockchains. To help people prototype, Metagov ships with a powerful driver for authoring governance policies over multiple platforms.
 
-        Endpoints are meant to be exposed **only to the local network** and accessed by the collocated "governance driver."
-        """,
+Metagov is a prototype under active development, so please help us out by sending us feedback at hello@metagov.org or by opening an issue on our GitHub.
+
+See the full documentation at https://docs.metagov.org/
+
+> Endpoints that are prefixed with `/internal` are exposed **only to the local network** and accessed by the collocated "governance driver."
+""",
+        # contact=openapi.Contact(email="hello@metagov.org"),
+        # license=openapi.License(name="MIT License"),
+        x_logo={
+            "url": "https://metagov.org/wp-content/uploads/2019/09/logo-copy-150x150.png",
+            "href": "#"
+        }
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
@@ -36,34 +47,33 @@ plugin_patterns = []
 
 for (key, cls) in plugin_registry.items():
     for (slug, meta) in cls._action_registry.items():
-        # Perform an action
+        # Add view for action endpoint
         route = utils.construct_action_url(cls.name, slug)
         view = views.decorated_perform_action_view(cls.name, slug)
         plugin_patterns.append(path(route, view))
 
-    for (slug, meta) in cls._resource_registry.items():
-        # Get a resource
-        route = utils.construct_resource_url(cls.name, slug)
-        view = views.decorated_resource_view(cls.name, slug)
-        plugin_patterns.append(path(route, view))
+        # If action is PUBLIC, add a second endpoint (keep "internal" path for Driver's convenience)
+        if meta.is_public:
+            route = utils.construct_action_url(cls.name, slug, is_public=True)
+            view = views.decorated_perform_action_view(cls.name, slug, tags=[Tags.PUBLIC_ACTION])
+            plugin_patterns.append(path(route, view))
 
     for (slug, process_cls) in cls._process_registry.items():
-        # Create a new governance process
+        # Add view for starting a governance process (POST)
         route = utils.construct_process_url(cls.name, slug)
         view = views.decorated_create_process_view(cls.name, slug)
         plugin_patterns.append(path(route, view))
 
-        # Get or close an existing governance process
+        # Add view for checking (GET) and closing (DELETE) a governance process
         view = views.decorated_get_process_view(cls.name, slug)
         plugin_patterns.append(path(f"{route}/<int:process_id>", view))
 
 # admin.site.login = login_required(admin.site.login)
 
-# debug logging
-new_routes = [str(p.pattern) for p in plugin_patterns]
-new_routes.sort()
-logger.info(f"Adding routes:")
-logger.info("\n".join(new_routes))
+# new_routes = [str(p.pattern) for p in plugin_patterns]
+# new_routes.sort()
+# logger.info(f"Adding routes:")
+# logger.info("\n".join(new_routes))
 
 
 urlpatterns = [
