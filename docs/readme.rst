@@ -17,6 +17,6 @@ Metagov is a unified API gateway for digital governance services. It's designed 
 
 * `Discourse <https://www.discourse.org/>`_
 
-**Quick links:** `Metagov API docs <https://prototype.metagov.org/swagger/>`_.
+**Quick links:** `Metagov API docs <https://prototype.metagov.org/redoc/>`_.
 
 Metagov is a prototype under active development, so please help us out by sending us feedback at hello@metagov.org or by opening an issue on `our GitHub <https://github.com/metagov/metagov-prototype>`_.

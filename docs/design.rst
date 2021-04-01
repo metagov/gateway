@@ -2,7 +2,7 @@ Design Overview
 ===============
 
 Metagov is Django backend service with a plugin architecture. Metagov is meant to be deployed alongside a governance :ref:`Driver`, which
-uses the `Metagov API <https://prototype.metagov.org/swagger/>`_ to communicate with zero or more third party services via plugins. Most of the
+uses the `Metagov API <https://prototype.metagov.org/redoc/>`_ to communicate with zero or more third party services via plugins. Most of the
 Metagov endpoints are restricted to only receive local traffic from the Driver.
 
 

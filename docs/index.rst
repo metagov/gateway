@@ -24,4 +24,4 @@ Metagov is a prototype under active development, so please help us out by sendin
    design.rst
    write_a_plugin.rst
    metagov.core Reference <autodocs/core.rst>
-   API Reference <https://prototype.metagov.org/swagger/>
+   API Reference <https://prototype.metagov.org/redoc/>

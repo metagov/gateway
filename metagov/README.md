@@ -1,5 +1,8 @@
 # Metagov Prototype
 
+* Readthedocs: http://docs.metagov.org/
+* OpenAPI docs for test instance: https://prototype.metagov.org/redoc
+
 ## Overview
 
 The Metagov Prototype is a Django app with a plugin architecture. It is meant to be deployed alongside a "governance driver" such as PolicyKit. See the [Metagov Prototype RFC](https://docs.google.com/document/d/1PQhIYQN_a3qBUCMc-OvX6oHyNB531nu32xeGV1OYv_w/edit#heading=h.kfc0oza24iyy) for an overview of the architecture and plugin interfaces.
@@ -8,15 +11,13 @@ The Metagov Prototype is a Django app with a plugin architecture. It is meant to
 
 Plugins are located at [metagov/plugins](./metagov/plugins). Each plugin implements 1 or more of the following types of interfaces:
 
-1. Retrieve resource (example: get SourceCred value for user X)
-2. Perform async governance process (example: perform a vote on Loomio)
-3. Perform action (example: suspend a user on Discourse)
-4. Listen to events (example: implement webhook received for OpenCollective events)
-5. UI widget (possible TODO)
+1. Perform async governance process (example: perform a vote on Loomio)
+2. Perform action (example: suspend a user on Discourse)
+3. Listen to events (example: implement webhook received for OpenCollective events)
 
 ### API endpoints
 
-See the WIP auto-generated [Swagger API documentation](https://prototype.metagov.org/swagger/) for the Metagov Project's development instance. (Important: all the endpoints exposed under `/api/internal` are private and only accessible by the Driver on the local network. See deployment section for how to do this with Apache2.)
+See the auto-generated [OpenAPI documentation](https://prototype.metagov.org/redoc/) for the Metagov Project's development instance. (Important: all the endpoints exposed under `/api/internal` are private and only accessible by the Driver on the local network. See deployment section for how to do this with Apache2.)
 
 ## Local Development
 
