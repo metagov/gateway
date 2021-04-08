@@ -33,5 +33,4 @@ Class Decorators
 Function Decorators
 *******************
 
-.. autofunction:: metagov.core.plugin_decorators.resource
 .. autofunction:: metagov.core.plugin_decorators.action

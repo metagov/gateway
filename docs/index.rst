@@ -9,11 +9,6 @@ Metagov Documentation
 
 Metagov is a unified API gateway for digital governance services. It's designed to support rapid prototyping of governance systems, decision-making processes, and social workflows across a range of platforms, from forums to chat services to blockchains. To help people prototype, Metagov ships with a powerful driver for authoring governance policies over multiple platforms.
 
-Quick links:
-* Currently-supported services
-* API documentation
-* About the project
-
 Metagov is a prototype under active development, so please help us out by sending us feedback at hello@metagov.org or by opening an issue on our GitHub.
 
 .. toctree::

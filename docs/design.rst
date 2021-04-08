@@ -5,6 +5,48 @@ Metagov is Django backend service with a plugin architecture. Metagov is meant t
 uses the `Metagov API <https://prototype.metagov.org/redoc/>`_ to communicate with zero or more third party services via plugins. Most of the
 Metagov endpoints are restricted to only receive local traffic from the Driver.
 
+.. image:: _static/20210408_diagram_driver_metagov.png
+   :width: 600
+
+
+API Access
+--------------------------
+
+Some Metagov endpoints are public, and others are restricted to local traffic and so can only be accessed by the :ref:`Driver`. For now, the public endpoints are **completely** public (no auth).
+
+
++----------------------------------------------+----------+--------------------------------------------+
+|                 Metagov URL                  |  Access  |                Description                 |
++==============================================+==========+============================================+
+| ``/api/hooks/<community>/<plugin>``          | PUBLIC   | Receive incoming events from external      |
+|                                              |          | platforms (Open Collective, Loomio, etc)   |
++----------------------------------------------+----------+--------------------------------------------+
+| ``/api/action/<plugin>.<action>``            | PUBLIC   | Perform an action that is configured       |
+|                                              |          | to be public by the plugin author          |
++----------------------------------------------+----------+--------------------------------------------+
+| ``/api/internal/community/<community>``      | INTERNAL | Create/update/delete a community           |
++----------------------------------------------+----------+--------------------------------------------+
+| ``/api/internal/action/<plugin>.<action>``   | INTERNAL | Perform an action                          |
++----------------------------------------------+----------+--------------------------------------------+
+| ``/api/internal/process/<plugin>.<process>`` | INTERNAL | Perform an asynchronous governance process |
++----------------------------------------------+----------+--------------------------------------------+
+
+
+Driver
+------
+
+The Driver implements a governance engine of some kind. It may allow people to author governance policies, and implement the ability to
+incorporate the processes, listeners, and resources defined by Metagov plugins into governance policies. It’s up to the driver whether they can do this abstractly (so they can handle any Metagov plugin) or
+whether they need to painstakingly do this one by one and so only work with some plugins.
+
+The Driver might be capable of supporting multiple communities or only one community. The Driver is responsible for configuring the community(ies)
+in Metagov by making a request to Metagov's ``/community`` endpoint. After that, any time the Driver makes a community-specific request to Metagov,
+it must include the unique community name in the header ``X-Metagov-Community``.
+
+The Driver may also react to event notifications that it receives from Metagov, which could in turn trigger a policy evaluation.
+
+For a minimal example of a driver, see the repo `metagov/example-driver <https://github.com/metagov/example-driver>`_.
+
 
 Communities
 -----------
@@ -20,27 +62,13 @@ The :ref:`Driver` can create or update a community by making a ``PUT`` request t
       "readable_name": "The Metagovernance Project",
       "plugins": [
          {
-               "name": "sourcecred",
-               "config": {
-                  "server_url": "https://metagov.github.io/sourcecred-instance"
-               }
+            "name": "sourcecred",
+            "config": {
+               "server_url": "https://metagov.github.io/sourcecred-instance"
+            }
          }
       ]
    }
-
-Driver
-------
-
-The Driver implements a governance engine of some kind. It may allow people to author governance policies, and implement the ability to
-incorporate the processes, listeners, and resources defined by Metagov plugins into governance policies. It’s up to the driver whether they can do this abstractly (so they can handle any Metagov plugin) or
-whether they need to painstakingly do this one by one and so only work with some plugins.
-
-The Driver might be capable of supporting multiple communities or only one community. The Driver is responsible for configuring the community(ies)
-in Metagov by making a request to Metagov's ``/community`` endpoint. After that, any time the Driver makes a community-specific request to Metagov,
-it must include the unique community name in the header ``X-Metagov-Community``.
-
-The Driver may also react to event notifications that it receives from Metagov, which could in turn trigger a policy evaluation.
-
 
 
 Metagov Core
