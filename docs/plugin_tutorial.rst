@@ -1,6 +1,6 @@
 Plugin Tutorial
 ===============
-
+.. _plugintutorial-ref:
 This tutorial will show you have to write a Metagov Plugin. It will demonstrate how to:
 
 1. Create :ref:`Actions` (example: send a tweet)
