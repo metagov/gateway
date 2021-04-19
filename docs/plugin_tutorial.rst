@@ -215,7 +215,7 @@ Use the ``send_event_to_driver`` function to send the event to the Driver.
             body = json.loads(request.body)   # Django HttpRequest object
             print(body)
             data = body["data"]
-            initiator = { "user_id": body["account"], "provider": "idenetity-provider-key" }
+            initiator = { "user_id": body["account"], "provider": "identity-provider-key" }
             # send the event to the driver
             self.send_event_to_driver(event_type="post_created", data=data, initiator=initiator)
 
@@ -257,14 +257,16 @@ Anyone on the internet can post requests to the metagov webhook receiver endpoin
 Governance Processes
 ********************
 
+If you want to expose a way for the governance driver to perform an asynchronous governance process
+(such as a vote, election, or budgeting process) then you can implement a Governance Process. Governance
+processes are exposed as API endpoints at ``/api/internal/process/<plugin>.<slug>``.
+
 Create a proxy subclass of the ``GovernanceProcess`` Django model for our new governance process, ``MyGovProcess``.
-This model should be declared after the ``Tutorial`` model.
+This model should be declared after the ``Tutorial`` model. Decorate it with the ``@Registry.governance_process``
+decorator so that Metagov core picks it up. In this example, the process will be exposed as an endpoint
+at ``/process/tutorial.my-gov-process``.
 
-Decorate it with the ``@Registry.governance_process`` decorator so that Metagov core picks it up.
-
-In this example, the process will be exposed as an endpoint at ``/process/tutorial.my-gov-process``.
-
-See the :ref:`Autodocumentation <autodocs-ref>` and complete example plugin for more information on how to implement each function.
+This snippet shows all possible functions you can implement on your proxy model:
 
 .. code-block:: python
 
@@ -283,7 +285,7 @@ See the :ref:`Autodocumentation <autodocs-ref>` and complete example plugin for 
 
         def close(self):
             # close the governance process; save the outcome
-            pass
+            self.notify_completed()
 
         def check_status(self):
             # poll the governance process; update state if necessary
@@ -292,3 +294,26 @@ See the :ref:`Autodocumentation <autodocs-ref>` and complete example plugin for 
         def receive_webhook(self, request):
             # receive incoming webhook; update state if necessary
             pass
+
+
+There are 2 approaches that can be taken for implementing an async gov process.
+If you're connecting to an external platform that emits webhooks, and can emit a webhook
+when your process ends, then you should use Approach 1. If not, use Approach 2.
+
+**Approach 1: Use "receive_webhook" to get notified when the process ends.**
+
+Use this approach if you're implementing a process that is performed on an external
+platform that is capable of emitting a webhook when the process ends.
+Implement the ``receive_webhook`` listener. Use it to update ``self.status`` and
+``self.outcome`` or ``self.errors`` when receiving a hook that indicates that the process has ended.
+See the Loomio plugin for an example.
+
+**Approach 2: Use "check_status" to poll for process status.**
+
+Implement ``check_status`` to check the status of the async process, possibly by making
+a request to an external platform. If the process has ended, update ``self.status`` and
+``self.errors`` or ``self.outcome``.
+
+.. seealso:: See the :ref:`metagov.core Reference <autodocs-ref>` for more information about the ``GovernanceProcess`` models.
+
+.. seealso:: Once you've implemented a governance process, you can invoke it through the Metagov API. See the `Example Driver Repo <https://github.com/metagov/example-driver>`_ for an example of kicking off a governance process and waiting for the result at a ``callback_url``.
