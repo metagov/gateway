@@ -114,7 +114,7 @@ def list_hooks(request, name):
     plugins = Plugin.objects.filter(community=community)
     hooks = []
     for p in list(plugins):
-        url = f"{settings.SERVER_URL}/api/hooks/{name}/{p.name}"
+        url = f"/api/hooks/{name}/{p.name}"
         if p.config and p.config.get(WEBHOOK_SLUG_CONFIG_KEY):
             url += "/" + p.config.get(WEBHOOK_SLUG_CONFIG_KEY)
         hooks.append(url)
@@ -155,7 +155,10 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
         processes = cls.objects.filter(plugin=plugin)
         for process in processes:
             logger.info(f"Passing webhook request to: {process}")
-            process.receive_webhook(request)
+            try:
+                process.receive_webhook(request)
+            except Exception as e:
+                logger.error(e)
 
     return HttpResponse()
 

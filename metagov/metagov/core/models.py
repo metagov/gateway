@@ -91,6 +91,8 @@ class Plugin(models.Model):
 
     def send_event_to_driver(self, event_type: str, data: dict, initiator: dict):
         """Send an event to the driver"""
+        if not settings.DRIVER_EVENT_RECEIVER_URL:
+            return
         event = {
             "community": self.community.name,
             "source": self.name,
@@ -101,9 +103,9 @@ class Plugin(models.Model):
         }
         serialized = jsonpickle.encode(event, unpicklable=False)
         logger.info("Sending event to Driver: " + serialized)
-        resp = requests.post(settings.DRIVER_ACTION_ENDPOINT, data=serialized)
+        resp = requests.post(settings.DRIVER_EVENT_RECEIVER_URL, data=serialized)
         if not resp.ok:
-            print(f"Error sending event to driver: {resp.status_code} {resp.reason}")
+            logger.error(f"Error sending event to driver: {resp.status_code} {resp.reason}")
 
 
 class ProcessStatus(Enum):
@@ -132,15 +134,30 @@ class GovernanceProcess(models.Model):
     def __str__(self):
         return f"{self.plugin.name}.{self.name} for '{self.plugin.community.name}' ({self.pk}, {self.status})"
 
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        # save status when model is loaded from database, so we can tell when it changes
+        loaded_values = dict(zip(field_names, values))
+        instance._loaded_status = loaded_values["status"]
+        return instance
+
     def save(self, *args, **kwargs):
-        """Save the process. Has a pre-save hook that will send the serialized process to the Driver
-        if the ``status`` was changed to ``completed``."""
+        """Save the process. If the ``status`` was changed to ``completed``, notify the Driver."""
         if not self.pk:
             self.state = DataStore.objects.create()
+
+        if not self._state.adding:
+            if self.status != self._loaded_status:
+                logger.info(f"[{self}] {self._loaded_status} -> {self.status}")
+                if self.status == ProcessStatus.COMPLETED.value:
+                    notify_process_completed(self)
+        elif not hasattr(self, "_loaded_status"):
+            self._loaded_status = self.status
         super(GovernanceProcess, self).save(*args, **kwargs)
 
     def start(self, parameters):
-        """Start the governance process and return immediately. (REQUIRED).
+        """(REQUIRED) Start the governance process and return immediately.
 
         Most implementations of this function will:
         - Make a request to start a governance process in an external system
@@ -155,7 +172,7 @@ class GovernanceProcess(models.Model):
         pass
 
     def close(self):
-        """Close the governance process and update the ``outcome``. (OPTIONAL)
+        """(OPTIONAL) Close the governance process, update the ``outcome`` and ``status``.
 
         Most implementations of this function will:
         - Make a request to close the governance process in an external system
@@ -171,11 +188,11 @@ class GovernanceProcess(models.Model):
         pass
 
     def check_status(self):
-        """Check the status of the process, and possibly update the status. (OPTIONAL)"""
+        """(OPTIONAL) Check the status of the process, and possibly update the status."""
         pass
 
     def receive_webhook(self, request):
-        """Receive an incoming webhook from an external system. (OPTIONAL)
+        """(OPTIONAL) Receive an incoming webhook from an external system.
 
         Most implementations of this function will:
         - Check if the webhook request pertains to this process instance.
@@ -188,31 +205,16 @@ class GovernanceProcess(models.Model):
         pass
 
 
-@receiver(pre_save, sender=GovernanceProcess, dispatch_uid="process_saved")
-def notify_process_completed(sender, instance, **kwargs):
-    """Pre-save receiver to notify caller that the governance processes has completed"""
+def notify_process_completed(process: GovernanceProcess):
+    """Notify the Driver that this GovernanceProess has completed."""
+    assert process.status == ProcessStatus.COMPLETED.value
+    if not process.callback_url:
+        return
+    logger.info(f"Posting completed process outcome to '{process.callback_url}'")
+    from metagov.core.serializers import GovernanceProcessSerializer
 
-    def notify_completed(process):
-        from metagov.core.serializers import GovernanceProcessSerializer
-
-        if not process.callback_url:
-            logger.info("No callback url")
-            return
-        serializer = GovernanceProcessSerializer(process)
-        logger.info(f"Posting completed process outcome to {process.callback_url}")
-        logger.info(serializer.data)
-        resp = requests.post(process.callback_url, json=serializer.data)
-        if not resp.ok:
-            logger.error(f"Error posting outcome to callback url: {resp.status_code} {resp.text}")
-
-    try:
-        obj = sender.objects.get(pk=instance.pk)
-    except sender.DoesNotExist:
-        # instance is new
-        if instance.status == ProcessStatus.COMPLETED.value:
-            notify_completed(instance)
-    else:
-        if not obj.status == instance.status:
-            logger.info(f"Status changed: {obj.status} -> {instance.status}")
-            if instance.status == ProcessStatus.COMPLETED.value:
-                notify_completed(instance)
+    serializer = GovernanceProcessSerializer(process)
+    logger.info(serializer.data)
+    resp = requests.post(process.callback_url, json=serializer.data)
+    if not resp.ok:
+        logger.error(f"Error posting outcome to callback url: {resp.status_code} {resp.text}")

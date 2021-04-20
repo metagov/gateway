@@ -285,7 +285,6 @@ This snippet shows all possible functions you can implement on your proxy model:
 
         def close(self):
             # close the governance process; save the outcome
-            self.notify_completed()
 
         def check_status(self):
             # poll the governance process; update state if necessary

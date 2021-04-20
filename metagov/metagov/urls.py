@@ -68,7 +68,6 @@ for (key, cls) in plugin_registry.items():
         view = views.decorated_get_process_view(cls.name, slug)
         plugin_patterns.append(path(f"{route}/<int:process_id>", view))
 
-# admin.site.login = login_required(admin.site.login)
 
 # new_routes = [str(p.pattern) for p in plugin_patterns]
 # new_routes.sort()
@@ -77,9 +76,6 @@ for (key, cls) in plugin_registry.items():
 
 
 urlpatterns = [
-    # url(r'^$', views.index, name='index'),
-    # url(r'home', views.home, name='home'),
-    # url('', include('social_django.urls', namespace='social')),
     path("", views.index, name="index"),
     # path("schema/", Schema.as_view()),
     path("admin/", admin.site.urls),
