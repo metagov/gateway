@@ -23,7 +23,7 @@ env = environ.Env(
     DEBUG=(bool, False),
     ALLOWED_HOSTS=(list, []),
     DATABASE_PATH=(str, os.path.join(BASE_DIR, "db.sqlite3")),
-    DRIVER_ACTION_ENDPOINT=(str, ""),
+    DRIVER_EVENT_RECEIVER_URL=(str, ""),
     SERVER_URL=(str, "http://127.0.0.1:8000"),
 )
 # reading .env file
@@ -38,13 +38,9 @@ DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 
-# DISCOURSE_URL = env('DISCOURSE_URL')
-# DISCOURSE_SSO_SECRET = env('DISCOURSE_SSO_SECRET')
-DRIVER_ACTION_ENDPOINT = env("DRIVER_ACTION_ENDPOINT")
+# URL where the Driver can receive event notifications (optional)
+DRIVER_EVENT_RECEIVER_URL = env("DRIVER_EVENT_RECEIVER_URL")
 
-LOGIN_REDIRECT_URL = "/home"
-LOGIN_URL = "/login/discourse"
-LOGOUT_URL = "/logout"
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -53,20 +49,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    # 'constance.backends.database',
     "rest_framework",
-    # 'social_django',
     "drf_yasg",
-    # 'metagov.core.apps.CustomConstance',
     "metagov.core",
     "django_extensions",
     # 'schema_graph',
 ]
-
-# CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
-# CONSTANCE_DATABASE_PREFIX = 'constance:metagov:'
-# CONSTANCE_CONFIG = {}
-# CONSTANCE_CONFIG_FIELDSETS = {}
 
 # Add plugins to INSTALLED_APPS
 PLUGINS_DIR = os.path.join(BASE_DIR, "metagov", "plugins")
@@ -75,19 +63,6 @@ for item in os.listdir(PLUGINS_DIR):
         app_name = "metagov.plugins.%s" % item
         if app_name not in INSTALLED_APPS:
             INSTALLED_APPS += (app_name,)
-
-            # settings_path = os.path.join(PLUGINS_DIR, item, 'settings.yml')
-            # with open(settings_path) as file:
-            #     settings_config = yaml.load(file, Loader=yaml.FullLoader)
-            #     settings = dict()
-            #     client_settings = [k for k in settings_config.keys(
-            #     ) if settings_config[k].get('client')]
-            #     CONSTANCE_CONFIG_FIELDSETS[item] = tuple(client_settings)
-            #     for key in client_settings:
-            #         val = settings_config[key]
-            #         CONSTANCE_CONFIG[key] = (
-            #             val.get('default'), val.get('description', ''))
-
 
 REST_FRAMEWORK = {"DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.coreapi.AutoSchema"}
 
@@ -125,26 +100,22 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "request_logging.middleware.LoggingMiddleware",
-    # 'social_django.middleware.SocialAuthExceptionMiddleware',
 ]
 
-AUTHENTICATION_BACKENDS = [
-    # 'metagov.core.auth_backends.DiscourseSSOAuth',
-    "django.contrib.auth.backends.ModelBackend"
-]
-# SOCIAL_AUTH_PROTECTED_USER_FIELDS = ['email', 'groups']
+AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend"]
+
 ROOT_URLCONF = "metagov.urls"
 
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "handlers": {
-        # 'file': {
-        #     'level': 'DEBUG',
-        #     'class': 'logging.FileHandler',
-        #     'filename': '/var/log/django/debug.log',
-        # },
-        "console": {"level": "INFO", "class": "logging.StreamHandler", "stream": sys.stdout}
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.FileHandler",
+            "filename": "/var/log/django/debug.log",
+        },
+        "console": {"level": "INFO", "class": "logging.StreamHandler", "stream": sys.stdout},
     },
     "loggers": {
         "django": {
@@ -166,8 +137,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                # 'social_django.context_processors.backends',  # <--
-                # 'social_django.context_processors.login_redirect',  # <--
             ],
         },
     },

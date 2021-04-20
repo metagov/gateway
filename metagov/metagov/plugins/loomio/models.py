@@ -105,10 +105,7 @@ class LoomioPoll(GovernanceProcess):
             response = resp.json()
             if response.get("errors"):
                 self.errors = response["errors"]
-                self.status = ProcessStatus.COMPLETED.value
             else:
-                outcome = response.get("polls")[0].get("stance_data")
-                self.outcome = outcome
-                self.status = ProcessStatus.COMPLETED.value
-
+                self.outcome = response.get("polls")[0].get("stance_data")
+            self.status = ProcessStatus.COMPLETED.value
             self.save()
