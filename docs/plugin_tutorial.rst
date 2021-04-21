@@ -245,7 +245,7 @@ Now when you perform actions on the external platform, you should see events log
 
 
 Validating webhook requests
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Anyone on the internet can post requests to the metagov webhook receiver endpoints, so it's important to always verify the incoming requests to the extent possible. Some suggestions:
 
@@ -274,45 +274,77 @@ This snippet shows all possible functions you can implement on your proxy model:
     class MyGovProcess(GovernanceProcess):
         name = 'my-gov-process'
         plugin_name = 'tutorial'
-        input_schema = {} #optional jsonschema for validation
+        input_schema = {} # optional jsonschema for validation
 
         class Meta:
             proxy = True
 
         def start(self, parameters):
-            # kick off the asynchronous governance process and return immediately
+            # Override this function (REQUIRED).
+            # Kick off the asynchronous governance process and return immediately.
             pass
 
         def close(self):
-            # close the governance process; save the outcome
+            # Override this function (OPTIONAL).
+            # Close the governance process and save the outcome.
 
         def check_status(self):
-            # poll the governance process; update state if necessary
+            # Override this function (OPTIONAL).
+            # Update status and/or outcome, if applicable. This function may be called repeatedly on a schedule.
             pass
 
         def receive_webhook(self, request):
-            # receive incoming webhook; update state if necessary
+            # Override this function (OPTIONAL).
+            # Receive incoming webhook request for plugin instance.
             pass
 
 
-There are 2 approaches that can be taken for implementing an async gov process.
-If you're connecting to an external platform that emits webhooks, and can emit a webhook
-when your process ends, then you should use Approach 1. If not, use Approach 2.
+Starting a governance process
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Approach 1: Use "receive_webhook" to get notified when the process ends.**
+Implement the ``start`` method to kick off a new asynchronous governance process.
+Set the status to ``ProcessStatus.PENDING`` (or ``ProcessStatus.COMPLETED`` if unable to start the process).
+This method will be invoked through ``POST /api/internal/process/tutorial.my-gov-process``.
+
+Closing a governance process
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are multiple ways that a governance process can be "closed." A plugin may support one or several of them.
+A process is considered closed when the status is set to ``ProcessStatus.COMPLETED``.
+Using the voting platform Loomio as an example, a vote can be closed in 3 ways:
+
+1) Loomio automatically closes the vote at a specified time ("closing_at").
+2) A Loomio user clicks "close proposal early" in the Loomio interface.
+3) The Driver closes the vote by making an API request to ``DELETE /api/internal/process/loomio.poll/<id>``. It may do this after a certain amount of time, or when a certain threshold of votes is reached, or for some other reason.
+
+To support (1) and (2), Metagov needs to be made aware that the platform has closed the vote. This can happen through a "push" or "pull" approach, depending on the capabilities of the platform (see below).
+
+To support (3), the governance process needs to implement the ``close`` function. In order to support the driver in making a threshold-decision about when to close, use the "push" or "pull" approach to update the process outcome as votes are cast.
+
+
+..
+    Add fourth approach: Metagov-as-time-keeper.
+
+**PUSH approach: Use "receive_webhook" to get notified when the state of the process changes.**
 
 Use this approach if you're implementing a process that is performed on an external
-platform that is capable of emitting a webhook when the process ends.
-Implement the ``receive_webhook`` listener. Use it to update ``self.status`` and
-``self.outcome`` or ``self.errors`` when receiving a hook that indicates that the process has ended.
+platform that is capable of emitting a webhook when the process ends (and/or when the process changes, such as a vote is cast).
+Implement the ``receive_webhook`` listener. Use it to update status and outcome, if applicable.
 See the Loomio plugin for an example.
 
-**Approach 2: Use "check_status" to poll for process status.**
+**PULL approach: Use "check_status" to poll for changes in the process.**
 
 Implement ``check_status`` to check the status of the async process, possibly by making
-a request to an external platform. If the process has ended, update ``self.status`` and
-``self.errors`` or ``self.outcome``.
+a request to an external platform. Update status and outcome, if applicable.
+The Driver is responsible for polling check_status.
+See the Discourse plugin for an example.
 
 .. seealso:: See the :ref:`metagov.core Reference <autodocs-ref>` for more information about the ``GovernanceProcess`` models.
 
 .. seealso:: Once you've implemented a governance process, you can invoke it through the Metagov API. See the `Example Driver Repo <https://github.com/metagov/example-driver>`_ for an example of kicking off a governance process and waiting for the result at a ``callback_url``.
+
+
+Re-opening a governance process
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Not currently supported. Once a process moves into ``ProcessStatus.COMPLETED`` state, it cannot be re-opened.
