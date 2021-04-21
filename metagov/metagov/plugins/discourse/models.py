@@ -195,10 +195,41 @@ class DiscoursePoll(GovernanceProcess):
             self.status = ProcessStatus.PENDING.value
         self.save()
 
-    def receive_webhook(self, request):
-        pass
+    @staticmethod
+    def construct_outcome_from_poll(poll):
+        outcome = {}
+        for opt in poll["options"]:
+            outcome[opt["html"]] = opt["votes"]
+        return outcome
+
+    def check_status(self):
+        """
+        Polling function for the Driver to call (GET /process/<id>) to see if the vote has ended yet.
+        We make a request to Discourse EVERY time, here, so that we can catch cases where the poll was closed
+        manually by a user. Would be simplified if we disallow that, and instead this function could just
+        check if `closing_at` has happened yet (if set) and call close() if it has.
+        """
+        headers = {"Api-Username": "system", "Api-Key": self.plugin.config["api_key"]}
+        topic_id = self.state.get("topic_id")
+        resp = requests.get(f"{self.plugin.config['server_url']}/t/{topic_id}.json", headers=headers)
+        if not resp.ok:
+            logger.error(f"{resp.status_code} {resp.reason}")
+            raise ValueError(resp.text)
+        response = resp.json()
+        topic_post = response["post_stream"]["posts"][0]
+        poll = topic_post["polls"][0]
+        logger.info(poll)
+        if poll["status"] == "closed":
+            outcome = DiscoursePoll.construct_outcome_from_poll(poll)
+            self.outcome = outcome
+            self.status = ProcessStatus.COMPLETED.value
+            self.save()
 
     def close(self):
+        """
+        Invoked by the Driver to manually close the poll. This would be used in cases where `closing_at` param is not set,
+        or in cases where the Driver wants to close the poll early (before closing_at time).
+        """
         url = f"{self.plugin.config['server_url']}/polls/toggle_status"
         post_id = self.state.get("post_id")
         data = {"post_id": post_id, "poll_name": "poll", "status": "closed"}
@@ -217,12 +248,10 @@ class DiscoursePoll(GovernanceProcess):
         logger.info(response)
 
         # set outcome in process state
-        outcome = {}
-        for opt in response["poll"]["options"]:
-            outcome[opt["html"]] = opt["votes"]
+        outcome = DiscoursePoll.construct_outcome_from_poll(response["poll"])
 
         # Lock the post
-        self.get_plugin().lock_post({"locked": True, "id": post_id}, None)
+        self.get_plugin().lock_post({"locked": True, "id": post_id})
 
         self.outcome = outcome
         self.status = ProcessStatus.COMPLETED.value
