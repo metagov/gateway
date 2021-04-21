@@ -27,6 +27,7 @@ from metagov.core.serializers import (CommunitySerializer,
                                       GovernanceProcessSerializer)
 from rest_framework import status
 from rest_framework.decorators import api_view
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.parsers import JSONParser
 from rest_framework.schemas import AutoSchema
 from rest_framework.views import APIView
@@ -36,6 +37,7 @@ community_middleware = decorator_from_middleware(CommunityMiddleware)
 logger = logging.getLogger("django")
 
 WEBHOOK_SLUG_CONFIG_KEY = "webhook_slug"
+
 
 def index(request):
     return render(request, "login.html", {})
@@ -101,9 +103,7 @@ def community(request, name):
         return JsonResponse({"message": "Community was deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
 
 
-@swagger_auto_schema(
-    method="get", operation_id="List community web hook receivers", tags=[Tags.COMMUNITY]
-)
+@swagger_auto_schema(method="get", operation_id="List community web hook receivers", tags=[Tags.COMMUNITY])
 @api_view(["GET"])
 def list_hooks(request, name):
     try:
@@ -122,7 +122,7 @@ def list_hooks(request, name):
 
 
 @csrf_exempt
-@swagger_auto_schema(method='post', auto_schema=None)
+@swagger_auto_schema(method="post", auto_schema=None)
 @api_view(["POST"])
 def receive_webhook(request, community, plugin_name, webhook_slug=None):
     """
@@ -135,10 +135,7 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
         return HttpResponseNotFound()
 
     # Lookup plugin
-    try:
-        plugin = get_plugin_instance(plugin_name, community)
-    except Exception as e:
-        return HttpResponseBadRequest(e)
+    plugin = get_plugin_instance(plugin_name, community)
 
     # Validate slug if the plugin has `webhook_slug` configured
     expected_slug = plugin.config.get(WEBHOOK_SLUG_CONFIG_KEY)
@@ -152,7 +149,7 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
     # Call `receive_webhook` on each of the GovernanceProcess proxy models
     proxy_models = plugin_registry[plugin_name]._process_registry.values()
     for cls in proxy_models:
-        processes = cls.objects.filter(plugin=plugin)
+        processes = cls.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
         for process in processes:
             logger.info(f"Passing webhook request to: {process}")
             try:
@@ -175,33 +172,31 @@ def decorated_create_process_view(plugin_name, slug):
     @api_view(["POST"])
     def create_process(request):
         # Look up plugin instance (throws if plugin is not installed for this community)
-        try:
-            plugin = get_plugin_instance(plugin_name, request.community)
-        except Exception as e:
-            return HttpResponseBadRequest(e)
-
+        plugin = get_plugin_instance(plugin_name, request.community)
         payload = JSONParser().parse(request)
         callback_url = payload.pop("callback_url", None)  # pop to remove it
 
         # Validate payload
-        try:
-            if cls.input_schema:
+        if cls.input_schema:
+            try:
                 jsonschema.validate(payload, cls.input_schema)
-        except jsonschema.exceptions.ValidationError as err:
-            return HttpResponseBadRequest(f"ValidationError: {err.message}")
+            except jsonschema.exceptions.ValidationError as err:
+                raise ValidationError(err.message)
 
         # Create new process instance
         new_process = cls.objects.create(name=slug, callback_url=callback_url, plugin=plugin)
         logger.info(f"Created process: {new_process}")
 
         # Start process
-        new_process.start(payload)
-
-        if new_process.errors:
-            logger.error(f"Failed to start process {new_process}")
-            errors = new_process.errors
+        try:
+            new_process.start(payload)
+        except APIException as e:
             new_process.delete()
-            return HttpResponseServerError(json.dumps(errors))
+            raise e
+        except Exception as e:
+            # Catch any other exceptions so that we can delete the model.
+            new_process.delete()
+            raise e
 
         logger.info(f"Started process: {new_process}")
 
@@ -260,24 +255,25 @@ def decorated_get_process_view(plugin_name, slug):
     )
     @api_view(["GET", "DELETE"])
     def get_process(request, process_id):
-        # cls = plugin_registry[plugin_name]._process_registry[slug]
         try:
             process = cls.objects.get(pk=process_id)
         except cls.DoesNotExist:
             return HttpResponseNotFound()
 
+        # 'DELETE'  means close the process and return it. This will update process state.
         if request.method == "DELETE":
             if process.status == ProcessStatus.COMPLETED.value:
-                return HttpResponseBadRequest("Can't close process, it has already completed")
-            # 'DELETE'  means close the process and return it
-            # If 'close' is implemented, it should set the status to COMPLETED
+                raise ValidationError("Can't close process, it has already completed")
             logger.info(f"Closing: {process}")
             process.close()
+            if process.status != ProcessStatus.COMPLETED.value:
+                raise APIException("Failed to close process")
 
-        # If the process is pending, poll it
+        # If the process is pending, poll it. This may update process state.
         if process.status == ProcessStatus.PENDING.value:
             logger.info(f"Checking status of: {process}")
-            process.check_status()  # This may update the outcome or status
+            process.check_status()
+
         serializer = GovernanceProcessSerializer(process)
         logger.info(f"Returning serialized process: {serializer.data}")
         return JsonResponse(serializer.data)
@@ -297,10 +293,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
         Perform an action on a platform
         """
         # 1. Look up plugin instance
-        try:
-            plugin = get_plugin_instance(plugin_name, request.community)
-        except Exception as e:
-            return HttpResponseBadRequest(e)
+        plugin = get_plugin_instance(plugin_name, request.community)
 
         action_function = getattr(plugin, meta.function_name)
 
@@ -309,6 +302,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
         if request.method == "POST":
             payload = JSONParser().parse(request)
             parameters = payload.get("parameters")
+            # TODO: add back support for GET. Should be allowed if params are simple enough.
         if request.method == "GET":
             parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
             utils.restruct(parameters)
@@ -317,20 +311,17 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
             try:
                 jsonschema.validate(parameters, meta.input_schema)
             except jsonschema.exceptions.ValidationError as err:
-                return HttpResponseBadRequest(f"ValidationError: {err.message}")
+                raise ValidationError(err.message)
 
         # 3. Invoke action function
-        try:
-            response = action_function(parameters)
-        except Exception as err:
-            return HttpResponseServerError(f"Error executing action: {err}")
+        response = action_function(parameters)
 
         # 4. Validate response
         if meta.output_schema:
             try:
                 jsonschema.validate(response, meta.output_schema)
             except jsonschema.exceptions.ValidationError as err:
-                return HttpResponseBadRequest(f"ValidationError: {err.message}")
+                raise ValidationError(err.message)
 
         # 5. Return response
         return JsonResponse(response)
@@ -359,9 +350,9 @@ def get_plugin_instance(plugin_name, community):
     """get the right proxy of a plugin instance"""
     cls = plugin_registry.get(plugin_name)
     if not cls:
-        raise Exception(f"Plugin '{plugin_name}' not registered")
+        raise ValidationError(f"Plugin '{plugin_name}' not found")
 
     plugin = cls.objects.filter(name=plugin_name, community=community).first()
     if not plugin:
-        raise Exception(f"Plugin '{plugin_name}' not enabled for community '{community.name}'")
+        raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community.name}'")
     return plugin
