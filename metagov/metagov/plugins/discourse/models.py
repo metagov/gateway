@@ -7,6 +7,7 @@ import logging
 import metagov.core.plugin_decorators as Registry
 import metagov.plugins.discourse.schemas as Schemas
 import requests
+from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
 logger = logging.getLogger("django")
@@ -46,7 +47,7 @@ class Discourse(Plugin):
         if not resp.ok:
             logger.info(resp)
             logger.error(f"{resp.status_code} {resp.reason}")
-            raise ValueError(resp.text)
+            raise PluginErrorInternal(resp.text)
         return resp.json()
 
     @Registry.action(
@@ -72,7 +73,7 @@ class Discourse(Plugin):
         resp = requests.delete(f"{self.config['server_url']}/posts/{parameters['id']}", headers=headers)
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason}")
-            raise ValueError(resp.text)
+            raise PluginErrorInternal(resp.text)
         return {}
 
     @Registry.action(
@@ -91,22 +92,22 @@ class Discourse(Plugin):
         resp = requests.put(f"{self.config['server_url']}/posts/{parameters['id']}/locked", headers=headers, data=data)
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason}")
-            raise ValueError(resp.text)
+            raise PluginErrorInternal(resp.text)
         return resp.json()
 
     def validate_request_signature(self, request):
         event_signature = request.headers.get("X-Discourse-Event-Signature")
         if not event_signature:
-            raise Exception("Missing event signature")
+            raise PluginErrorInternal("Missing event signature")
         key = bytes(self.config["webhook_secret"], "utf-8")
         string_signature = hmac.new(key, request.body, hashlib.sha256).hexdigest()
         expected_signature = f"sha256={string_signature}"
         if not hmac.compare_digest(event_signature, expected_signature):
-            raise Exception("Invalid signature header")
+            raise PluginErrorInternal("Invalid signature header")
 
         instance = request.headers["X-Discourse-Instance"]
         if instance != self.config["server_url"]:
-            raise Exception("Unexpected X-Discourse-Instance")
+            raise PluginErrorInternal("Unexpected X-Discourse-Instance")
 
     def receive_webhook(self, request):
         self.validate_request_signature(request)
@@ -141,11 +142,13 @@ class DiscoursePoll(GovernanceProcess):
         "properties": {
             "title": {"type": "string"},
             "options": {"type": "array", "items": {"type": "string"}},
+            "details": {"type": "string"},
             "category": {"type": "integer"},
             "closing_at": {"type": "string", "format": "date"},
         },
-        "required": ["title"],
+        "required": ["title", "options"],
     }
+    # TODO: define outcome schema
 
     class Meta:
         proxy = True
@@ -159,13 +162,15 @@ class DiscoursePoll(GovernanceProcess):
             closes_at = "close=" + parameters["closing_at"]
         options = "".join([f"* {opt}\n" for opt in parameters["options"]])
         raw = f"""
+{parameters.get("details") or ""}
 [poll type=regular results=always chartType=bar {closes_at}]
 # {parameters["title"]}
 {options}
 [/poll]
         """
-        payload = {"raw": raw, "title": parameters.get("title"), "category": parameters.get("category", 8)}
-
+        payload = {"raw": raw, "title": parameters["title"]}
+        if parameters.get("category"):
+            payload["category"] = parameters["category"]
         headers = {"Api-Key": self.plugin.config["api_key"], "Api-Username": "system"}
         logger.info(payload)
         logger.info(url)
@@ -173,34 +178,22 @@ class DiscoursePoll(GovernanceProcess):
         resp = requests.post(url, data=payload, headers=headers)
         if not resp.ok:
             logger.error(f"Error: {resp.status_code} {resp.text}")
-            self.errors = {"text": resp.text or "unknown error"}
-            self.status = ProcessStatus.COMPLETED.value
-            self.save()
-            return
+            raise PluginErrorInternal(resp.text or "unknown error")
 
         response = resp.json()
-        logger.info(response)
         if response.get("errors"):
-            self.errors = response["errors"]
-            self.status = ProcessStatus.COMPLETED.value
-        else:
-            poll_url = f"{discourse_server_url}/t/{response.get('topic_slug')}/{response.get('topic_id')}"
-            logger.info(f"Poll created at {poll_url}")
+            errors = response["errors"]
+            raise PluginErrorInternal(str(errors))
 
-            self.state.set("post_id", response.get("id"))
-            self.state.set("topic_id", response.get("topic_id"))
-            self.state.set("topic_slug", response.get("topic_slug"))
-            self.state.set("poll_url", poll_url)
-            self.data = {"poll_url": poll_url}  # this field gets serialized and returned
-            self.status = ProcessStatus.PENDING.value
+        poll_url = f"{discourse_server_url}/t/{response.get('topic_slug')}/{response.get('topic_id')}"
+        logger.info(f"Poll created at {poll_url}")
+        self.state.set("post_id", response.get("id"))
+        self.state.set("topic_id", response.get("topic_id"))
+        self.state.set("topic_slug", response.get("topic_slug"))
+
+        self.outcome = {"poll_url": poll_url}  # this gets serialized and returned
+        self.status = ProcessStatus.PENDING.value
         self.save()
-
-    @staticmethod
-    def construct_outcome_from_poll(poll):
-        outcome = {}
-        for opt in poll["options"]:
-            outcome[opt["html"]] = opt["votes"]
-        return outcome
 
     def check_status(self):
         """
@@ -214,16 +207,11 @@ class DiscoursePoll(GovernanceProcess):
         resp = requests.get(f"{self.plugin.config['server_url']}/t/{topic_id}.json", headers=headers)
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason}")
-            raise ValueError(resp.text)
+            raise PluginErrorInternal(resp.text)
         response = resp.json()
         topic_post = response["post_stream"]["posts"][0]
         poll = topic_post["polls"][0]
-        logger.info(poll)
-        if poll["status"] == "closed":
-            outcome = DiscoursePoll.construct_outcome_from_poll(poll)
-            self.outcome = outcome
-            self.status = ProcessStatus.COMPLETED.value
-            self.save()
+        self.update_outcome_from_discourse_poll(poll)
 
     def close(self):
         """
@@ -238,21 +226,31 @@ class DiscoursePoll(GovernanceProcess):
             "Api-Username": "system",
             "Api-Key": self.plugin.config["api_key"],
         }
-        logger.info(data)
-        logger.info(url)
+
         resp = requests.put(url, data=data, headers=headers)
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason} {resp.text}")
-            raise ValueError(resp.text)
-        response = resp.json()
-        logger.info(response)
-
-        # set outcome in process state
-        outcome = DiscoursePoll.construct_outcome_from_poll(response["poll"])
+            raise PluginErrorInternal(resp.text)
+        poll = resp.json()["poll"]
+        self.update_outcome_from_discourse_poll(poll)
 
         # Lock the post
-        self.get_plugin().lock_post({"locked": True, "id": post_id})
+        # self.get_plugin().lock_post({"locked": True, "id": post_id})
 
-        self.outcome = outcome
-        self.status = ProcessStatus.COMPLETED.value
-        self.save()
+    def update_outcome_from_discourse_poll(self, poll):
+        """Save changes to outcome and state if changed"""
+        dirty = False
+        for opt in poll["options"]:
+            key = opt["html"]
+            val = opt["votes"]
+            if self.outcome.get(key) != val:
+                self.outcome[key] = val
+                dirty = True
+
+        if poll["status"] == "closed":
+            self.status = ProcessStatus.COMPLETED.value
+            dirty = True
+
+        if dirty:
+            logger.info(f"{self}: {self.outcome}")
+            self.save()

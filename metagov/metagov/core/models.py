@@ -125,8 +125,7 @@ class GovernanceProcess(models.Model):
     plugin = models.ForeignKey(
         Plugin, models.CASCADE, related_name="plugin", help_text="Plugin instance that this process belongs to"
     )
-    state = models.OneToOneField(DataStore, models.CASCADE, help_text="Datastore to persist any state", null=True)
-    data = models.JSONField(default=dict, blank=True, help_text="Data to serialize and send back to driver")
+    state = models.OneToOneField(DataStore, models.CASCADE, help_text="Datastore to persist any internal state", null=True)
     errors = models.JSONField(default=dict, blank=True, help_text="Errors to serialize and send back to driver")
     outcome = models.JSONField(default=dict, blank=True, help_text="Outcome to serialize and send back to driver")
     input_schema = {}
@@ -143,7 +142,8 @@ class GovernanceProcess(models.Model):
         return instance
 
     def save(self, *args, **kwargs):
-        """Save the process. If the ``status`` was changed to ``completed``, notify the Driver."""
+        """Saves the process. If the ``status`` was changed to ``completed`` and there is a ``callback_url`` defined
+        for this process, it will post the serialized process to the callback URL. Do not override this function."""
         if not self.pk:
             self.state = DataStore.objects.create()
 
@@ -157,49 +157,58 @@ class GovernanceProcess(models.Model):
         super(GovernanceProcess, self).save(*args, **kwargs)
 
     def start(self, parameters):
-        """(REQUIRED) Start the governance process and return immediately.
+        """(REQUIRED) Start the governance process.
 
         Most implementations of this function will:
+
         - Make a request to start a governance process in an external system
 
-        - Store some private state in ``self.state``
+        - Store any data in ``outcome`` that should be returned to the Driver. For example, the URL for a voting process in another system.
 
-        - If process was started successfully, set ``self.status`` to ``PENDING`` and put data that should be returned to the caller into ``self.data``.
+        - Store any internal state in ``state``
 
-        - If process failed to start, set ``self.status`` to ``COMPLETED`` and put errors into ``self.errors``.
+        - If process was started successfully, set ``status`` to ``pending``.
+
+        - If process failed to start, raise an exception of type ``PluginErrorInternal``.
 
         - Call ``self.save()`` to persist changes."""
         pass
 
     def close(self):
-        """(OPTIONAL) Close the governance process, update the ``outcome`` and ``status``.
+        """(OPTIONAL) Close the governance process.
 
         Most implementations of this function will:
+
         - Make a request to close the governance process in an external system
 
-        - Store some private state in ``self.state``
+        - If process was closed successfully, set ``status`` to ``completed`` and put the outcome into ``self.outcome``.
 
-        - If process was closed successfully, set ``self.status`` to ``COMPLETED`` and put the outcome into ``self.outcome``.
-
-        - If process failed, set ``self.status`` to ``COMPLETED`` and put errors into ``self.errors``.
+        - If the process failed to close, set ``errors`` or raise an exception of type ``PluginErrorInternal``.
 
         - Call ``self.save()`` to persist changes.
         """
         pass
 
     def check_status(self):
-        """(OPTIONAL) Check the status of the process, and possibly update the status."""
+        """(OPTIONAL) Check the status of the process. May be called repeatedly to poll for changes.
+
+        Most implementations of this function will:
+
+        - Make a request to get the current status from an external system
+
+        - Update ``state``, ``status`` (if process closed), ``outcome``, and/or ``errors`` as needed.
+
+        - Call ``self.save()`` to persist changes."""
         pass
 
     def receive_webhook(self, request):
         """(OPTIONAL) Receive an incoming webhook from an external system.
 
         Most implementations of this function will:
+
         - Check if the webhook request pertains to this process instance.
 
-        - Store some private state in ``self.state``.
-
-        - If the webhook request indicates that the process has ended, update ``self.status`` and ``self.outcome`` or ``self.errors``.
+        - Update ``state``, ``status`` (if process closed), ``outcome``, and/or ``errors`` as needed.
 
         - Call ``self.save()`` to persist changes."""
         pass

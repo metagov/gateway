@@ -64,7 +64,10 @@ for item in os.listdir(PLUGINS_DIR):
         if app_name not in INSTALLED_APPS:
             INSTALLED_APPS += (app_name,)
 
-REST_FRAMEWORK = {"DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.coreapi.AutoSchema"}
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.coreapi.AutoSchema",
+    "EXCEPTION_HANDLER": "metagov.core.middleware.api_500_exception_handler",
+}
 
 REDOC_SETTINGS = {
     "LAZY_RENDERING": True,

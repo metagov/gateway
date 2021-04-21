@@ -1,0 +1,110 @@
+from django.test import Client, TestCase
+from metagov.core.models import Community, Plugin
+from metagov.plugins.discourse.models import Discourse, DiscoursePoll
+import metagov.plugins.discourse.tests.mocks as DiscourseMock
+import requests_mock
+import requests
+
+mock_server_url = "https://discourse.metagov.org"
+discourse_process_url = "/api/internal/process/discourse.poll"
+
+session = requests.Session()
+adapter = requests_mock.Adapter()
+session.mount("mock://", adapter)
+
+adapter.register_uri("GET", "mock://test.com", text="data")
+
+
+class ApiTests(TestCase):
+    def setUp(self):
+        # create a test community with the revshare plugin enabled
+        self.client = Client()
+
+        self.community_name = "test-community"
+        self.headers = {"HTTP_X_METAGOV_COMMUNITY": self.community_name}
+        self.community_url = f"/api/internal/community/{self.community_name}"
+        self.community_data = {
+            "name": self.community_name,
+            "plugins": [
+                {
+                    "name": "discourse",
+                    "config": {"server_url": mock_server_url, "api_key": "empty", "webhook_secret": "empty"},
+                }
+            ],
+        }
+
+        # create a community with the discourse plugin enabled
+        with requests_mock.Mocker() as m:
+            m.get(f"{mock_server_url}/about.json", json={"about": {"title": "my community"}})
+            self.client.put(self.community_url, data=self.community_data, content_type="application/json")
+
+    def start_discourse_poll(self):
+        self.assertEqual(DiscoursePoll.objects.all().count(), 0)
+
+        with requests_mock.Mocker() as m:
+            # mock Discourse response to creating a new poll
+            mock_response = {"id": 1, "topic_id": 0, "topic_slug": "test"}
+            m.post(f"{mock_server_url}/posts.json", json=mock_response)
+            # mock Discourse response to getting a topic
+            m.get(f"{mock_server_url}/t/0.json", json=DiscourseMock.topic_with_open_poll)
+
+            # make Metagov API request to create a new poll
+            input_params = {
+                "title": "a test poll",
+                "options": ["a", "b", "c"],
+                "category": 8,
+                "closing_at": "2023-04-22",
+            }
+            response = self.client.post(
+                discourse_process_url, data=input_params, content_type="application/json", **self.headers
+            )
+            self.assertEqual(response.status_code, 202)
+            location = response["location"]
+
+            # status should be pending
+            response = self.client.get(location, content_type="application/json")
+            self.assertContains(response, "poll_url")
+            self.assertContains(response, "pending")
+
+            # change mock to include some votes
+            m.get(f"{mock_server_url}/t/0.json", json=DiscourseMock.topic_with_open_poll_and_votes)
+
+            # status should still be pending
+            response = self.client.get(location, content_type="application/json")
+            self.assertContains(response, "poll_url")
+            self.assertContains(response, "pending")
+            self.assertContains(response, "25")  # current vote count is included in the response
+
+            return location
+
+    def test_discourse_poll_closed_in_discourse(self):
+        """SCENARIO: user closed the vote early in discourse"""
+        self.assertEqual(DiscoursePoll.objects.all().count(), 0)
+
+        location = self.start_discourse_poll()
+
+        with requests_mock.Mocker() as m:
+            # change mock to be closed
+            m.get(f"{mock_server_url}/t/0.json", json=DiscourseMock.topic_with_closed_poll_and_votes)
+
+            # status should be completed
+            response = self.client.get(location, content_type="application/json")
+            self.assertContains(response, "poll_url")
+            self.assertContains(response, "completed")
+            self.assertContains(response, "35")  # current vote count is included in the response
+
+    def test_discourse_poll_close(self):
+        """SCENARIO: driver closes vote early using DELETE request"""
+        self.assertEqual(DiscoursePoll.objects.all().count(), 0)
+
+        location = self.start_discourse_poll()
+
+        with requests_mock.Mocker() as m:
+            # mock toggle_status
+            m.put(f"{mock_server_url}/polls/toggle_status", json=DiscourseMock.toggle_response_closed)
+
+            # status should be completed
+            response = self.client.delete(location, content_type="application/json")
+            self.assertContains(response, "poll_url")
+            self.assertContains(response, "completed")
+            self.assertContains(response, "35")  # vote count from the toggle response is the final outcome
