@@ -150,6 +150,7 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
     proxy_models = plugin_registry[plugin_name]._process_registry.values()
     for cls in proxy_models:
         processes = cls.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
+        logger.info(f"{processes.count()} pending processes for plugin instance '{plugin}'")
         for process in processes:
             logger.info(f"Passing webhook request to: {process}")
             try:
