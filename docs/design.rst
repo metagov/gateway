@@ -59,7 +59,7 @@ A Community represents a group of people that use one or more online platforms t
 
 The :ref:`Driver` can create or update a community by making a ``PUT`` request to the ``/community`` endpoint. Here's an example of a JSON-serialized community that has the ``sourcecred`` plugin enabled:
 
-.. code-block:: JSON
+.. code-block:: json
 
    {
       "name": "metagov-project-community",
@@ -90,7 +90,7 @@ Metagov Plugins
 Developers can create Plugins to connect to governance services and platforms.
 Plugins are defined as proxy subclasses of the Plugin model.
 Plugin authors define governance processes and actions on the model, and Metagov Core exposes them to the Driver via the Metagov API.
-See `Plugin Tutorial <plugintutorial-ref>`_.
+See :doc:`Plugin Tutorial <../plugin_tutorial>`.
 
 Django Data Model
 -----------------
@@ -101,7 +101,7 @@ The ``GovernanceProcess -> Plugin`` relationship is many-to-one. A single Loomio
 
 The ``Plugin -> Community`` relationship is many-to-one. A single Community can have several of Plugins activated. Currently it can only have one instance `per proxy type` (one community can't have two instances of Loomio, for example).
 
-See the :ref:`Autodocumentation <autodocs-ref>` for reference.
+See the :doc:`Reference Documentation <../autodocs/core>` for reference.
 
 .. image:: _static/20210324_django_schema_graph.png
    :width: 800

@@ -1,6 +1,6 @@
 Plugin Tutorial
 ===============
-.. _plugintutorial-ref:
+
 This tutorial will show you have to write a Metagov Plugin. It will demonstrate how to:
 
 1. Create :ref:`Actions` (example: send a tweet)
@@ -203,7 +203,7 @@ it can react to them, then you want to implement a **listener** in your plugin.
 
 In order to do this, override the ``receive_webhook`` function to handle incoming webhook requests from the external platform.
 Use the ``send_event_to_driver`` function to send the event to the Driver.
-(See :ref:`Autodocumentation <autodocs-ref>` for more).
+(See :doc:`Reference Documentation <../autodocs/core>` for more).
 
 .. code-block:: python
 
@@ -339,7 +339,7 @@ a request to an external platform. Update status and outcome, if applicable.
 The Driver is responsible for polling check_status.
 See the Discourse plugin for an example.
 
-.. seealso:: See the :ref:`metagov.core Reference <autodocs-ref>` for more information about the ``GovernanceProcess`` models.
+.. seealso:: See the :doc:`Reference Documentation <../autodocs/core>` for more information about the ``GovernanceProcess`` models.
 
 .. seealso:: Once you've implemented a governance process, you can invoke it through the Metagov API. See the `Example Driver Repo <https://github.com/metagov/example-driver>`_ for an example of kicking off a governance process and waiting for the result at a ``callback_url``.
 

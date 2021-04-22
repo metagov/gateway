@@ -1,13 +1,13 @@
 Driver Tutorial
 ===============
-.. _drivertutorial-ref:
+
 This tutorial will show you have to write a Driver that uses Metagov, or how to use Metagov
 alongside your existing governance engine to turn it into a Driver.
 
 Set up
 ------
 Deploy Metagov on the same machine as your Driver.
-For local setup, follow the Metagov development setup docs (Coming soon!)
+For local setup, follow the instructions for :doc:`Metagov local development setup <../development>`.
 
 
 Single- or Multi-Community
@@ -207,12 +207,12 @@ Set this setting in the metagov ``.env`` file:
     DRIVER_EVENT_RECEIVER_URL=<URL to event receiver endpoint>
 
 
-When you activate a plugin that implements the "Listener" pattern (see the `Plugin Tutorial <plugintutorial-ref>`_),
+When you activate a plugin that implements the "Listener" pattern (see the :doc:`Plugin Tutorial <../plugin_tutorial>`),
 you'll receive events as POST requests to your new endpoint. The event body will have this shape:
 
-.. code-block:: JSON
+.. code-block::
 
-    🚨 this shape is particularly unstable and will change!
+    # 🚨 this shape is particularly unstable and will change!
     {
         "community": "my-community-123",     # unique community slug
         "source": "discourse",               # name of the plugin that is emitting this event
@@ -224,3 +224,4 @@ you'll receive events as POST requests to your new endpoint. The event body will
             "provider": "discourse"          # key for the identity provider
         }
     }
+

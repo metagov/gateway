@@ -19,5 +19,6 @@ Metagov is a prototype under active development, so please help us out by sendin
    design.rst
    plugin_tutorial.rst
    driver_tutorial.rst
+   development.rst
    metagov.core Reference <autodocs/core.rst>
    API Reference <https://prototype.metagov.org/redoc/>
