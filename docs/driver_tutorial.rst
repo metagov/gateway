@@ -5,13 +5,13 @@ This tutorial will show you have to write a Driver that uses Metagov, or how to 
 alongside your existing governance engine to turn it into a Driver.
 
 Set up
-^^^^^^
+------
 Deploy Metagov on the same machine as your Driver.
 For local setup, follow the Metagov development setup docs (Coming soon!)
 
 
 Single- or Multi-Community
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------
 
 The first thing to figure out is whether your Driver is going to support multiple Communities or a single Community.
 A Community represents a group of people that use one or more online platforms.
@@ -21,8 +21,7 @@ If your Driver supports ONE community, just create it once with the desired plug
 If your Driver supports MULTIPLE communities, you'll need to expose some way for community admins to create and configure Metagov communities.
 Depending on which plugins are used, this process may include inputting API keys and registering webhooks in external systems.
 
-To create or update a community, make a PUT request to the metagov ``/api/internal/community`` endpoint.
-Each community is identified by a unique slug (``my-community-1234``):
+To create or update a community, make a PUT request to the Metagov community endpoint:
 
 .. code-block:: shell
 
@@ -33,28 +32,170 @@ Each community is identified by a unique slug (``my-community-1234``):
             "readable_name": "",
             "plugins": [
                 {
-                    "name": "tutorial",
+                    "name": "sourcecred",
                     "config": {
-                        "api_key": "ABC123",
-                        "foo": "baz"
+                        "server_url": "https://metagov.github.io/sourcecred-instance"
                     }
                 }
             ]
         }'
 
+The response code will be ``201`` if the community was successfully created, or ``200`` if the community was successfully updated.
+Each community is identified by a unique slug (in this example, it's ``my-community-1234``).
+When making subsequent Metagov requests to perform actions or processes, the Driver must include the community slug in the ``X-Metagov-Community`` header.
+
+
 Performing Actions
-^^^^^^^^^^^^^^^^^^
+------------------
 
-Coming soon!
+Perform an action by making a request to the Metagov API at ``/api/internal/action/<plugin>.<action>``.
 
-Performing asynchronous governance processes
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The available actions, along with their input and output types, are listed in the API docs.
+You can find those at ``/swagger`` or ``/redoc`` of your Metagov instance. Or, take a look at the
+`dev instance Metagov API docs <https://prototype.metagov.org/redoc/>`_.
 
-Coming soon!
+Here's an example of an API request to perform the action ``sourcecred.user-cred`` for the ``my-community-1234`` community:
 
+.. code-block:: shell
+
+    # request
+    curl -X POST 'http://127.0.0.1:8000/api/internal/action/sourcecred.user-cred' \
+        -H 'X-Metagov-Community: my-community-1234' \
+        -H 'Content-Type: application/json' \
+        --data-raw '{
+            "parameters": {
+                "username": "system"
+            }
+        }'
+
+    # response
+    HTTP/1.1 200 OK
+
+    {"value": 0.008520052699137347}
+
+The shape of the response body is defined by the SourceCred plugin.
+The request will fail if the ``sourcecred`` plugin is not enabled for the community ``my-community-1234``.
+
+
+Performing Async Governance Processes
+-------------------------------------
+
+Asynchronous governance processes are long-running decision-making processes such as votes, elections, or budgeting processes.
+These processes typically involve some engagement from community members, and can last anywhere from minutes to weeks.
+
+The available processes, along with their input and output types, are listed in the API docs.
+You can find those at ``/swagger`` or ``/redoc`` of your Metagov instance. Or, take a look at the
+`dev instance Metagov API docs <https://prototype.metagov.org/redoc/>`_.
+
+The Driver can kick off an async governance process by making a request to the Metagov API at ``/api/internal/process/<plugin>.<process>``.
+
+Depending on the process, you can take a "push" or "pull" approach to handle the asynchronous nature of governance processes:
+
+"Pull" approach
+^^^^^^^^^^^^^^^
+
+With this approach, the Driver needs to poll the process state continually until it completes, or until the Driver decides to close it.
+
+Here's an example of kicking off a process. If the process successfully started, it will respond with status code ``202 Accepted``,
+and a ``Location`` header that provides the URL of the process.
+
+.. code-block:: shell
+
+    # request
+    curl -i -X POST 'http://127.0.0.1:8000/api/internal/process/loomio.poll' \
+        -H 'X-Metagov-Community: my-community-1234' \
+        -H 'Content-Type: application/json' \
+        --data-raw '{
+            "title": "the title of the poll",
+            "options": ["one", "two", "three"],
+            "closing_at": "2022-01-01"
+        }'
+
+    # response
+    HTTP/1.1 202 Accepted
+    Location: /api/internal/process/loomio.poll/127 # location of the process that just kicked off
+
+Using the URL from the ``Location`` header, poll the status of the process:
+
+.. code-block:: shell
+
+    # request
+    curl -i -X GET 'http://127.0.0.1:8000/api/internal/process/loomio.poll/127'
+
+    # response
+    HTTP/1.1 200 OK
+
+    {
+        "id": 127,
+        "name": "loomio.poll",
+        "community": "my-community-1234",
+        "status": "pending",
+        "errors": {},
+        "outcome": {
+            "poll_url": "https://www.loomio.org/p/1234",
+            "votes": {"one": 1, "two": 0, "three": 0}
+        }
+    }
+
+The Driver can poll that process continually until it returns a record with ``status: "completed"``. Depending on the plugin
+implementation, the ``outcome`` may be updated continually as the process progresses (counting votes as they are cast, for example).
+
+In some cases, the plugin exposes a way for the Driver to "close" the process early. Close a process by making a ``DELETE`` request:
+
+.. code-block:: shell
+
+    # request
+    curl -i -X DELETE 'http://127.0.0.1:8000/api/internal/process/discourse.poll/128'
+
+    # response
+    HTTP/1.1 200 OK
+
+    {
+        "id": 128,
+        "name": "discourse.poll",
+        "community": "my-community-1234",
+        "status": "completed",
+        "errors": {},
+        "outcome": {
+            "poll_url": "https://discourse.metagov.org/t/miri-comm-poll/100",
+            "votes": {"one": 1, "two": 4, "three": 2}
+        }
+    }
+
+"Push" approach
+^^^^^^^^^^^^^^^
+
+Some governance processes may take days, weeks, or months. Because of this, it's usually preferable to take a "push" approach when possible, so
+the Driver isn't wasting resources by continually polling long-running processes.
+With this approach, the Driver passes the special parameter ``callback_url``. When the process completes, Metagov makes a POST request
+to the callback URL with the completed process record. The record will have the same shape as the response from the GET process endpoint.
+
+Here's an example of kicking off a process with a ``callback_url``:
+
+.. code-block:: shell
+    :emphasize-lines: 6
+
+    # request
+    curl -i -X POST 'http://127.0.0.1:8000/api/internal/process/loomio.poll' \
+        -H 'X-Metagov-Community: my-community-1234' \
+        -H 'Content-Type: application/json' \
+        --data-raw '{
+            "callback_url": "https://mydriver.org/receive-outcome/4
+            "title": "the title of the poll",
+            "options": ["one", "two", "three"],
+            "closing_at": "2022-01-01"
+        }'
+
+    # response
+    HTTP/1.1 202 Accepted
+    Location: /api/internal/process/loomio.poll/127
+
+
+Make a ``GET`` request to the ``Location`` to get initial information about the process.
+If the plugin supports it, the Driver can still close the process early by making a ``DELETE`` request.
 
 Subscribing to Events
-^^^^^^^^^^^^^^^^^^^^^
+---------------------
 
 If you want your Driver to react to events occurring on other Platforms, you'll need to expose an
 endpoint for receiving events from Metagov.
