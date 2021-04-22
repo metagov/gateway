@@ -1,13 +1,16 @@
 Driver Tutorial
 ===============
 
-This tutorial will show you have to write a Driver that uses Metagov, or how to use Metagov
-alongside your existing governance engine to turn it into a Driver.
+This tutorial will show you have to write a governance Driver that uses Metagov, or how to use Metagov
+alongside your existing governance engine.
+
+You can also look at the `"Minimal Driver" Express App <https://github.com/metagov/example-driver>`_ for an example of a single-community Driver. (Warning! Example Driver may be out-of-sync with latest Metagov APIs. Copy-paste with caution.)
 
 Set up
 ------
-Deploy Metagov on the same machine as your Driver.
-For local setup, follow the instructions for :doc:`Metagov local development setup <../development>`.
+
+You'll need to run Metagov on the same machine as your Driver.
+Follow the instructions at :doc:`Metagov development setup <../development>`.
 
 
 Single- or Multi-Community
@@ -44,6 +47,35 @@ The response code will be ``201`` if the community was successfully created, or 
 Each community is identified by a unique slug (in this example, it's ``my-community-1234``).
 When making subsequent Metagov requests to perform actions or processes, the Driver must include the community slug in the ``X-Metagov-Community`` header.
 
+Plugin Configuration and Webhooks
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Some Plugins, such as Loomio, Discourse, and Open Collective, require webhooks to be configured in the external platform.
+Metagov exposes one webhook receiver endpoint *per-Plugin-per-Community*.
+Metagov webhook receiver endpoints have the format: ``/api/hooks/<community>/<plugin>[/<webhook_slug>]``.
+
+The Driver can retrieve a list of available webhook receivers for a given community by making a request like this:
+
+.. code-block:: shell
+
+    # 🚨  Highly experimental, this will change soon
+
+    # request
+    curl -X GET 'http://127.0.0.1:8000/api/internal/community/my-community-1234/hooks'
+
+    # response
+    HTTP/1.1 200 OK
+    {
+        "hooks": [
+            "/api/hooks/my-community-1234/loomio/f5c3ff8f",  # Optional "webhook_slug" config used, for security
+            "/api/hooks/my-community-1234/discourse",        # No webhook slug, because Discourse supports webhook secrets
+            "/api/hooks/my-community-1234/randomness         # Generated even though the plugin doesn't use it
+        ]
+    }
+
+If you're creating a **Multi-Community Drivers**, you'll need to instruct the user to set up these webhooks in each service.
+The user will typically need to be an admin on each platform (Discourse, OpenCollective, etc) in order to register the unique webhook.
+
 
 Performing Actions
 ------------------
@@ -70,7 +102,6 @@ Here's an example of an API request to perform the action ``sourcecred.user-cred
 
     # response
     HTTP/1.1 200 OK
-
     {"value": 0.008520052699137347}
 
 The shape of the response body is defined by the SourceCred plugin.
@@ -124,7 +155,6 @@ Using the URL from the ``Location`` header, poll the status of the process:
 
     # response
     HTTP/1.1 200 OK
-
     {
         "id": 127,
         "name": "loomio.poll",
