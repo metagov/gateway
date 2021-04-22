@@ -21,7 +21,7 @@ If your Driver supports ONE community, just create it once with the desired plug
 If your Driver supports MULTIPLE communities, you'll need to expose some way for community admins to create and configure Metagov communities.
 Depending on which plugins are used, this process may include inputting API keys and registering webhooks in external systems.
 
-To create or update a community, make a PUT request to the Metagov community endpoint:
+To create or update a community, the Driver should make a PUT request to the Metagov community endpoint. Here's an example using CURL:
 
 .. code-block:: shell
 
@@ -48,7 +48,7 @@ When making subsequent Metagov requests to perform actions or processes, the Dri
 Performing Actions
 ------------------
 
-Perform an action by making a request to the Metagov API at ``/api/internal/action/<plugin>.<action>``.
+The Driver can perform an action by making a request to the Metagov API at ``/api/internal/action/<plugin>.<action>``.
 
 The available actions, along with their input and output types, are listed in the API docs.
 You can find those at ``/swagger`` or ``/redoc`` of your Metagov instance. Or, take a look at the
