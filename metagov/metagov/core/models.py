@@ -187,7 +187,7 @@ class GovernanceProcess(models.Model):
 
         - Call ``self.save()`` to persist changes.
         """
-        pass
+        raise NotImplementedError
 
     def check_status(self):
         """(OPTIONAL) Check the status of the process. May be called repeatedly to poll for changes.

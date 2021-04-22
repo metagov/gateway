@@ -264,8 +264,11 @@ def decorated_get_process_view(plugin_name, slug):
         if request.method == "DELETE":
             if process.status == ProcessStatus.COMPLETED.value:
                 raise ValidationError("Can't close process, it has already completed")
-            logger.info(f"Closing: {process}")
-            process.close()
+            try:
+                logger.info(f"Closing: {process}")
+                process.close()
+            except NotImplementedError:
+                raise APIException(f"{process.plugin.name}.{process.name} does not support manually closing the process.")
             if process.status != ProcessStatus.COMPLETED.value:
                 raise APIException("Failed to close process")
 
