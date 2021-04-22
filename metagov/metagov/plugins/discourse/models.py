@@ -240,11 +240,12 @@ class DiscoursePoll(GovernanceProcess):
     def update_outcome_from_discourse_poll(self, poll):
         """Save changes to outcome and state if changed"""
         dirty = False
+        votes = self.outcome.get("votes", {})
         for opt in poll["options"]:
             key = opt["html"]
             val = opt["votes"]
-            if self.outcome.get(key) != val:
-                self.outcome[key] = val
+            if votes.get(key) != val:
+                votes[key] = val
                 dirty = True
 
         if poll["status"] == "closed":
@@ -253,4 +254,5 @@ class DiscoursePoll(GovernanceProcess):
 
         if dirty:
             logger.info(f"{self}: {self.outcome}")
+            self.outcome["votes"] = votes
             self.save()
