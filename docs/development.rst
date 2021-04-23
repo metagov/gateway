@@ -4,9 +4,9 @@ Development
 Local development setup
 -----------------------
 
-Follow these instructions to setup metagov for local development.
+Follow these instructions to setup Metagov for local development.
 You'll want to do this if you are developing a Metagov Plugin,
-developming metagov core, or developing a Driver locally.
+developing Metagov Core, or developing a Driver locally.
 
 1. Fork and clone the repository
 2. Navigate to the django project
