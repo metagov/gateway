@@ -39,7 +39,10 @@ class Discourse(Plugin):
         self.state.set("community_name", community_name)
 
     def construct_post_url(self, post):
-        return f"{self.config['server_url']}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}?u={post['username']}"
+        return f"{self.config['server_url']}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}"
+
+    def construct_post_response(self, post):
+        return {"url": self.construct_post_url(post), "topic_id": post["topic_id"], "post_id": post["id"]}
 
     def discourse_request(self, method, route, username="system", json=None, data=None):
         url = f"{self.config['server_url']}/{route}"
@@ -49,12 +52,25 @@ class Discourse(Plugin):
         resp = requests.request(method, url, headers=headers, json=json, data=data)
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason}")
-            # logger.error(resp.request.body)
+            logger.error(resp.request.body)
             # logger.error(resp.request.headers)
             raise PluginErrorInternal(resp.text)
         if resp.content:
             return resp.json()
         return None
+
+    @Registry.action(
+        slug="create-message",
+        description="Start a new private message thread",
+        input_schema=Schemas.send_message_parameters,
+        output_schema=Schemas.create_post_or_topic_response,
+    )
+    def create_message(self, parameters):
+        username = parameters.pop("initiator", "system")
+        parameters["target_recipients"] = ",".join(parameters.pop("target_usernames"))
+        parameters["archetype"] = "private_message"
+        post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
+        return self.construct_post_response(post)
 
     @Registry.action(
         slug="create-post",
@@ -65,7 +81,7 @@ class Discourse(Plugin):
     def create_post(self, parameters):
         username = parameters.pop("initiator", "system")
         post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
-        return {"url": self.construct_post_url(post), "id": post["id"]}
+        return self.construct_post_response(post)
 
     @Registry.action(
         slug="create-topic",
@@ -76,7 +92,7 @@ class Discourse(Plugin):
     def create_topic(self, parameters):
         username = parameters.pop("initiator", "system")
         post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
-        return {"url": self.construct_post_url(post), "id": post["topic_id"]}
+        return self.construct_post_response(post)
 
     @Registry.action(
         slug="delete-post",
