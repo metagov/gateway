@@ -41,39 +41,81 @@ class Discourse(Plugin):
     def construct_post_url(self, post):
         return f"{self.config['server_url']}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}?u={post['username']}"
 
-    def discourse_post_request(self, route, payload, username):
-        headers = {"Content-Type": "application/json", "Api-Username": username, "Api-Key": self.config["api_key"]}
-        resp = requests.post(f"{self.config['server_url']}/{route}", headers=headers, json=payload)
+    def discourse_request(self, method, route, username="system", json=None, data=None):
+        url = f"{self.config['server_url']}/{route}"
+        logger.info(f"{method} {url}")
+
+        headers = {"Api-Username": username, "Api-Key": self.config["api_key"]}
+        resp = requests.request(method, url, headers=headers, json=json, data=data)
         if not resp.ok:
-            logger.info(resp)
             logger.error(f"{resp.status_code} {resp.reason}")
+            # logger.error(resp.request.body)
+            # logger.error(resp.request.headers)
             raise PluginErrorInternal(resp.text)
-        return resp.json()
+        if resp.content:
+            return resp.json()
+        return None
 
     @Registry.action(
         slug="create-post",
-        description="Create a new post on discourse",
+        description="Create a new post",
         input_schema=Schemas.create_post_parameters,
-        output_schema=Schemas.create_post_response,
+        output_schema=Schemas.create_post_or_topic_response,
     )
     def create_post(self, parameters):
-        payload = {"raw": parameters["raw"], "topic_id": parameters["topic_id"]}
-        username = parameters.get("initiator", "system")
-        post = self.discourse_post_request("posts.json", payload, username)
+        username = parameters.pop("initiator", "system")
+        post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
         return {"url": self.construct_post_url(post), "id": post["id"]}
 
     @Registry.action(
+        slug="create-topic",
+        description="Create a new topic",
+        input_schema=Schemas.create_topic_parameters,
+        output_schema=Schemas.create_post_or_topic_response,
+    )
+    def create_topic(self, parameters):
+        username = parameters.pop("initiator", "system")
+        post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
+        return {"url": self.construct_post_url(post), "id": post["topic_id"]}
+
+    @Registry.action(
         slug="delete-post",
-        description="Delete a post on discourse",
-        input_schema=Schemas.delete_post_parameters,
+        description="Delete a post",
+        input_schema=Schemas.delete_post_or_topic_parameters,
         output_schema=None,
     )
     def delete_post(self, parameters):
-        headers = {"Api-Username": "system", "Api-Key": self.config["api_key"]}
-        resp = requests.delete(f"{self.config['server_url']}/posts/{parameters['id']}", headers=headers)
-        if not resp.ok:
-            logger.error(f"{resp.status_code} {resp.reason}")
-            raise PluginErrorInternal(resp.text)
+        self.discourse_request("DELETE", f"posts/{parameters['id']}")
+        return {}
+
+    @Registry.action(
+        slug="delete-topic",
+        description="Delete a topic",
+        input_schema=Schemas.delete_post_or_topic_parameters,
+        output_schema=None,
+    )
+    def delete_topic(self, parameters):
+        self.discourse_request("DELETE", f"t/{parameters['id']}.json")
+        return {}
+
+    @Registry.action(
+        slug="recover-post",
+        description="Recover a deleted post",
+        input_schema=Schemas.delete_post_or_topic_parameters,
+        output_schema=None,
+    )
+    def recover_post(self, parameters):
+        self.discourse_request("PUT", f"posts/{parameters['id']}/recover")
+        return {}
+
+    @Registry.action(
+        slug="recover-topic",
+        description="Recover a deleted topic",
+        input_schema=Schemas.delete_post_or_topic_parameters,
+        output_schema=None,
+    )
+    def recover_topic(self, parameters):
+        self.discourse_request("PUT", f"t/{parameters['id']}/recover")
         return {}
 
     @Registry.action(
@@ -83,17 +125,9 @@ class Discourse(Plugin):
         output_schema=Schemas.lock_post_response,
     )
     def lock_post(self, parameters):
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Api-Username": "system",
-            "Api-Key": self.config["api_key"],
-        }
+        post_id = parameters["id"]
         data = {"locked": json.dumps(parameters["locked"])}
-        resp = requests.put(f"{self.config['server_url']}/posts/{parameters['id']}/locked", headers=headers, data=data)
-        if not resp.ok:
-            logger.error(f"{resp.status_code} {resp.reason}")
-            raise PluginErrorInternal(resp.text)
-        return resp.json()
+        return self.discourse_request("PUT", f"posts/{post_id}/locked", data=data)
 
     def validate_request_signature(self, request):
         event_signature = request.headers.get("X-Discourse-Event-Signature")
