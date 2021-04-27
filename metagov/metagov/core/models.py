@@ -113,6 +113,13 @@ class ProcessStatus(Enum):
     PENDING = "pending"
     COMPLETED = "completed"
 
+class GovernanceProcessManager(models.Manager):
+    def get_queryset(self):
+        qs = super(GovernanceProcessManager, self).get_queryset()
+        if self.model._meta.proxy:
+            # this is a proxy model, so only return processes of this proxy type
+            return qs.filter(name=self.model.name, plugin__name=self.model.plugin_name)
+        return qs
 
 class GovernanceProcess(models.Model):
     """Represents an instance of a governance process."""
@@ -129,6 +136,8 @@ class GovernanceProcess(models.Model):
     errors = models.JSONField(default=dict, blank=True, help_text="Errors to serialize and send back to driver")
     outcome = models.JSONField(default=dict, blank=True, help_text="Outcome to serialize and send back to driver")
     input_schema = {}
+
+    objects = GovernanceProcessManager()
 
     def __str__(self):
         return f"{self.plugin.name}.{self.name} for '{self.plugin.community.name}' ({self.pk}, {self.status})"

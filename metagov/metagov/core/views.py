@@ -7,9 +7,14 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.dispatch import receiver
-from django.http import (HttpResponse, HttpResponseBadRequest,
-                         HttpResponseNotFound, HttpResponseServerError,
-                         JsonResponse, QueryDict)
+from django.http import (
+    HttpResponse,
+    HttpResponseBadRequest,
+    HttpResponseNotFound,
+    HttpResponseServerError,
+    JsonResponse,
+    QueryDict,
+)
 from django.shortcuts import render
 from django.template import loader
 from django.utils.decorators import decorator_from_middleware
@@ -17,14 +22,11 @@ from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from metagov.core import utils
-from metagov.core.middleware import (CommunityMiddleware,
-                                     openapi_community_header)
-from metagov.core.models import (Community, GovernanceProcess, Plugin,
-                                 ProcessStatus)
+from metagov.core.middleware import CommunityMiddleware, openapi_community_header
+from metagov.core.models import Community, GovernanceProcess, Plugin, ProcessStatus
 from metagov.core.openapi_schemas import Tags, community_schema
 from metagov.core.plugin_decorators import plugin_registry
-from metagov.core.serializers import (CommunitySerializer,
-                                      GovernanceProcessSerializer)
+from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import APIException, ValidationError
@@ -261,6 +263,9 @@ def decorated_get_process_view(plugin_name, slug):
         except cls.DoesNotExist:
             return HttpResponseNotFound()
 
+        # This is a hack so that the process can access proxy-specific functions..
+        process.plugin = get_proxy(process.plugin)
+
         # 'DELETE'  means close the process and return it. This will update process state.
         if request.method == "DELETE":
             if process.status == ProcessStatus.COMPLETED.value:
@@ -269,7 +274,9 @@ def decorated_get_process_view(plugin_name, slug):
                 logger.info(f"Closing: {process}")
                 process.close()
             except NotImplementedError:
-                raise APIException(f"{process.plugin.name}.{process.name} does not support manually closing the process.")
+                raise APIException(
+                    f"{process.plugin.name}.{process.name} does not support manually closing the process."
+                )
             if process.status != ProcessStatus.COMPLETED.value:
                 raise APIException("Failed to close process")
 
@@ -303,7 +310,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
 
         # 2. Validate input parameters
         parameters = {}
-        if request.method == "POST":
+        if request.method == "POST" and request.body:
             payload = JSONParser().parse(request)
             parameters = payload.get("parameters")
             # TODO: add back support for GET. Should be allowed if params are simple enough.
@@ -360,3 +367,8 @@ def get_plugin_instance(plugin_name, community):
     if not plugin:
         raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community.name}'")
     return plugin
+
+
+def get_proxy(plugin):
+    cls = plugin_registry.get(plugin.name)
+    return cls.objects.get(pk=plugin.pk)
