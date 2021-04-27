@@ -1,5 +1,5 @@
 from django.test import TestCase
-from metagov.core.models import Community, Plugin
+from metagov.core.models import Community, Plugin, GovernanceProcess
 from metagov.plugins.sourcecred.models import SourceCred
 from metagov.plugins.example.models import Randomness, StochasticVote
 from django.test import Client
@@ -112,6 +112,7 @@ class ApiTests(TestCase):
         location = response.get("location")
 
         # assert created
+        self.assertEqual(GovernanceProcess.objects.all().count(), 1)
         self.assertEqual(StochasticVote.objects.all().count(), 1)
         process = StochasticVote.objects.all().first()
 

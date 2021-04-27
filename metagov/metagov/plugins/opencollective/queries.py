@@ -1,3 +1,67 @@
+expenseFields = """
+fragment expenseFields on Expense {
+    id
+    legacyId
+    description
+    longDescription
+    amount
+    createdAt
+    currency
+    type
+    status
+    account {
+      id
+      legacyId
+      slug
+    }
+    payee {
+      id
+      legacyId
+      slug
+    }
+    createdByAccount {
+      id
+      legacyId
+      slug
+    }
+    requestedByAccount {
+      id
+      legacyId
+      slug
+    }
+    items {
+      id
+      amount
+      createdAt
+      updatedAt
+      incurredAt
+      description
+      url
+    }
+    tags
+}
+"""
+
+conversationFields = """
+fragment conversationFields on Conversation {
+  id
+  slug
+  title
+  createdAt
+  updatedAt
+  tags
+  summary
+  body {
+      id
+      reactions
+  }
+  stats {
+      commentsCount
+  }
+}
+"""
+
+
 logged_in_account = """
 query loggedInAccount {
  loggedInAccount {
@@ -18,27 +82,16 @@ query Collective($slug: String) {
 }
 """
 
-expense = """
+expense = (
+    """
 query Expense($reference: ExpenseReferenceInput) {
     expense(id: null, expense: $reference, draftKey: "test") {
-        id
-        createdAt
-        description
-        longDescription
-        amount
-        currency
-        legacyId
-        type
-        status
-        createdByAccount {
-          isAdmin
-          name
-          slug
-        }
-        tags
+        ...expenseFields
     }
 }
-"""
+%s"""
+    % expenseFields
+)
 
 members = """
 query Collective($slug: String) {
@@ -49,9 +102,32 @@ query Collective($slug: String) {
             totalCount
             nodes {
                 id
+                role
+                tier {
+                  id
+                  slug
+                  name
+                  description
+                  type
+                  frequency
+                }
+                createdAt
+                updatedAt
+                since
+                totalDonations {
+                  value
+                  currency
+                }
                 account {
-                    name
+                    id
                     slug
+                    name
+                    twitterHandle
+                    githubHandle
+                    isArchived
+                    isActive
+                    isHost
+                    isAdmin
                 }
             }
         }
@@ -59,35 +135,65 @@ query Collective($slug: String) {
 }
 """
 
+conversation = (
+    """
+query Conversation($id: String!) {
+    conversation(id: $id) {
+        ...conversationFields
+    }
+}
+%s"""
+    % conversationFields
+)
 
-create_conversation = """
+
+create_conversation = (
+    """
 mutation CreateConversation($title: String!, $html: String!, $CollectiveId: String!, $tags: [String]) {
   createConversation(title: $title, html: $html, CollectiveId: $CollectiveId, tags: $tags) {
-    id
-    slug
-    title
-    summary
-    tags
-    createdAt
-    __typename
+    ...conversationFields
   }
 }
-"""
+%s"""
+    % conversationFields
+)
+
+edit_conversation = (
+    """
+mutation EditConverstaion($id: String!, $title: String!, $tags: [String]) {
+  editConversation(id: $id, title: $title, tags: $tags) {
+    ...conversationFields
+  }
+}
+%s"""
+    % conversationFields
+)
 
 create_comment = """
 mutation CreateComment($comment: CommentCreateInput!) {
   createComment(comment: $comment) {
-    ...CommentFields
-    __typename
+    ...commentFields
   }
 }
 
-fragment CommentFields on Comment {
+fragment commentFields on Comment {
   id
   createdAt
   html
   reactions
-  userReactions
-  __typename
 }
 """
+
+process_expense = (
+    """
+mutation ProcessExpense(
+    $reference: ExpenseReferenceInput!,
+    $action: ExpenseProcessAction!
+) {
+  processExpense(expense: $reference, action: $action, paymentParams: null) {
+    ...expenseFields
+  }
+}
+%s"""
+    % expenseFields
+)
