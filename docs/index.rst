@@ -13,12 +13,18 @@ Metagov is a prototype under active development, so please help us out by sendin
 
 .. toctree::
    :maxdepth: 2
-   :caption: Table of contents:
+   :caption: Getting Started
 
    readme.rst
+   installation.rst
    design.rst
    plugin_tutorial.rst
    driver_tutorial.rst
    development.rst
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference
+
    metagov.core Reference <autodocs/core.rst>
-   API Reference <https://prototype.metagov.org/redoc/>
+   OpenAPI Reference ↗️ <https://prototype.metagov.org/redoc/>
