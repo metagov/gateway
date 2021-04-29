@@ -1,6 +1,7 @@
 import json
 
 import metagov.core.plugin_decorators as Registry
+from metagov.core.errors import PluginErrorInternal
 import requests
 from metagov.core.models import Plugin
 
@@ -38,7 +39,7 @@ class SourceCred(Plugin):
         username = parameters["username"]
         cred = self.get_user_cred(username)
         if cred is None:
-            raise Exception(f"{username} not found in sourcecred instance")
+            raise PluginErrorInternal(f"{username} not found in sourcecred instance")
         return {"value": cred}
 
     def get_user_cred(self, username):

@@ -41,6 +41,9 @@ class Discourse(Plugin):
     def construct_post_url(self, post):
         return f"{self.config['server_url']}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}"
 
+    def construct_topic_url(self, topic):
+        return f"{self.config['server_url']}/t/{topic['slug']}/{topic['id']}"
+
     def construct_post_response(self, post):
         return {"url": self.construct_post_url(post), "topic_id": post["topic_id"], "post_id": post["id"]}
 
@@ -175,6 +178,17 @@ class Discourse(Plugin):
             }
             initiator = {"user_id": post["username"], "provider": "discourse"}
             self.send_event_to_driver(event_type="post_created", initiator=initiator, data=data)
+        elif event == "topic_created":
+            topic = body.get("topic")
+            data = {
+                "title": topic["title"],
+                "id": topic["id"],
+                "tags": topic["tags"],
+                "category": topic["category_id"],
+                "url": self.construct_topic_url(topic),
+            }
+            initiator = {"user_id": topic["created_by"]["username"], "provider": "discourse"}
+            self.send_event_to_driver(event_type="topic_created", initiator=initiator, data=data)
 
 
 """
