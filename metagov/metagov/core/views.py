@@ -24,7 +24,7 @@ from drf_yasg.utils import swagger_auto_schema
 from metagov.core import utils
 from metagov.core.middleware import CommunityMiddleware, openapi_community_header
 from metagov.core.models import Community, GovernanceProcess, Plugin, ProcessStatus
-from metagov.core.openapi_schemas import Tags, community_schema
+from metagov.core.openapi_schemas import Tags, community_schema, action_list_schema, process_list_schema
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer
 from rest_framework import status
@@ -63,7 +63,7 @@ def home(request):
     method="put",
     operation_id="Create or update community",
     request_body=community_schema,
-    responses={200: community_schema, 200: community_schema},
+    responses={200: community_schema, 201: community_schema},
     tags=[Tags.COMMUNITY],
 )
 @api_view(["GET", "PUT", "DELETE"])
@@ -105,7 +105,22 @@ def community(request, name):
         return JsonResponse({"message": "Community was deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
 
 
-@swagger_auto_schema(method="get", operation_id="List community web hook receivers", tags=[Tags.COMMUNITY])
+@swagger_auto_schema(
+    method="get",
+    operation_id="List community web hook receivers",
+    responses={
+        200: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "hooks": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(type=openapi.TYPE_STRING),
+                )
+            },
+        )
+    },
+    tags=[Tags.COMMUNITY],
+)
 @api_view(["GET"])
 def list_hooks(request, name):
     try:
@@ -125,7 +140,8 @@ def list_hooks(request, name):
 
 @swagger_auto_schema(
     method="get",
-    operation_id="List available actions and their schemas.",
+    operation_id="List available actions",
+    responses={200: action_list_schema},
     tags=[Tags.COMMUNITY],
 )
 @api_view(["GET"])
@@ -149,9 +165,11 @@ def list_actions(request, name):
             )
     return JsonResponse({"actions": actions})
 
+
 @swagger_auto_schema(
     method="get",
-    operation_id="List available governance processes and their schemas.",
+    operation_id="List available governance processes",
+    responses={200: process_list_schema},
     tags=[Tags.COMMUNITY],
 )
 @api_view(["GET"])
@@ -174,6 +192,7 @@ def list_processes(request, name):
                 }
             )
     return JsonResponse({"processes": processes})
+
 
 @csrf_exempt
 @swagger_auto_schema(method="post", auto_schema=None)
