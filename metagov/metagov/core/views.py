@@ -123,6 +123,58 @@ def list_hooks(request, name):
     return JsonResponse({"hooks": hooks})
 
 
+@swagger_auto_schema(
+    method="get",
+    operation_id="List available actions and their schemas.",
+    tags=[Tags.COMMUNITY],
+)
+@api_view(["GET"])
+def list_actions(request, name):
+    try:
+        community = Community.objects.get(name=name)
+    except Community.DoesNotExist:
+        return HttpResponseNotFound()
+
+    actions = []
+    for plugin in Plugin.objects.filter(community=community):
+        cls = plugin_registry.get(plugin.name)
+        for (name, meta) in cls._action_registry.items():
+            actions.append(
+                {
+                    "id": f"{plugin.name}.{name}",
+                    "description": meta.description,
+                    "parameters_schema": meta.input_schema,
+                    "response_schema": meta.output_schema,
+                }
+            )
+    return JsonResponse({"actions": actions})
+
+@swagger_auto_schema(
+    method="get",
+    operation_id="List available governance processes and their schemas.",
+    tags=[Tags.COMMUNITY],
+)
+@api_view(["GET"])
+def list_processes(request, name):
+    try:
+        community = Community.objects.get(name=name)
+    except Community.DoesNotExist:
+        return HttpResponseNotFound()
+
+    processes = []
+    for plugin in Plugin.objects.filter(community=community):
+        cls = plugin_registry.get(plugin.name)
+        for (name, process_cls) in cls._process_registry.items():
+            processes.append(
+                {
+                    "id": f"{plugin.name}.{name}",
+                    "description": process_cls.description,
+                    "parameters_schema": process_cls.input_schema,
+                    "response_schema": process_cls.outcome_schema,
+                }
+            )
+    return JsonResponse({"processes": processes})
+
 @csrf_exempt
 @swagger_auto_schema(method="post", auto_schema=None)
 @api_view(["POST"])
