@@ -89,4 +89,5 @@ urlpatterns = [
     path(f"{utils.internal_path}/community/<slug:name>/hooks", views.list_hooks, name="list_hooks"),
     path(f"{utils.internal_path}/community/<slug:name>/actions", views.list_actions, name="list_actions"),
     path(f"{utils.internal_path}/community/<slug:name>/processes", views.list_processes, name="list_processes"),
+    path(f"{utils.internal_path}/community/<slug:name>/events", views.list_events, name="list_events"),
 ] + plugin_patterns

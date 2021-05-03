@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 opencollective_url = "https://opencollective.com"
 
+EVENT_EXPENSE_CREATED = "expense_created"
+
 
 @Registry.plugin
 class OpenCollective(Plugin):
@@ -29,6 +31,7 @@ class OpenCollective(Plugin):
         },
         "required": ["api_key", "collective_slug"],
     }
+    events = [{"type": EVENT_EXPENSE_CREATED, "schema": Schemas.expense_created_event}]
 
     class Meta:
         proxy = True
@@ -125,7 +128,7 @@ class OpenCollective(Plugin):
             expense_data = self.run_query(Queries.expense, variables)["expense"]
             self.add_expense_url(expense_data)
             initiator = {"user_id": expense_data["createdByAccount"]["slug"], "provider": "opencollective"}
-            self.send_event_to_driver(event_type="expense_created", initiator=initiator, data=expense_data)
+            self.send_event_to_driver(event_type=EVENT_EXPENSE_CREATED, initiator=initiator, data=expense_data)
 
     def add_expense_url(self, expense):
         url = f"{opencollective_url}/{self.config['collective_slug']}/expenses/{expense['legacyId']}"

@@ -105,3 +105,27 @@ list_processes = {
     "manual_parameters": [community_name_in_path],
     "tags": [Tags.COMMUNITY],
 }
+
+list_events = {
+    "method": "get",
+    "operation_id": "List available events",
+    "responses": {
+        200: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "events": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            "type": openapi.Schema(type=openapi.TYPE_STRING),
+                            "schema": openapi.Schema(type=openapi.TYPE_OBJECT),
+                        },
+                    ),
+                )
+            },
+        ),
+    },
+    "manual_parameters": [community_name_in_path],
+    "tags": [Tags.COMMUNITY],
+}

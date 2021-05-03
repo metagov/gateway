@@ -153,6 +153,23 @@ def list_actions(request, name):
     return JsonResponse({"actions": actions})
 
 
+@swagger_auto_schema(**MetagovSchemas.list_events)
+@api_view(["GET"])
+def list_events(request, name):
+    try:
+        community = Community.objects.get(name=name)
+    except Community.DoesNotExist:
+        return HttpResponseNotFound()
+
+    result = []
+    for plugin in Plugin.objects.filter(community=community):
+        cls = plugin_registry.get(plugin.name)
+        for event in cls.events:
+            if event.get("type"):
+                result.append({"event_type": event["type"], "source": plugin.name, "schema": event.get("schema")})
+    return JsonResponse({"events": result})
+
+
 @swagger_auto_schema(**MetagovSchemas.list_processes)
 @api_view(["GET"])
 def list_processes(request, name):

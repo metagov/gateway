@@ -25,3 +25,11 @@ process_expense = {
     },
     "required": ["expense_id", "action"],
 }
+
+expense_created_event = {
+    "type": "object",
+    "additionalProperties": True,
+    "properties": {
+        "url": {"type": "string"}
+    }
+}

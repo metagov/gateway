@@ -12,6 +12,9 @@ from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
 logger = logging.getLogger(__name__)
 
+EVENT_POST_CREATED = "post_created"
+EVENT_TOPIC_CREATED = "topic_created"
+
 
 @Registry.plugin
 class Discourse(Plugin):
@@ -27,6 +30,7 @@ class Discourse(Plugin):
         },
         "required": ["api_key", "server_url", "webhook_secret"],
     }
+    events = [{"type": EVENT_POST_CREATED}, {"type": EVENT_TOPIC_CREATED}]
 
     class Meta:
         proxy = True
@@ -177,7 +181,7 @@ class Discourse(Plugin):
                 "url": self.construct_post_url(post),
             }
             initiator = {"user_id": post["username"], "provider": "discourse"}
-            self.send_event_to_driver(event_type="post_created", initiator=initiator, data=data)
+            self.send_event_to_driver(event_type=EVENT_POST_CREATED, initiator=initiator, data=data)
         elif event == "topic_created":
             topic = body.get("topic")
             data = {
@@ -188,7 +192,7 @@ class Discourse(Plugin):
                 "url": self.construct_topic_url(topic),
             }
             initiator = {"user_id": topic["created_by"]["username"], "provider": "discourse"}
-            self.send_event_to_driver(event_type="topic_created", initiator=initiator, data=data)
+            self.send_event_to_driver(event_type=EVENT_TOPIC_CREATED, initiator=initiator, data=data)
 
 
 """
