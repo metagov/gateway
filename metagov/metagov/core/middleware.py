@@ -2,7 +2,6 @@ import json
 import logging
 
 from django.http import HttpResponseBadRequest, HttpResponseServerError
-from drf_yasg import openapi
 from metagov.core.models import Community
 from rest_framework.views import exception_handler
 
@@ -31,11 +30,6 @@ class CommunityMiddleware:
         except Community.DoesNotExist:
             return HttpResponseBadRequest(f"Community '{community_name}' not found")
         request.community = community
-
-
-openapi_community_header = openapi.Parameter(
-    COMMUNITY_HEADER, openapi.IN_HEADER, required=True, type=openapi.TYPE_STRING, description="Unique community slug"
-)
 
 
 def api_500_exception_handler(exception, context):

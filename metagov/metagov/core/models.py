@@ -1,7 +1,6 @@
 import json
 import logging
 import time
-import jsonpickle
 from enum import Enum
 
 import jsonpickle
@@ -113,6 +112,7 @@ class ProcessStatus(Enum):
     PENDING = "pending"
     COMPLETED = "completed"
 
+
 class GovernanceProcessManager(models.Manager):
     def get_queryset(self):
         qs = super(GovernanceProcessManager, self).get_queryset()
@@ -120,6 +120,7 @@ class GovernanceProcessManager(models.Manager):
             # this is a proxy model, so only return processes of this proxy type
             return qs.filter(name=self.model.name, plugin__name=self.model.plugin_name)
         return qs
+
 
 class GovernanceProcess(models.Model):
     """Represents an instance of a governance process."""
@@ -132,10 +133,18 @@ class GovernanceProcess(models.Model):
     plugin = models.ForeignKey(
         Plugin, models.CASCADE, related_name="plugin", help_text="Plugin instance that this process belongs to"
     )
-    state = models.OneToOneField(DataStore, models.CASCADE, help_text="Datastore to persist any internal state", null=True)
+    state = models.OneToOneField(
+        DataStore, models.CASCADE, help_text="Datastore to persist any internal state", null=True
+    )
     errors = models.JSONField(default=dict, blank=True, help_text="Errors to serialize and send back to driver")
     outcome = models.JSONField(default=dict, blank=True, help_text="Outcome to serialize and send back to driver")
-    input_schema = {}
+
+    # Optional: description of the governance process
+    description = None
+    # Optional: JSONSchema for start parameters object
+    input_schema = None
+    # Optional: JSONSchema for outcome object
+    outcome_schema = None
 
     objects = GovernanceProcessManager()
 

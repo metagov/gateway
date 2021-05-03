@@ -34,10 +34,7 @@ See the full documentation at https://docs.metagov.org/
 """,
         # contact=openapi.Contact(email="hello@metagov.org"),
         # license=openapi.License(name="MIT License"),
-        x_logo={
-            "url": "https://metagov.org/wp-content/uploads/2019/09/logo-copy-150x150.png",
-            "href": "#"
-        }
+        x_logo={"url": "https://metagov.org/wp-content/uploads/2019/09/logo-copy-150x150.png", "href": "#"},
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
@@ -90,4 +87,6 @@ urlpatterns = [
     ),
     path(f"{utils.internal_path}/community/<slug:name>", views.community, name="community"),
     path(f"{utils.internal_path}/community/<slug:name>/hooks", views.list_hooks, name="list_hooks"),
+    path(f"{utils.internal_path}/community/<slug:name>/actions", views.list_actions, name="list_actions"),
+    path(f"{utils.internal_path}/community/<slug:name>/processes", views.list_processes, name="list_processes"),
 ] + plugin_patterns
