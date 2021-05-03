@@ -22,9 +22,10 @@ from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from metagov.core import utils
-from metagov.core.middleware import CommunityMiddleware, openapi_community_header
+from metagov.core.middleware import CommunityMiddleware
 from metagov.core.models import Community, GovernanceProcess, Plugin, ProcessStatus
-from metagov.core.openapi_schemas import Tags, community_schema, action_list_schema, process_list_schema
+from metagov.core.openapi_schemas import Tags
+import metagov.core.openapi_schemas as MetagovSchemas
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer
 from rest_framework import status
@@ -53,17 +54,23 @@ def home(request):
 @swagger_auto_schema(
     method="delete",
     operation_id="Delete community",
+    manual_parameters=[MetagovSchemas.community_name_in_path],
     operation_description="Delete the community",
     tags=[Tags.COMMUNITY],
 )
 @swagger_auto_schema(
-    method="get", operation_id="Get community", responses={200: community_schema}, tags=[Tags.COMMUNITY]
+    method="get",
+    operation_id="Get community",
+    manual_parameters=[MetagovSchemas.community_name_in_path],
+    responses={200: MetagovSchemas.community_schema},
+    tags=[Tags.COMMUNITY],
 )
 @swagger_auto_schema(
     method="put",
     operation_id="Create or update community",
-    request_body=community_schema,
-    responses={200: community_schema, 201: community_schema},
+    manual_parameters=[MetagovSchemas.community_name_in_path],
+    request_body=MetagovSchemas.community_schema,
+    responses={200: MetagovSchemas.community_schema, 201: MetagovSchemas.community_schema},
     tags=[Tags.COMMUNITY],
 )
 @api_view(["GET", "PUT", "DELETE"])
@@ -105,22 +112,7 @@ def community(request, name):
         return JsonResponse({"message": "Community was deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
 
 
-@swagger_auto_schema(
-    method="get",
-    operation_id="List community web hook receivers",
-    responses={
-        200: openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                "hooks": openapi.Schema(
-                    type=openapi.TYPE_ARRAY,
-                    items=openapi.Items(type=openapi.TYPE_STRING),
-                )
-            },
-        )
-    },
-    tags=[Tags.COMMUNITY],
-)
+@swagger_auto_schema(**MetagovSchemas.list_hooks)
 @api_view(["GET"])
 def list_hooks(request, name):
     try:
@@ -138,12 +130,7 @@ def list_hooks(request, name):
     return JsonResponse({"hooks": hooks})
 
 
-@swagger_auto_schema(
-    method="get",
-    operation_id="List available actions",
-    responses={200: action_list_schema},
-    tags=[Tags.COMMUNITY],
-)
+@swagger_auto_schema(**MetagovSchemas.list_actions)
 @api_view(["GET"])
 def list_actions(request, name):
     try:
@@ -166,12 +153,7 @@ def list_actions(request, name):
     return JsonResponse({"actions": actions})
 
 
-@swagger_auto_schema(
-    method="get",
-    operation_id="List available governance processes",
-    responses={200: process_list_schema},
-    tags=[Tags.COMMUNITY],
-)
+@swagger_auto_schema(**MetagovSchemas.list_processes)
 @api_view(["GET"])
 def list_processes(request, name):
     try:
@@ -289,7 +271,7 @@ def decorated_create_process_view(plugin_name, slug):
         operation_id=f"Start {prefixed_slug}",
         tags=[Tags.GOVERNANCE_PROCESS],
         operation_description=f"Start a new governance process of type '{prefixed_slug}'",
-        manual_parameters=[openapi_community_header],
+        manual_parameters=[MetagovSchemas.community_header],
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
@@ -411,7 +393,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
     arg_dict = {
         "method": "post",
         "operation_description": meta.description,
-        "manual_parameters": [openapi_community_header],
+        "manual_parameters": [MetagovSchemas.community_header],
         "operation_id": prefixed_slug,
         "tags": tags or [Tags.ACTION],
     }
