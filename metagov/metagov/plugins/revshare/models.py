@@ -6,7 +6,7 @@ import metagov.core.plugin_decorators as Registry
 import metagov.plugins.revshare.schemas as Schemas
 from metagov.core.models import Plugin
 
-logger = logging.getLogger("django")
+logger = logging.getLogger(__name__)
 
 
 @Registry.plugin

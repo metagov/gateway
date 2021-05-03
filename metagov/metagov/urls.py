@@ -15,7 +15,7 @@ from metagov.core.plugin_decorators import plugin_registry
 # from schema_graph.views import Schema
 
 
-logger = logging.getLogger("django")
+logger = logging.getLogger(__name__)
 
 # TODO: Add endpoints to expose schemas for actions, processes, and resources
 

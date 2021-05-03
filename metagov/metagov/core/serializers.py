@@ -6,7 +6,7 @@ from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.validators import DefaultValidatingDraft7Validator
 from rest_framework import serializers
 
-logger = logging.getLogger("django")
+logger = logging.getLogger(__name__)
 
 
 def create_or_update_plugin(plugin_name, plugin_config, community):

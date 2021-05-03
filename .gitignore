@@ -8,6 +8,7 @@ metagov/env/
 metagov/static
 metagov/db.sqlite3
 .env
+metagov/*.log
 
 # readthedocs
 docs/_build

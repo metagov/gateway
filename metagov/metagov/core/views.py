@@ -36,7 +36,7 @@ from rest_framework.views import APIView
 
 community_middleware = decorator_from_middleware(CommunityMiddleware)
 
-logger = logging.getLogger("django")
+logger = logging.getLogger(__name__)
 
 WEBHOOK_SLUG_CONFIG_KEY = "webhook_slug"
 

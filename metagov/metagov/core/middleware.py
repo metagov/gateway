@@ -6,7 +6,7 @@ from drf_yasg import openapi
 from metagov.core.models import Community
 from rest_framework.views import exception_handler
 
-logger = logging.getLogger("django")
+logger = logging.getLogger(__name__)
 
 COMMUNITY_HEADER = "X-Metagov-Community"
 

@@ -11,7 +11,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from social_core.backends.base import BaseAuth
 
-logger = logging.getLogger("django")
+logger = logging.getLogger(__name__)
 
 
 def generate_nonce(length=8):

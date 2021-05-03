@@ -7,7 +7,7 @@ import metagov.plugins.near.schemas as Schemas
 import near_api
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
-logger = logging.getLogger("django")
+logger = logging.getLogger(__name__)
 
 
 @Registry.plugin

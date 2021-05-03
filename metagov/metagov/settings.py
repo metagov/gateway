@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
-import sys
 import environ
 import yaml
 
@@ -25,6 +24,7 @@ env = environ.Env(
     DATABASE_PATH=(str, os.path.join(BASE_DIR, "db.sqlite3")),
     DRIVER_EVENT_RECEIVER_URL=(str, ""),
     SERVER_URL=(str, "http://127.0.0.1:8000"),
+    LOG_FILE=(str, "debug.log"),
 )
 # reading .env file
 environ.Env.read_env()
@@ -41,6 +41,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 # URL where the Driver can receive event notifications (optional)
 DRIVER_EVENT_RECEIVER_URL = env("DRIVER_EVENT_RECEIVER_URL")
 
+METAGOV_CORE_APP = "metagov.core"
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -51,18 +52,20 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "drf_yasg",
-    "metagov.core",
+    METAGOV_CORE_APP,
     "django_extensions",
     # 'schema_graph',
 ]
 
-# Add plugins to INSTALLED_APPS
+PLUGIN_APPS = []
 PLUGINS_DIR = os.path.join(BASE_DIR, "metagov", "plugins")
 for item in os.listdir(PLUGINS_DIR):
     if os.path.isdir(os.path.join(PLUGINS_DIR, item)) and not item.startswith("__"):
         app_name = "metagov.plugins.%s" % item
         if app_name not in INSTALLED_APPS:
-            INSTALLED_APPS += (app_name,)
+            PLUGIN_APPS += (app_name,)
+
+INSTALLED_APPS += PLUGIN_APPS
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.coreapi.AutoSchema",
@@ -109,24 +112,44 @@ AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend"]
 
 ROOT_URLCONF = "metagov.urls"
 
+### Logging
+import sys
+
+# Set default log level for Metagov and Plugins
+DEFAULT_LOG_LEVEL_FOR_TESTS = "DEBUG"
+DEFAULT_LOG_LEVEL = "DEBUG"
+
+TESTING = sys.argv[1:2] == ["test"]
+LOG_LEVEL = DEFAULT_LOG_LEVEL_FOR_TESTS if TESTING else DEFAULT_LOG_LEVEL
+
+# Generate loggers for Metagov and Plugins
+loggers = {}
+for app in [METAGOV_CORE_APP] + PLUGIN_APPS:
+    loggers.update({app: {"handlers": ["console", "file"], "level": LOG_LEVEL}})
+
+# Set log level to WARN for everything else (imported dependencies)
+loggers[""] = {"handlers": ["console", "file"], "level": "WARN"}
+
+# Override for specific apps
+# loggers['metagov.plugins.opencollective'] = {'handlers': ['console', 'file'], 'level': "DEBUG"}
+# loggers['metagov.plugins.opencollective.models'] = {'handlers': ['console', 'file'], 'level': "WARN"}
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "formatters": {
+        "console": {"format": "%(name)-12s %(levelname)-8s %(message)s"},
+        "file": {"format": "%(asctime)s %(name)-12s %(levelname)-8s %(message)s"},
+    },
     "handlers": {
-        # "file": {
-        #     "level": "DEBUG",
-        #     "class": "logging.FileHandler",
-        #     "filename": "/var/log/django/debug.log",
-        # },
-        "console": {"level": "INFO", "class": "logging.StreamHandler", "stream": sys.stdout},
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": env("LOG_FILE"),
+            "formatter": "file",
+        },
+        "console": {"class": "logging.StreamHandler", "formatter": "console"},
     },
-    "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": True,
-        }
-    },
+    "loggers": loggers,
 }
 
 TEMPLATES = [

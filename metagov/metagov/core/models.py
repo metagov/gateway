@@ -14,7 +14,7 @@ from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 from drf_yasg import openapi
 
-logger = logging.getLogger("django")
+logger = logging.getLogger(__name__)
 
 
 class Community(models.Model):

@@ -10,7 +10,7 @@ import requests
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
-logger = logging.getLogger("django")
+logger = logging.getLogger(__name__)
 
 
 @Registry.plugin
