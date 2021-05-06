@@ -64,10 +64,15 @@ class ApiTests(TestCase):
             # status should be pending
             response = self.client.get(location, content_type="application/json")
             self.assertContains(response, "poll_url")
-            self.assertContains(response, "pending")
+
+            process = DiscoursePoll.objects.first()
+            self.assertEqual(process.status, "pending")
 
             # change mock to include some votes
             m.get(f"{mock_server_url}/t/0.json", json=DiscourseMock.topic_with_open_poll_and_votes)
+
+            # call "update" (in prod, would be invoked from celery task)
+            process.update()
 
             # status should still be pending
             response = self.client.get(location, content_type="application/json")
@@ -75,17 +80,20 @@ class ApiTests(TestCase):
             self.assertContains(response, "pending")
             self.assertContains(response, "25")  # current vote count is included in the response
 
-            return location
+            return (location, process)
 
     def test_discourse_poll_closed_in_discourse(self):
         """SCENARIO: user closed the vote early in discourse"""
         self.assertEqual(DiscoursePoll.objects.all().count(), 0)
 
-        location = self.start_discourse_poll()
+        location, process = self.start_discourse_poll()
 
         with requests_mock.Mocker() as m:
             # change mock to be closed
             m.get(f"{mock_server_url}/t/0.json", json=DiscourseMock.topic_with_closed_poll_and_votes)
+
+            # call "update" (in prod, would be invoked from celery task)
+            process.update()
 
             # status should be completed
             response = self.client.get(location, content_type="application/json")
@@ -97,7 +105,7 @@ class ApiTests(TestCase):
         """SCENARIO: driver closes vote early using DELETE request"""
         self.assertEqual(DiscoursePoll.objects.all().count(), 0)
 
-        location = self.start_discourse_poll()
+        location, process = self.start_discourse_poll()
 
         with requests_mock.Mocker() as m:
             # mock toggle_status
