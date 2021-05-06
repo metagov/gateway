@@ -95,7 +95,7 @@ class StochasticVote(GovernanceProcess):
         self.status = ProcessStatus.PENDING.value
         self.save()
 
-    def check_status(self):
+    def update(self):
         closing_at = self.state.get("closing_at")
         if datetime.now(timezone.utc) >= closing_at:
             self.close()
