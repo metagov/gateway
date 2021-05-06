@@ -65,7 +65,7 @@ class Plugin(models.Model):
     config = models.JSONField(default=dict, null=True, blank=True, help_text="Configuration for this plugin instance")
     state = models.OneToOneField(DataStore, models.CASCADE, help_text="Datastore to persist any state", null=True)
     config_schema = {}  # can be overridden to set jsonschema of config
-    events = [] # override to declare events and their schemas
+    events = []  # override to declare events and their schemas
     objects = PluginManager()
 
     class Meta:
@@ -126,7 +126,9 @@ class GovernanceProcess(models.Model):
     """Represents an instance of a governance process."""
 
     name = models.CharField(max_length=30)
-    callback_url = models.CharField(max_length=50, null=True, blank=True)
+    callback_url = models.CharField(
+        max_length=50, null=True, blank=True, help_text="Callback URL to notify when the process is updated"
+    )
     status = models.CharField(
         max_length=15, choices=[(s.value, s.name) for s in ProcessStatus], default=ProcessStatus.CREATED.value
     )
@@ -157,21 +159,25 @@ class GovernanceProcess(models.Model):
         # save status when model is loaded from database, so we can tell when it changes
         loaded_values = dict(zip(field_names, values))
         instance._loaded_status = loaded_values["status"]
+        instance._loaded_outcome = loaded_values["outcome"]
         return instance
 
     def save(self, *args, **kwargs):
-        """Saves the process. If the ``status`` was changed to ``completed`` and there is a ``callback_url`` defined
-        for this process, it will post the serialized process to the callback URL. Do not override this function."""
+        """Saves the process. If the ``status`` was changed to ``completed``, OR if the ``outcome`` was changed,
+        it will post the serialized process to the ``callback_url``. Do not override this function."""
         if not self.pk:
             self.state = DataStore.objects.create()
 
         if not self._state.adding:
-            if self.status != self._loaded_status:
-                logger.info(f"[{self}] {self._loaded_status} -> {self.status}")
-                if self.status == ProcessStatus.COMPLETED.value:
-                    notify_process_completed(self)
-        elif not hasattr(self, "_loaded_status"):
+            if self.status != self._loaded_status and self.status == ProcessStatus.COMPLETED.value:
+                logger.info(f"Status changed to COMPLETED. Notifying Driver at callback URL.")
+                notify_callback_url(self)
+            elif self.outcome != self._loaded_outcome:
+                logger.info(f"Outcome changed. Notifying Driver at callback URL.")
+                notify_callback_url(self)
+        elif not hasattr(self, "_loaded_status") or not hasattr(self, "_loaded_outcome"):
             self._loaded_status = self.status
+            self._loaded_outcome = self.outcome
         super(GovernanceProcess, self).save(*args, **kwargs)
 
     def start(self, parameters):
@@ -199,7 +205,7 @@ class GovernanceProcess(models.Model):
 
         - Make a request to close the governance process in an external system
 
-        - If process was closed successfully, set ``status`` to ``completed`` and put the outcome into ``self.outcome``.
+        - If the process was closed successfully, set ``status`` to ``completed`` and set the ``outcome``.
 
         - If the process failed to close, set ``errors`` or raise an exception of type ``PluginErrorInternal``.
 
@@ -207,37 +213,40 @@ class GovernanceProcess(models.Model):
         """
         raise NotImplementedError
 
-    def check_status(self):
-        """(OPTIONAL) Check the status of the process. May be called repeatedly to poll for changes.
-
-        Most implementations of this function will:
-
-        - Make a request to get the current status from an external system
-
-        - Update ``state``, ``status`` (if process closed), ``outcome``, and/or ``errors`` as needed.
-
-        - Call ``self.save()`` to persist changes."""
-        pass
-
     def receive_webhook(self, request):
-        """(OPTIONAL) Receive an incoming webhook from an external system.
+        """(OPTIONAL) Receive an incoming webhook from an external system. This is the preferred way to update the process state.
 
         Most implementations of this function will:
 
-        - Check if the webhook request pertains to this process instance.
+        - Check if the webhook request pertains to this process.
 
-        - Update ``state``, ``status`` (if process closed), ``outcome``, and/or ``errors`` as needed.
+        - Update ``state``, ``status``, ``outcome``, and/or ``errors`` as needed.
+
+        - Call ``self.save()`` to persist changes."""
+        pass
+
+    def update(self):
+        """(OPTIONAL) Update the process outcome. This function will be invoked repeatedly from a scheduled task. It's only necessary to implement
+        this function if you can't use webhooks to update the process state.
+
+        Implementations of this function might:
+
+        - Make a request to get the current status from an external system. OR,
+
+        - Check if a closing condition has has been met. For example, if a voting process should be closed after a specified amount of time.
+
+        - Update ``state``, ``status``, ``outcome``, and/or ``errors`` as needed.
 
         - Call ``self.save()`` to persist changes."""
         pass
 
 
-def notify_process_completed(process: GovernanceProcess):
-    """Notify the Driver that this GovernanceProess has completed."""
-    assert process.status == ProcessStatus.COMPLETED.value
+def notify_callback_url(process: GovernanceProcess):
+    """Notify the Driver that this GovernanceProess has completed or that the outcome has been updated."""
     if not process.callback_url:
         return
-    logger.info(f"Posting completed process outcome to '{process.callback_url}'")
+    logger.info(f"Posting process to '{process.callback_url}'")
+
     from metagov.core.serializers import GovernanceProcessSerializer
 
     serializer = GovernanceProcessSerializer(process)

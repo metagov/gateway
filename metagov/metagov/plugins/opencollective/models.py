@@ -175,14 +175,14 @@ class OpenCollectiveVote(GovernanceProcess):
         self.status = ProcessStatus.PENDING.value
         self.save()
 
-    def check_status(self):
+    def update(self):
         result = self.plugin.run_query(Queries.conversation, {"id": self.state.get("id")})
         data = result["conversation"]
         self.update_outcome_from_conversation(data)
 
     def close(self):
         logger.info("Closing Open Collective vote...'")
-        self.check_status()  # update self.outcome to most recent vote count
+        self.update()  # update self.outcome to most recent vote count
 
         # change conversation title
         conversation_id = self.state.get("id")

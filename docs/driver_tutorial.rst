@@ -108,35 +108,27 @@ The shape of the response body is defined by the SourceCred plugin.
 The request will fail if the ``sourcecred`` plugin is not enabled for the community ``my-community-1234``.
 
 
-Performing Async Governance Processes
+Performing Governance Processes
 -------------------------------------
 
-Asynchronous governance processes are long-running decision-making processes such as votes, elections, or budgeting processes.
-These processes typically involve some engagement from community members, and can last anywhere from minutes to weeks.
+A Governance Process is a decision-making process, such as a vote, election, or budgeting process.
+This process typically involves some engagement from community members, and can last anywhere from minutes to hours to weeks.
 
-The available processes, along with their input and output types, are listed in the API docs.
-You can find those at ``/swagger`` or ``/redoc`` of your Metagov instance. Or, take a look at the
-`dev instance Metagov API docs <https://prototype.metagov.org/redoc/>`_.
+The currently supported governance processes are listed in the API docs, which can be found at ``/swagger`` or ``/redoc`` on your Metagov instance.
+Or, take a look at the `dev instance Metagov API docs <https://prototype.metagov.org/redoc/>`_.
 
-The Driver can kick off an async governance process by making a request to the Metagov API at ``/api/internal/process/<plugin>.<process>``.
-
-Depending on the process, you can take a "push" or "pull" approach to handle the asynchronous nature of governance processes:
-
-"Pull" approach
-^^^^^^^^^^^^^^^
-
-With this approach, the Driver needs to poll the process state continually until it completes, or until the Driver decides to close it.
-
-Here's an example of kicking off a process. If the process successfully started, it will respond with status code ``202 Accepted``,
-and a ``Location`` header that provides the URL of the process.
+The governance process endpoints use a typical asynchronous request-reply pattern with callbacks.
+Here's an example CURL request that kicks off a ``loomio.poll`` process:
 
 .. code-block:: shell
+    :emphasize-lines: 6
 
     # request
     curl -i -X POST 'http://127.0.0.1:8000/api/internal/process/loomio.poll' \
         -H 'X-Metagov-Community: my-community-1234' \
         -H 'Content-Type: application/json' \
         --data-raw '{
+            "callback_url": "https://mydriver.org/receive-outcome/4",
             "title": "the title of the poll",
             "options": ["one", "two", "three"],
             "closing_at": "2022-01-01"
@@ -144,9 +136,13 @@ and a ``Location`` header that provides the URL of the process.
 
     # response
     HTTP/1.1 202 Accepted
-    Location: /api/internal/process/loomio.poll/127 # location of the process that just kicked off
+    Location: /api/internal/process/loomio.poll/127   # <-- location of the process
 
-Using the URL from the ``Location`` header, poll the status of the process:
+
+The ``callback_url`` parameter is special. When the process completes, or when the outcome is changed (for example a vote is cast), Metagov will make a POST request
+to the callback URL with the process record.
+
+After kicking off a process, make a ``GET`` request to the URL from the ``Location`` header to get initial information about the process:
 
 .. code-block:: shell
 
@@ -161,21 +157,18 @@ Using the URL from the ``Location`` header, poll the status of the process:
         "community": "my-community-1234",
         "status": "pending",
         "errors": {},
-        "outcome": {
+        "outcome": {   # <-- the shape of this object will differ for each process
             "poll_url": "https://www.loomio.org/p/1234",
             "votes": {"one": 1, "two": 0, "three": 0}
         }
     }
 
-The Driver can poll that process continually until it returns a record with ``status: "completed"``. Depending on the plugin
-implementation, the ``outcome`` may be updated continually as the process progresses (counting votes as they are cast, for example).
-
-In some cases, the plugin exposes a way for the Driver to "close" the process early. Close a process by making a ``DELETE`` request:
+If the plugin supports it, the Driver can "close" the process early by making a ``DELETE`` request to the same location:
 
 .. code-block:: shell
 
     # request
-    curl -i -X DELETE 'http://127.0.0.1:8000/api/internal/process/discourse.poll/128'
+    curl -i -X DELETE 'http://127.0.0.1:8000/api/internal/process/discourse.poll/127'
 
     # response
     HTTP/1.1 200 OK
@@ -187,42 +180,11 @@ In some cases, the plugin exposes a way for the Driver to "close" the process ea
         "status": "completed",
         "errors": {},
         "outcome": {
-            "poll_url": "https://discourse.metagov.org/t/miri-comm-poll/100",
-            "votes": {"one": 1, "two": 4, "three": 2}
+            "poll_url": "https://www.loomio.org/p/1234",
+            "votes": {"one": 1, "two": 2, "three": 4}
         }
     }
 
-"Push" approach
-^^^^^^^^^^^^^^^
-
-Some governance processes may take days, weeks, or months. Because of this, it's usually preferable to take a "push" approach when possible, so
-the Driver isn't wasting resources by continually polling long-running processes.
-With this approach, the Driver passes the special parameter ``callback_url``. When the process completes, Metagov makes a POST request
-to the callback URL with the completed process record. The record will have the same shape as the response from the GET process endpoint.
-
-Here's an example of kicking off a process with a ``callback_url``:
-
-.. code-block:: shell
-    :emphasize-lines: 6
-
-    # request
-    curl -i -X POST 'http://127.0.0.1:8000/api/internal/process/loomio.poll' \
-        -H 'X-Metagov-Community: my-community-1234' \
-        -H 'Content-Type: application/json' \
-        --data-raw '{
-            "callback_url": "https://mydriver.org/receive-outcome/4
-            "title": "the title of the poll",
-            "options": ["one", "two", "three"],
-            "closing_at": "2022-01-01"
-        }'
-
-    # response
-    HTTP/1.1 202 Accepted
-    Location: /api/internal/process/loomio.poll/127
-
-
-Make a ``GET`` request to the ``Location`` to get initial information about the process.
-If the plugin supports it, the Driver can still close the process early by making a ``DELETE`` request.
 
 Subscribing to Events
 ---------------------

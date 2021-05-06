@@ -263,9 +263,8 @@ class DiscoursePoll(GovernanceProcess):
         self.status = ProcessStatus.PENDING.value
         self.save()
 
-    def check_status(self):
+    def update(self):
         """
-        Polling function for the Driver to call (GET /process/<id>) to see if the vote has ended yet.
         We make a request to Discourse EVERY time, here, so that we can catch cases where the poll was closed
         manually by a user. Would be simplified if we disallow that, and instead this function could just
         check if `closing_at` has happened yet (if set) and call close() if it has.

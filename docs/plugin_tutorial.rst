@@ -288,14 +288,15 @@ This snippet shows all possible functions you can implement on your proxy model:
             # Override this function (OPTIONAL).
             # Close the governance process and save the outcome.
 
-        def check_status(self):
+        def update(self):
             # Override this function (OPTIONAL).
-            # Update status and/or outcome, if applicable. This function may be called repeatedly on a schedule.
+            # Update status and/or outcome, if applicable. This function is called repeatedly on a schedule.
             pass
 
         def receive_webhook(self, request):
             # Override this function (OPTIONAL).
             # Receive incoming webhook request for plugin instance.
+            # Update status and/or outcome, if applicable.
             pass
 
 
@@ -332,11 +333,11 @@ platform that is capable of emitting a webhook when the process ends (and/or whe
 Implement the ``receive_webhook`` listener. Use it to update status and outcome, if applicable.
 See the Loomio plugin for an example.
 
-**PULL approach: Use "check_status" to poll for changes in the process.**
+**PULL approach: Use "update" to poll for changes in the process.**
 
-Implement ``check_status`` to check the status of the async process, possibly by making
+Implement ``update`` to check the status of the async process, possibly by making
 a request to an external platform. Update status and outcome, if applicable.
-The Driver is responsible for polling check_status.
+Metagov core calls the ``update`` function every minute from a scheduled task.
 See the Discourse plugin for an example.
 
 .. seealso:: See the :doc:`Reference Documentation <../autodocs/core>` for more information about the ``GovernanceProcess`` models.

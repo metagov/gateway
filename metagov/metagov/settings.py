@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_celery_beat",
+    "django_celery_results",
     "rest_framework",
     "drf_yasg",
     METAGOV_CORE_APP,
@@ -219,3 +221,18 @@ USE_TZ = True
 
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
 STATIC_URL = "/static/"
+
+# Celery configuration
+
+from celery.schedules import crontab
+
+# In production, replace this "amqp://USERNAME:PASSWORD@localhost:5672/VIRTUALHOST"
+CELERY_BROKER_URL = "amqp://"
+
+CELERY_BEAT_FREQUENCY = 60.0 * 3
+CELERY_BEAT_SCHEDULE = {
+    "plugin-tasks-beat": {
+        "task": "metagov.core.tasks.execute_plugin_tasks",
+        "schedule": CELERY_BEAT_FREQUENCY,
+    }
+}

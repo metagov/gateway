@@ -350,11 +350,6 @@ def decorated_get_process_view(plugin_name, slug):
             if process.status != ProcessStatus.COMPLETED.value:
                 raise APIException("Failed to close process")
 
-        # If the process is pending, poll it. This may update process state.
-        if process.status == ProcessStatus.PENDING.value:
-            logger.info(f"Checking status of: {process}")
-            process.check_status()
-
         serializer = GovernanceProcessSerializer(process)
         logger.info(f"Returning serialized process: {serializer.data}")
         return JsonResponse(serializer.data)

@@ -20,6 +20,7 @@ def plugin(cls):
 
     cls._action_registry = {}
     cls._process_registry = {}
+    cls._task_function = None
 
     plugin_registry[cls.name] = cls
     for methodname in dir(cls):
@@ -30,6 +31,8 @@ def plugin(cls):
             if meta.slug in cls._action_registry:
                 raise Exception(f"'{cls.name}.{meta.slug}' already registered")
             cls._action_registry[meta.slug] = method._meta
+        elif hasattr(method, "_meta_task"):
+            cls._task_function = methodname
     return cls
 
 
@@ -59,6 +62,15 @@ def governance_process(cls):
 
     cls.add_to_class("get_plugin", get_plugin)
     return cls
+
+def event_producer_task():
+    """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register a task that sends Events to the Driver."""
+
+    def wrapper(function):
+        function._meta_task = True
+        return function
+
+    return wrapper
 
 
 class ActionFunctionMeta:
