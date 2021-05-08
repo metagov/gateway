@@ -127,7 +127,7 @@ LOG_LEVEL = DEFAULT_LOG_LEVEL_FOR_TESTS if TESTING else DEFAULT_LOG_LEVEL
 # Generate loggers for Metagov and Plugins
 loggers = {}
 for app in [METAGOV_CORE_APP] + PLUGIN_APPS:
-    loggers.update({app: {"handlers": ["console", "file"], "level": LOG_LEVEL}})
+    loggers.update({app: {"handlers": ["console", "file"], "level": LOG_LEVEL, "propagate": False}})
 
 # Set log level to WARN for everything else (imported dependencies)
 loggers[""] = {"handlers": ["console", "file"], "level": "WARN"}

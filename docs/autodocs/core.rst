@@ -14,7 +14,7 @@ Plugin authors implement `Proxy Models <https://docs.djangoproject.com/en/3.1/to
 
 .. autoclass:: metagov.core.models.GovernanceProcess
     :members:
-    :exclude-members: DoesNotExist, MultipleObjectsReturned
+    :exclude-members: save, DoesNotExist, MultipleObjectsReturned
 
 |
 
