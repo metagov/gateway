@@ -190,18 +190,24 @@ Give the ``celery`` user access to necessary pid and log folders:
     sudo chown -R celery:celery /var/run/celery
     sudo chmod -R 755 /var/run/celery
 
-The ``celery`` user will also need write-access to the Django log files.
-The ``www-data`` user (Apache2) should own the log directory.
-To give ``celery`` access, create a group that contains both ``www-data`` and ``celery``.
-For example, if your Django logs are in ``/var/log/django``:
+The ``celery`` user will also need write access to the Django log file and the database.
+To give ``celery`` access, create a group that contains both ``www-data`` (the apache2 user) and ``celery``.
+For example, if your Django logs are in ``/var/log/django`` and your database is in ``/var/databases``:
 
 .. code-block:: bash
 
     sudo groupadd www-and-celery
     sudo usermod -a -G www-and-celery celery
     sudo usermod -a -G www-and-celery www-data
+
+    # give the group read-write access to logs
     sudo chgrp -R www-and-celery /var/log/django
-    sudo chmod -R 770 /var/log/django
+    sudo chmod -R 775 /var/log/django
+
+    # give the group read-write access to database
+    sudo chgrp -R www-and-celery /var/databases
+    sudo chmod -R 775 /var/databases
+
 
 Create Celery configuration files
 """""""""""""""""""""""""""""""""
