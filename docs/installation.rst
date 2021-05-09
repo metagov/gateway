@@ -76,9 +76,9 @@ Make sure you have a domain dedicated to Metagov that is pointing to your server
     In the remaining examples, make sure to substitute the following values:
 
     ``$METAGOV_REPO`` is the path to your metagov-prototype repository root. (``/metagov-prototype``)
-    
+
     ``$METAGOV_ENV`` is the path to your metagov virtual environment. (``/environments/metagov_env``)
-    
+
     ``$SERVER_NAME`` is  your server name. (``metagov.mysite.com``)
 
 1. Install apache2
@@ -90,7 +90,7 @@ Make sure you have a domain dedicated to Metagov that is pointing to your server
 2. Create a new apache2 config file:
 
    .. code-block:: shell
-   
+
         cd /etc/apache2/sites-available
         # replace SERVER_NAME (ie metagov.mysite.org.conf)
         cp default-ssl.conf SERVER_NAME.conf
@@ -165,7 +165,7 @@ Follow these instructions to run a celery daemon on your Ubuntu machine using ``
 For more information about configuration options, see the `Celery Daemonization <https://docs.celeryproject.org/en/stable/userguide/daemonizing.html>`_.
 
 .. note::
-        
+
     Using PolicyKit with Metagov? These configuration files are designed specifically to work with the setup where PolicyKit and Metagov are deployed together.
     PolicyKit and Metagov will use separate celery daemons that use separate RabbitMQ virtual hosts, configured using ``CELERY_BROKER_URL``.
 
@@ -205,7 +205,7 @@ Give the ``celery`` user access to necessary pid and log folders:
     sudo mkdir /var/log/celery
     sudo chown -R celery:celery /var/log/celery
     sudo chmod -R 755 /var/log/celery
-    
+
     sudo mkdir /var/run/celery
     sudo chown -R celery:celery /var/run/celery
     sudo chmod -R 755 /var/run/celery
@@ -348,6 +348,6 @@ Start Celery services
 try running celery directly to see if there are errors in your code:
 
 .. code-block:: shell
-    
+
     celery -A metagov worker -l info --uid celery
     celery -A metagov beat -l info --uid celery --schedule=/var/run/celery/celerybeat-metagov-schedule
