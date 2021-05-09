@@ -52,25 +52,34 @@ Next, open up your ``.env`` file and set the following values:
     DATABASE_PATH=<your database path>
 
 
-Make sure that your database path is _not_ inside the Metagov repository directory, because you need to grant the apache2 user (``www-data``) access to the database its parent folder. Recommended: set the ``DATABASE_PATH`` to ``/var/databases/metagov/db.sqlite3``, and make sure ``www-data`` has access write access to that directory.
+Make sure that your database path is not inside the Metagov repository directory, because you need to grant the apache2 user (``www-data``) access to the database its parent folder. Recommended: set the ``DATABASE_PATH`` to ``/var/databases/metagov/db.sqlite3``.
 
 Set up the Database
 ^^^^^^^^^^^^^^^^^^^
 
 Run ``python manage.py migrate`` to set up your database.
 
-To test that everything is working correctly, enter the Django shell:
+.. To test that everything is working correctly, enter the Django shell:
 
-.. code-block:: shell
+.. .. code-block:: shell
 
-    python manage.py shell_plus
+..     python manage.py shell_plus
 
 Deploy with Apache web server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Now that you have Metagov installed on your server, you can deploy it on Apache web server.
-Make sure you have a domain or subdomain dedicated to Metagov, that is pointing to your server's IP address.
+Make sure you have a domain dedicated to Metagov that is pointing to your server's IP address.
 
+.. note::
+
+    In the remaining examples, make sure to substitute the following values:
+
+    ``$METAGOV_REPO`` is the path to your metagov-prototype repository root. (``/metagov-prototype``)
+    
+    ``$METAGOV_ENV`` is the path to your metagov virtual environment. (``/environments/metagov_env``)
+    
+    ``$SERVER_NAME`` is  your server name. (``metagov.mysite.com``)
 
 1. Install apache2
 
@@ -78,11 +87,12 @@ Make sure you have a domain or subdomain dedicated to Metagov, that is pointing 
 
         sudo apt-get install apache2 libapache2-mod-wsgi-py3
 
-2. Create apache conf:
+2. Create a new apache2 config file:
 
    .. code-block:: shell
    
         cd /etc/apache2/sites-available
+        # replace SERVER_NAME (ie metagov.mysite.org.conf)
         cp default-ssl.conf SERVER_NAME.conf
 
 3. Edit the config file to look like this:
@@ -134,8 +144,12 @@ Make sure you have a domain or subdomain dedicated to Metagov, that is pointing 
 
    .. code-block:: shell
 
+        # start apache2
+        sudo service apache2 start
+        # enable the site
         a2ensite /etc/apache2/sites-available/$SERVER_NAME.conf
-        ls /etc/apache2/sites-enabled/ # you should see a symlink to your site config here
+        # you should see a symlink to your site config here:
+        ls /etc/apache2/sites-enabled
 
 7. Load your site in the browser.
 
@@ -146,9 +160,15 @@ Make sure you have a domain or subdomain dedicated to Metagov, that is pointing 
 Set up Celery
 ^^^^^^^^^^^^^^^
 
-Metagov uses Celery to run scheduled tasks for Governance Processes and Plugin listeners.
-Follow these instructions to daemonize celery on your machine.
-For more information about Celery configuration options, see the `Celery docs <https://docs.celeryproject.org/en/stable/userguide/daemonizing.html>`_.
+Metagov uses `Celery <https://docs.celeryproject.org/en/stable/index.html>`_ to run scheduled tasks for Governance Processes and Plugin listeners.
+Follow these instructions to run a celery daemon on your Ubuntu machine using ``systemd``.
+For more information about configuration options, see the `Celery Daemonization <https://docs.celeryproject.org/en/stable/userguide/daemonizing.html>`_.
+
+.. note::
+        
+    Using PolicyKit with Metagov? These configuration files are designed specifically to work with the setup where PolicyKit and Metagov are deployed together.
+    PolicyKit and Metagov will use separate celery daemons that use separate RabbitMQ virtual hosts, configured using ``CELERY_BROKER_URL``.
+
 
 Create RabbitMQ virtual host
 """"""""""""""""""""""""""""
@@ -169,7 +189,7 @@ In ``metagov/settings.py``, set the ``CELERY_BROKER_URL`` as follows, substituti
 
 
 Create celery user
-""""""""""""""""""""""
+""""""""""""""""""
 
 If you don't already have a ``celery`` user, create one:
 
@@ -212,20 +232,7 @@ For example, if your Django logs are in ``/var/log/django`` and your database is
 Create Celery configuration files
 """""""""""""""""""""""""""""""""
 
-Next, you'll need to create three Celery configuration files for Metagov.
-
-Using Metagov with PolicyKit? These configuration files are designed specifically to work with the setup where PolicyKit and Metagov are deployed together.
-PolicyKit will use separate ``celery`` and ``celerybeat`` services. Just make sure that PolicyKit is using a different RabbitMQ virtual host as the ``CELERY_BROKER_URL``.
-
-.. note::
-
-    In the remaining configuration examples, make sure to substitute the following values:
-
-    ``$METAGOV_REPO`` is the path to your metagov-prototype repository root.
-    
-    ``$METAGOV_ENV`` is the path to your metagov virtual environment.
-    
-    ``$SERVER_NAME`` is  your server name.
+Next, you'll need to create three Celery configuration files for Metagov:
 
 ``/etc/conf.d/celery-metagov``
 """"""""""""""""""""""""""""""
@@ -268,8 +275,8 @@ PolicyKit will use separate ``celery`` and ``celerybeat`` services. Just make su
 
     [Service]
     Type=forking
-    User=root
-    Group=root
+    User=celery
+    Group=celery
     EnvironmentFile=/etc/conf.d/celery-metagov
     WorkingDirectory=$METAGOV_REPO/metagov
     ExecStart=/bin/sh -c '${CELERY_BIN} multi start ${CELERYD_NODES} \
@@ -296,24 +303,31 @@ PolicyKit will use separate ``celery`` and ``celerybeat`` services. Just make su
 
     [Service]
     Type=simple
-    User=root
-    Group=root
+    User=celery
+    Group=celery
     EnvironmentFile=/etc/conf.d/celery-metagov
     WorkingDirectory=$METAGOV_REPO/metagov
     ExecStart=/bin/sh -c '${CELERY_BIN} -A ${CELERY_APP}  \
     beat --pidfile=${CELERYBEAT_PID_FILE} \
-    --logfile=${CELERYBEAT_LOG_FILE} --loglevel=${CELERYD_LOG_LEVEL} --schedule=/var/run/celery/celerybeat-metagov-schedule'
+    --logfile=${CELERYBEAT_LOG_FILE} --loglevel=${CELERYD_LOG_LEVEL} \
+    --schedule=/var/run/celery/celerybeat-metagov-schedule'
 
     [Install]
     WantedBy=multi-user.target
+
+After creating the files (and after any time you change them) run the following command:
+
+.. code-block:: shell
+
+    sudo systemctl daemon-reload
 
 Start Celery services
 """""""""""""""""""""
 
 .. code-block:: shell
-    
-    # Run this after creating or changing the above 3 config files
-    systemctl daemon-reload
+
+    # Start RabbitMQ
+    sudo service rabbitmq-server start
 
     # Start celery and celerybeat services
     systemctl start celery-metagov celerybeat-metagov
@@ -330,3 +344,10 @@ Start Celery services
     # Restart celery. You'll need to do this whenever the task code changes.
     systemctl restart celery-metagov
 
+**Troubleshooting**: If celery or celerybeat fail to start up as a service,
+try running celery directly to see if there are errors in your code:
+
+.. code-block:: shell
+    
+    celery -A metagov worker -l info --uid celery
+    celery -A metagov beat -l info --uid celery --schedule=/var/run/celery/celerybeat-metagov-schedule
