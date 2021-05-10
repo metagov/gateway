@@ -18,6 +18,7 @@ Clone the Metagov repository (or your fork):
 .. code-block:: shell
 
     git clone https://github.com/metagov/metagov-prototype.git
+    cd metagov-prototype/metagov
 
 
 Install Dependencies
@@ -48,22 +49,25 @@ Next, open up your ``.env`` file and set the following values:
 
 .. code-block:: shell
 
+    DEBUG=False
     ALLOWED_HOSTS=<your host>
-    DATABASE_PATH=<your database path>
+    DATABASE_PATH=<your database path> # Recommended: /var/databases/metagov/db.sqlite3
 
 
-Make sure that your database path is not inside the Metagov repository directory, because you need to grant the apache2 user (``www-data``) access to the database its parent folder. Recommended: set the ``DATABASE_PATH`` to ``/var/databases/metagov/db.sqlite3``.
+Make sure that your database path is not inside the Metagov repository directory, because you need to grant the apache2 user (``www-data``) access to the database its parent folder.
 
-Set up the Database
-^^^^^^^^^^^^^^^^^^^
+Set up the Database and Static Files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Run ``python manage.py migrate`` to set up your database.
 
-.. To test that everything is working correctly, enter the Django shell:
+Run ``python manage.py collectstatic`` to create static files.
 
-.. .. code-block:: shell
+To test that everything is working correctly, enter the Django shell:
 
-..     python manage.py shell_plus
+    .. code-block:: shell
+
+         python manage.py shell_plus
 
 Deploy with Apache web server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -81,11 +85,12 @@ Make sure you have a domain dedicated to Metagov that is pointing to your server
 
     ``$SERVER_NAME`` is  your server name. (``metagov.mysite.com``)
 
-1. Install apache2
+1. Install and start apache2
 
    .. code-block:: shell
 
         sudo apt-get install apache2 libapache2-mod-wsgi-py3
+        sudo service apache2 start
 
 2. Create a new apache2 config file:
 
@@ -123,39 +128,58 @@ Make sure you have a domain dedicated to Metagov that is pointing to your server
                         </Files>
                     </Directory>
 
-                    WSGIDaemonProcess metagovssl python-home=$METAGOV_ENV python-path=$METAGOV_REPO/metagov
-                    WSGIProcessGroup metagovssl
+                    WSGIDaemonProcess metagov python-home=$METAGOV_ENV python-path=$METAGOV_REPO/metagov
+                    WSGIProcessGroup metagov
                     WSGIScriptAlias / $METAGOV_REPO/metagov/metagov/wsgi.py
 
                     # .. REST ELIDED
                 </VirtualHost>
         </IfModule>
 
-4. Test your config with ``apache2ctl configtest``
+4. Test your config with ``apache2ctl configtest``. You should get a "Syntax OK" as a response. 
 
-5. Get an SSL certificate and set it up to auto-renew using LetsEncrypt. Follow step 4 here: `How To Secure Apache with Let's Encrypt on Ubuntu 20.04 <https://www.digitalocean.com/community/tutorials/how-to-secure-apache-with-let-s-encrypt-on-ubuntu-20-04>`_. Once that's done, add the newly created SSL files to your apache2 conf:
+5. Enable your site:
+
+    .. code-block:: shell
+        
+        # activate your config
+        a2ensite /etc/apache2/sites-available/$SERVER_NAME.conf
+
+        # disable the default config
+        sudo a2dissite 000-default-le-ssl.conf
+
+6. Get an SSL certificate and set it up to auto-renew using LetsEncrypt:
+
+    .. code-block:: shell
+
+        sudo apt install certbot python3-certbot-apache
+        sudo certbot --apache
+
+7. Add the certificates to your ``$SERVER_NAME.conf`` file:
 
     .. code-block:: aconf
 
         SSLCertificateFile /etc/letsencrypt/live/$SERVER_NAME/fullchain.pem
         SSLCertificateKeyFile /etc/letsencrypt/live/$SERVER_NAME/privkey.pem
 
-6. Activate the site:
+8. Reload the config:
 
    .. code-block:: shell
 
-        # start apache2
-        sudo service apache2 start
-        # enable the site
-        a2ensite /etc/apache2/sites-available/$SERVER_NAME.conf
-        # you should see a symlink to your site config here:
-        ls /etc/apache2/sites-enabled
+        systemctl reload apache2
 
-7. Load your site in the browser.
+9.  Give the Apache2 user access to the database directory and the logging directory (update paths as needed):
+
+    .. code-block:: shell
+
+            sudo chown -R www-data:www-data /var/log/django
+            sudo chown -R www-data:www-data /var/databases/metagov
+
+10. Load your site in the browser.
 
    Check for errors at ``/var/log/apache2/error.log`` and ``/var/log/django/debug.log`` (or whatever logging path you have defined in ``settings.py``). The ``www-data`` user should own the Django log directory and have write-access to the log file.
 
-8. Any time you update the code, you'll need to run ``systemctl reload apache2`` to reload the server.
+11. Any time you update the code, you'll need to run ``systemctl reload apache2`` to reload the server.
 
 Set up Celery
 ^^^^^^^^^^^^^^^
