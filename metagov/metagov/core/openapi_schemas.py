@@ -36,6 +36,12 @@ community_schema = openapi.Schema(
     },
 )
 
+plugin_schemas = {
+    "method": "get",
+    "operation_id": "Get plugin configuration schemas in jsonschema format",
+    "tags": [Tags.COMMUNITY],
+}
+
 list_hooks = {
     "method": "get",
     "operation_id": "List community webhook receiver URLs",
@@ -47,7 +53,7 @@ list_hooks = {
                     type=openapi.TYPE_ARRAY,
                     items=openapi.Items(type=openapi.TYPE_STRING),
                 )
-            }
+            },
         ),
     },
     "manual_parameters": [community_name_in_path],

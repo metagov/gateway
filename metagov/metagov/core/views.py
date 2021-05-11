@@ -152,6 +152,14 @@ def list_actions(request, name):
             )
     return JsonResponse({"actions": actions})
 
+@swagger_auto_schema(**MetagovSchemas.plugin_schemas)
+@api_view(["GET"])
+def plugin_config_schemas(request):
+    plugins = {}
+    for (name, cls) in plugin_registry.items():
+        plugins[name] = cls.config_schema
+    return JsonResponse(plugins)
+
 
 @swagger_auto_schema(**MetagovSchemas.list_events)
 @api_view(["GET"])

@@ -19,7 +19,7 @@ def create_or_update_plugin(plugin_name, plugin_config, community):
             # this mutates `plugin_config` by filling in default values from schema
             DefaultValidatingDraft7Validator(cls.config_schema).validate(plugin_config)
         except jsonschema.exceptions.ValidationError as err:
-            raise serializers.ValidationError(f"Schema validation error: {err.message}")
+            raise serializers.ValidationError(f"{plugin_name} config validation error: {err.message}")
 
     try:
         plugin = cls.objects.get(name=plugin_name, community=community)

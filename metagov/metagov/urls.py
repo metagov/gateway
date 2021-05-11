@@ -85,6 +85,11 @@ urlpatterns = [
         views.receive_webhook,
         name="receive_webhook",
     ),
+    path(
+        f"{utils.internal_path}/plugin-schemas",
+        views.plugin_config_schemas,
+        name="plugin_config_schemas",
+    ),
     path(f"{utils.internal_path}/community/<slug:name>", views.community, name="community"),
     path(f"{utils.internal_path}/community/<slug:name>/hooks", views.list_hooks, name="list_hooks"),
     path(f"{utils.internal_path}/community/<slug:name>/actions", views.list_actions, name="list_actions"),
