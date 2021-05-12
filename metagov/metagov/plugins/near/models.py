@@ -1,14 +1,71 @@
 import logging
-import time
-from datetime import datetime, timedelta, timezone
 
 import metagov.core.plugin_decorators as Registry
 import metagov.plugins.near.schemas as Schemas
 import near_api
-from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
+from metagov.core.errors import PluginErrorInternal
+from metagov.core.models import Plugin
+from near_api.account import TransactionError, ViewFunctionError
 
 logger = logging.getLogger(__name__)
 
+"""
+**** HOW TO USE: SputnikDAO example ***
+
+
+# Deploy a contract
+near dev-deploy res/sputnikdao.wasm
+CONTRACT_ID=dev-X # account id
+
+# Initialize the contract
+near call $CONTRACT_ID new '{"purpose": "testing metagov", "council": ["dev.mashton.testnet"], "bond": "100", "vote_period": "1800000000000", "grace_period": "1800000000000"}' --accountId $CONTRACT_ID
+
+# Generate a key or use the default one
+# Find the private_key here:
+PRIVATE_KEY=$(cat ~/.near-credentials/default/$CONTRACT_ID.json | jq .private_key)
+
+
+Enable the plugin for a test community:
+
+curl -X PUT 'http://127.0.0.1:8000/api/internal/community/my-community-123' \
+    -H 'Content-Type: application/json' \
+    --data-raw '{
+        "name": "my-community-123",
+        "readable_name": "my test community",
+        "plugins": [
+            {
+                "name": "near",
+                "config": {
+                    "contract_id": $CONTRACT_ID,
+                    "account_id": $CONTRACT_ID,
+                    "secret_key": $PRIVATE_KEY,
+                    "node_url": "https://rpc.testnet.near.org"
+                }
+            }
+        ]
+    }'
+
+
+Make a NEAR function call:
+
+curl -X POST 'http://127.0.0.1:8000/api/internal/action/near.call' \
+    -H 'Content-Type: application/json' \
+    -H 'X-Metagov-Community: my-community-123' \
+    --data-raw '{
+        "parameters": {
+            "method_name": "add_proposal",
+            "args": {
+                "proposal": {
+                    "description": "pay me",
+                    "kind": {"type": "Payout",  "amount": "100" },
+                    "target": "dev.mashton.testnet"
+                }
+            },
+            "gas": 100000000000000,
+            "amount": 100000000000000
+        }
+    }'
+"""
 
 @Registry.plugin
 class Near(Plugin):
@@ -61,8 +118,10 @@ class Near(Plugin):
 
         account = self.create_master_account()  # creates a new provider every time!
 
-        result = account.view_function(contract_id, method_name, args)
-        return result
+        try:
+            return account.view_function(contract_id, method_name, args)
+        except (TransactionError, ViewFunctionError) as e:
+            raise PluginErrorInternal(str(e))
 
     @Registry.action(
         slug="call",
@@ -81,10 +140,12 @@ class Near(Plugin):
         account = self.create_master_account()  # creates a new provider every time!
 
         optional_args = {key: parameters[key] for key in parameters.keys() if key in ["gas", "amount"]}
-        result = account.function_call(
-            contract_id=contract_id,
-            method_name=parameters["method_name"],
-            args=parameters.get("args", {}),
-            **optional_args,
-        )
-        return result
+        try:
+            return account.function_call(
+                contract_id=contract_id,
+                method_name=parameters["method_name"],
+                args=parameters.get("args", {}),
+                **optional_args,
+            )
+        except (TransactionError, ViewFunctionError) as e:
+            raise PluginErrorInternal(str(e))
