@@ -2,8 +2,8 @@ import json
 import logging
 
 import metagov.core.plugin_decorators as Registry
-import requests
 import metagov.plugins.loomio.schemas as Schemas
+import requests
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
@@ -22,6 +22,16 @@ class Loomio(Plugin):
     class Meta:
         proxy = True
 
+    def initialize(self):
+        pass
+
+    @Registry.action(slug="list-members", description="list members of the loomio community")
+    def list_members(self, _parameters):
+        resp = requests.get(f"https://www.loomio.org/api/b1/memberships?api_key={self.config['api_key']}")
+        if not resp.ok:
+            logger.error(f"Error: {resp.status_code} {resp.text}")
+            raise PluginErrorInternal(resp.text)
+        return resp.json()
 
 @Registry.governance_process
 class LoomioPoll(GovernanceProcess):
