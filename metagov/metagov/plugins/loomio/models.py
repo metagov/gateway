@@ -3,6 +3,7 @@ import logging
 
 import metagov.core.plugin_decorators as Registry
 import requests
+import metagov.plugins.loomio.schemas as Schemas
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
@@ -14,7 +15,6 @@ class Loomio(Plugin):
     name = "loomio"
     config_schema = {
         "type": "object",
-        "additionalProperties": False,
         "properties": {"api_key": {"type": "string"}, "webhook_slug": {"type": "string"}},
         "required": ["api_key"],
     }
@@ -27,32 +27,22 @@ class Loomio(Plugin):
 class LoomioPoll(GovernanceProcess):
     name = "poll"
     plugin_name = "loomio"
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string"},
-            "options": {"type": "array", "items": {"type": "string"}},
-            "details": {"type": "string"},
-            "closing_at": {"type": "string", "format": "date"},
-        },
-        "required": ["title", "options", "closing_at"],
-    }
+    input_schema = Schemas.start_loomio_poll
 
     class Meta:
         proxy = True
 
     def start(self, parameters):
         url = "https://www.loomio.org/api/b1/polls"
-        loomio_data = {
-            "title": parameters["title"],
-            "poll_type": "proposal",
-            "options[]": parameters["options"],
-            "details": parameters.get("details", "Created by Metagov"),
-            "closing_at": parameters["closing_at"],
+
+        options = parameters.pop("options")
+        payload = {
+            **parameters,
+            "options[]": options,
             "api_key": self.plugin.config["api_key"],
         }
 
-        resp = requests.post(url, loomio_data)
+        resp = requests.post(url, payload)
         if not resp.ok:
             logger.error(f"Error: {resp.status_code} {resp.text}")
             raise PluginErrorInternal(resp.text)
@@ -69,7 +59,6 @@ class LoomioPoll(GovernanceProcess):
         self.outcome = {"poll_url": poll_url}
         self.status = ProcessStatus.PENDING.value
         self.save()
-
 
     def receive_webhook(self, request):
         poll_key = self.state.get("poll_key")
