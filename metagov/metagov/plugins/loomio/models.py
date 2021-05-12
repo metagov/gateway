@@ -33,6 +33,22 @@ class Loomio(Plugin):
             raise PluginErrorInternal(resp.text)
         return resp.json()
 
+    @Registry.action(
+        slug="create-discussion",
+        description="create discussion in loomio",
+        input_schema=Schemas.create_discussion_input,
+    )
+    def create_discussion(self, parameters):
+        payload = parameters
+        payload["api_key"] = self.config["api_key"]
+        resp = requests.post(f"https://www.loomio.org/api/b1/discussions", payload)
+        if not resp.ok:
+            logger.error(f"Error: {resp.status_code} {resp.text}")
+            raise PluginErrorInternal(resp.text)
+        response = resp.json()
+        return response
+
+
 @Registry.governance_process
 class LoomioPoll(GovernanceProcess):
     name = "poll"

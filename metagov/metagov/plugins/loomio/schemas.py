@@ -53,3 +53,32 @@ start_loomio_poll = {
     },
     "required": ["title", "options", "closing_at"],
 }
+
+
+create_discussion_input = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string", "description": "title of the thread"},
+        "description": {"type": "string", "description": "context for the thread"},
+        "description_format": {
+            "type": "string",
+            "enum": ["html", "md"],
+        },
+        "recipient_audience": {
+            "type": "string",
+            "description": "'group' or null. if 'group' whole group will be notified about the new thread",
+        },
+        "recipient_user_ids": {
+            "type": "array",
+            "description": "array of user ids to notify or invite",
+            "items": {"type": "string"},
+        },
+        "recipient_emails": {
+            "type": "array",
+            "description": "array of email addresses of people to invite to the thread",
+            "items": {"type": "string"},
+        },
+        "recipient_message": {"type": "string", "description": "message to include in the email invitation"},
+    },
+    "required": ["title"],
+}
