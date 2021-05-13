@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import hmac
 import json
@@ -169,7 +168,8 @@ class Discourse(Plugin):
         if instance != self.config["server_url"]:
             raise PluginErrorInternal("Unexpected X-Discourse-Instance")
 
-    def receive_webhook(self, request):
+    @Registry.webhook_receiver()
+    def process_discourse_webhook(self, request):
         self.validate_request_signature(request)
         event = request.headers.get("X-Discourse-Event")
         body = json.loads(request.body)

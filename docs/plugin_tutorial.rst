@@ -200,10 +200,12 @@ Listener
 
 If you want to listen to events occurring on another platform, and forward them to the governance driver so that
 it can react to them, then you want to implement a **listener** in your plugin.
+Listeners can either use **Webhooks** (data is "pushed" from the external platform to Metagov) or **Tasks** (Metagov pulls data from the external platform).
 
-In order to do this, override the ``receive_webhook`` function to handle incoming webhook requests from the external platform.
-Use the ``send_event_to_driver`` function to send the event to the Driver.
-(See :doc:`Reference Documentation <../autodocs/core>` for more).
+Webhooks
+^^^^^^^^
+If the external platform supports webhooks, use the ``webhook_receiver`` decorator to register a handler for processing incoming
+webhooks from the platform. Use the ``send_event_to_driver`` function to send the event to the Driver. Example:
 
 .. code-block:: python
 
@@ -211,7 +213,8 @@ Use the ``send_event_to_driver`` function to send the event to the Driver.
     class Tutorial(Plugin):
         #..elided..
 
-        def receive_webhook(self, request):
+        @Registry.webhook_receiver()
+        def my_webhook_receiver(self, request):
             body = json.loads(request.body)   # Django HttpRequest object
             print(body)
             data = body["data"]
@@ -220,24 +223,47 @@ Use the ``send_event_to_driver`` function to send the event to the Driver.
             self.send_event_to_driver(event_type="post_created", data=data, initiator=initiator)
 
 
-Register the webhook receiver
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Tasks
+^^^^^
 
-Metagov exposes a public webhook received endpoint for each active plugin instance.
+If the external platform does not support webhooks, you can use the ``event_producer_task`` decorator to register a task function to poll the external service.
+Metagov core will call the registered task function on a schedule. The schedule is defined in ``settings.py``
+under ``plugin-tasks-beat``. The same schedule is used for all plugins, for now.
+
+.. code-block:: python
+
+    @Registry.plugin
+    class Tutorial(Plugin):
+        #..elided..
+
+        @Registry.event_producer_task()
+        def my_task_function(self):
+            # make a request for recent events
+            # send event to the driver
+            self.send_event_to_driver(...)
+
+
+See :doc:`Reference Documentation <../autodocs/core>` for the full specification.
+
+Webhook Receiver URLs
+^^^^^^^^^^^^^^^^^^^^^
+
+If your plugin defines a ``webhook_receiver`` function,
+Metagov core will expose a dedicated endpoint for each plugin instance
+to receive webhook requests.
+
 For the plugin and community we created in this tutorial, the webhook receiver endpoint is either at:
 ``http://127.0.0.1:8000/api/hooks/my-community-1234/tutorial`` or
 ``http://127.0.0.1:8000/api/hooks/my-community-1234/tutorial/<webhook_slug>``, depending on whether the
 ``webhook_slug`` config option was set for the ``my-community-1234`` community.
 
-Incoming POST requests to this endpoint will be routed to the ``receive_webhook`` function that we just defined.
+Incoming POST requests to this endpoint will be routed to the method that is decorated with the ``webhook_receiver`` decorator.
 
-You can test out your listener by using `ngrok <https://ngrok.com/>`_ to create a temporary public URL for your local development server.
+You can test out your webhook receiver by using `ngrok <https://ngrok.com/>`_ to create a temporary public URL for your local development server.
 Then, go to the external platform (Discourse, Open Collective, etc) and register your temporary URL. It will look something like:
-``https://abc123.ngrok.io/api/hooks/my-community-1234/tutorial``
+``https://abc123.ngrok.io/api/hooks/my-community-1234/tutorial``. Now, when you perform actions on the external platform, you should see events logged locally from your webhook receiver function.
 
-Now when you perform actions on the external platform, you should see events logged locally from your ``receive_webhook`` function.
-
-.. note:: Get a list of all the webhook receiver endpoints for your community
+.. note:: Get a list of all the webhook receiver endpoints for your community:
 
     .. code-block:: shell
 

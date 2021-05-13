@@ -1,7 +1,7 @@
 import logging
 
 from celery import shared_task
-from metagov.core.models import Community, GovernanceProcess, Plugin, ProcessStatus
+from metagov.core.models import ProcessStatus
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.views import get_proxy
 
@@ -15,6 +15,10 @@ def execute_plugin_tasks():
         if cls._task_function:
             active_plugins = cls.objects.all()
             logger.debug(f"[tasks] calling task function for {active_plugins.count()} instances of {plugin_name}")
+
+            for plugin in active_plugins:
+                task_function = getattr(plugin, cls._task_function)
+                task_function()
 
         # invoke all the governance process pending task checkers
         for (process_name, process_cls) in cls._process_registry.items():
