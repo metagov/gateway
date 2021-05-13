@@ -23,9 +23,12 @@ class Discourse(Plugin):
         "type": "object",
         "additionalProperties": False,
         "properties": {
-            "api_key": {"type": "string"},
-            "server_url": {"type": "string"},
-            "webhook_secret": {"type": "string"},
+            "api_key": {"type": "string", "description": "Global Discourse API key with user level 'all users'"},
+            "server_url": {"type": "string", "description": "URL of the Discourse server"},
+            "webhook_secret": {
+                "type": "string",
+                "description": "A random string. When creating the Metagov webhook in Discourse, enter this string under 'secret.'",
+            },
             "webhook_slug": {"type": "string"},
         },
         "required": ["api_key", "server_url", "webhook_secret"],

@@ -39,7 +39,7 @@ class ApiTests(TestCase):
         # bad request to activate plugin
         data["plugins"] = [{"name": "sourcecred", "config": {"wrongkey": "test"}}]
         response = client.put(url, data=data, content_type="application/json")
-        self.assertContains(response, "Schema validation error", status_code=400)
+        self.assertContains(response, "validation error", status_code=400)
 
         # bad sourcecred request (missing header)
         sourcecred_request_url = "/api/internal/action/sourcecred.user-cred"

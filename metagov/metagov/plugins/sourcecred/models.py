@@ -1,8 +1,6 @@
-import json
-
 import metagov.core.plugin_decorators as Registry
-from metagov.core.errors import PluginErrorInternal
 import requests
+from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import Plugin
 
 

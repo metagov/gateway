@@ -67,16 +67,21 @@ curl -X POST 'http://127.0.0.1:8000/api/internal/action/near.call' \
     }'
 """
 
+
 @Registry.plugin
 class Near(Plugin):
     name = "near"
     config_schema = {
         "type": "object",
         "properties": {
-            "contract_id": {"type": "string"},
-            "account_id": {"type": "string"},
-            "secret_key": {"type": "string"},
-            "node_url": {"type": "string", "default": "https://rpc.testnet.near.org"},
+            "contract_id": {"type": "string", "description": "NEAR Contract ID"},
+            "account_id": {"type": "string", "description": "Master account to make calls from"},
+            "secret_key": {"type": "string", "description": "Private key for the provided account"},
+            "node_url": {
+                "type": "string",
+                "description": "Default: https://rpc.testnet.near.org",
+                "default": "https://rpc.testnet.near.org",
+            },
         },
         "required": ["contract_id", "account_id", "secret_key", "node_url"],
     }
@@ -125,15 +130,13 @@ class Near(Plugin):
 
     @Registry.action(
         slug="call",
-        description="Makes a contract call which can modify or view state.",
+        description="Makes a contract call which can modify or view state. The master account will be charged a transaction fee.",
         input_schema=Schemas.call_parameters,
     )
     def call(self, parameters):
         """
-        'Contract calls require a transaction fee (gas) so you will need an
-        access key for the --accountId that will be charged. (near login)'
-
-        In this case we only support making calls from the "master account"...
+        "Contract calls require a transaction fee (gas) so you will need an access key for the --accountId that will be charged. (near login)"
+        Rght now we only support making calls from the "master account"... ?
         """
         contract_id = self.config["contract_id"]
 

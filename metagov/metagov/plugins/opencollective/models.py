@@ -22,10 +22,10 @@ class OpenCollective(Plugin):
         "type": "object",
         "additionalProperties": False,
         "properties": {
-            "api_key": {"type": "string"},
+            "api_key": {"type": "string", "description": "API Key for a user that is an admin on this collective."},
             "collective_slug": {
                 "type": "string",
-                "description": "Slug for the Open Collective collective (opencollective.com/<slug>)",
+                "description": "Open Collective slug",
             },
             "webhook_slug": {"type": "string"},
         },

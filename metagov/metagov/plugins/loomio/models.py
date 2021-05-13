@@ -25,7 +25,7 @@ class Loomio(Plugin):
     def initialize(self):
         pass
 
-    @Registry.action(slug="list-members", description="list members of the loomio community")
+    @Registry.action(slug="list-members", description="list groups and users")
     def list_members(self, _parameters):
         resp = requests.get(f"https://www.loomio.org/api/b1/memberships?api_key={self.config['api_key']}")
         if not resp.ok:
@@ -35,7 +35,7 @@ class Loomio(Plugin):
 
     @Registry.action(
         slug="create-discussion",
-        description="create discussion in loomio",
+        description="create a new discussion",
         input_schema=Schemas.create_discussion_input,
     )
     def create_discussion(self, parameters):
