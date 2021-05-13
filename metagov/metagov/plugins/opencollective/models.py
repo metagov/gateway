@@ -112,7 +112,8 @@ class OpenCollective(Plugin):
         self.add_expense_url(expense_data)
         return expense_data
 
-    def receive_webhook(self, request):
+    @Registry.webhook_receiver()
+    def process_oc_webhook(self, request):
         body = json.loads(request.body)
         collective_legacy_id = self.state.get("collective_legacy_id")
         if body.get("CollectiveId") != collective_legacy_id:

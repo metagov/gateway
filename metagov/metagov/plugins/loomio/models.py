@@ -86,7 +86,8 @@ class LoomioPoll(GovernanceProcess):
         self.status = ProcessStatus.PENDING.value
         self.save()
 
-    def receive_webhook(self, request):
+    @Registry.webhook_receiver()
+    def process_loomio_webhook(self, request):
         poll_key = self.state.get("poll_key")
         poll_url = self.outcome.get("poll_url")
 

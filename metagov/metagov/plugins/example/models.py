@@ -59,6 +59,9 @@ class Randomness(Plugin):
 
         return {"value": random_number}
 
+    @Registry.event_producer_task()
+    def my_task_function(self):
+        print("task function called")
 
 @Registry.governance_process
 class StochasticVote(GovernanceProcess):

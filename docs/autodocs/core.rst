@@ -38,3 +38,5 @@ Function Decorators
 *******************
 
 .. autofunction:: metagov.core.plugin_decorators.action
+.. autofunction:: metagov.core.plugin_decorators.event_producer_task
+.. autofunction:: metagov.core.plugin_decorators.webhook_receiver

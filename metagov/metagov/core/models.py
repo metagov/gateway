@@ -84,10 +84,6 @@ class Plugin(models.Model):
         """Initialize the plugin. Invoked once, when the plugin instance is created."""
         pass
 
-    def receive_webhook(self, request):
-        """Receive webhook event"""
-        pass
-
     def send_event_to_driver(self, event_type: str, data: dict, initiator: dict):
         """Send an event to the driver"""
         if not settings.DRIVER_EVENT_RECEIVER_URL:

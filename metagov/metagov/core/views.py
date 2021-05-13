@@ -3,7 +3,6 @@ import logging
 from http import HTTPStatus
 
 import jsonschema
-from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.dispatch import receiver
@@ -13,7 +12,6 @@ from django.http import (
     HttpResponseNotFound,
     HttpResponseServerError,
     JsonResponse,
-    QueryDict,
 )
 from django.shortcuts import render
 from django.template import loader
@@ -23,7 +21,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from metagov.core import utils
 from metagov.core.middleware import CommunityMiddleware
-from metagov.core.models import Community, GovernanceProcess, Plugin, ProcessStatus
+from metagov.core.models import Community, Plugin, ProcessStatus
 from metagov.core.openapi_schemas import Tags
 import metagov.core.openapi_schemas as MetagovSchemas
 from metagov.core.plugin_decorators import plugin_registry
@@ -32,8 +30,6 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.parsers import JSONParser
-from rest_framework.schemas import AutoSchema
-from rest_framework.views import APIView
 
 community_middleware = decorator_from_middleware(CommunityMiddleware)
 
@@ -123,10 +119,12 @@ def list_hooks(request, name):
     plugins = Plugin.objects.filter(community=community)
     hooks = []
     for p in list(plugins):
-        url = f"/api/hooks/{name}/{p.name}"
-        if p.config and p.config.get(WEBHOOK_SLUG_CONFIG_KEY):
-            url += "/" + p.config.get(WEBHOOK_SLUG_CONFIG_KEY)
-        hooks.append(url)
+        cls = plugin_registry[p.name]
+        if cls._webhook_receiver_function:
+            url = f"/api/hooks/{name}/{p.name}"
+            if p.config and p.config.get(WEBHOOK_SLUG_CONFIG_KEY):
+                url += "/" + p.config.get(WEBHOOK_SLUG_CONFIG_KEY)
+            hooks.append(url)
     return JsonResponse({"hooks": hooks})
 
 
@@ -151,6 +149,7 @@ def list_actions(request, name):
                 }
             )
     return JsonResponse({"actions": actions})
+
 
 @swagger_auto_schema(**MetagovSchemas.plugin_schemas)
 @api_view(["GET"])
@@ -223,11 +222,17 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
         logger.error(f"Received request at {webhook_slug}, expected {expected_slug}. Rejecting.")
         return HttpResponseBadRequest()
 
-    logger.info(f"Passing webhook request to: {plugin}")
-    plugin.receive_webhook(request)
+    plugin_cls = plugin_registry[plugin_name]
+    if plugin_cls._webhook_receiver_function:
+        webhook_receiver = getattr(plugin, plugin_cls._webhook_receiver_function)
+        logger.info(f"Passing webhook request to: {plugin}")
+        try:
+            webhook_receiver(request)
+        except Exception as e:
+            logger.error(f"Plugin '{plugin}' failed to process webhook: {e}")
 
     # Call `receive_webhook` on each of the GovernanceProcess proxy models
-    proxy_models = plugin_registry[plugin_name]._process_registry.values()
+    proxy_models = plugin_cls._process_registry.values()
     for cls in proxy_models:
         processes = cls.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
         logger.info(f"{processes.count()} pending processes for plugin instance '{plugin}'")

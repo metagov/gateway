@@ -13,7 +13,7 @@ def validate_proxy_model(cls):
 
 
 def plugin(cls):
-    """Use this decorator on a sublcass of :class:`~metagov.core.models.Plugin` to register it as a plugin."""
+    """Use this decorator on a subclass of :class:`~metagov.core.models.Plugin` to register it as a plugin."""
     validate_proxy_model(cls)
     if cls.config_schema:
         SaferDraft7Validator.check_schema(cls.config_schema)
@@ -21,6 +21,7 @@ def plugin(cls):
     cls._action_registry = {}
     cls._process_registry = {}
     cls._task_function = None
+    cls._webhook_receiver_function = None
 
     plugin_registry[cls.name] = cls
     for methodname in dir(cls):
@@ -33,11 +34,13 @@ def plugin(cls):
             cls._action_registry[meta.slug] = method._meta
         elif hasattr(method, "_meta_task"):
             cls._task_function = methodname
+        elif hasattr(method, "_meta_webhook_receiver"):
+            cls._webhook_receiver_function = methodname
     return cls
 
 
 def governance_process(cls):
-    """Use this decorator on a sublcass of :class:`~metagov.core.models.GovernanceProcess` to register it as a governance process."""
+    """Use this decorator on a subclass of :class:`~metagov.core.models.GovernanceProcess` to register it as a governance process."""
     validate_proxy_model(cls)
 
     if not hasattr(cls, "plugin_name"):
@@ -67,11 +70,20 @@ def event_producer_task():
     """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register a task that sends Events to the Driver."""
 
     def wrapper(function):
+        # TODO attach Event schemas
         function._meta_task = True
         return function
 
     return wrapper
 
+def webhook_receiver():
+    """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register a webhook receiver. Webhook requests recieved for this plugin instance will be passed to the registered method."""
+
+    def wrapper(function):
+        # TODO attach Event schemas
+        function._meta_webhook_receiver = True
+        return function
+    return wrapper
 
 class ActionFunctionMeta:
     def __init__(self, slug, function_name, description, input_schema, output_schema, is_public):
