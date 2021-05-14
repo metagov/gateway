@@ -70,3 +70,7 @@ Bonus steps:
 
         python manage.py shell_plus
 
+
+To test out Metagov API endpoints locally, you can use http://127.0.0.1:8000/swagger/.
+Start by creating a test community with enabled plugins: ``PUT /internal/community/test-community``.
+After that, you can execute Action and Process requests for the test community using header ``X-Metagov-Community: test-community``.
