@@ -36,17 +36,21 @@ class SourceCred(Plugin):
     def get_cred(self, parameters):
         username = parameters["username"]
         cred = self.get_user_cred(username)
-        if cred is None:
-            raise PluginErrorInternal(f"{username} not found in sourcecred instance")
         return {"value": cred}
 
     def get_user_cred(self, username):
         server = self.config["server_url"]
-        url = f"{server}/output/accounts.json"
-        resp = requests.get(url)
-        cred_data = resp.json()
-        for account in cred_data["accounts"]:
-            name = account["account"]["identity"]["name"]
-            if name == username:
-                return account["totalCred"]
-        return None
+        resp = requests.get(f"{server}/output/accounts.json")
+        if resp.status_code == 404:
+            raise PluginErrorInternal(
+                "'output/accounts.json' file not present. Run 'yarn sourcecred analysis' when generating sourcecred instance."
+            )
+        if resp.status_code == 200:
+            cred_data = resp.json()
+            for account in cred_data["accounts"]:
+                name = account["account"]["identity"]["name"]
+                if name == username:
+                    return account["totalCred"]
+            raise PluginErrorInternal(f"{username} not found in sourcecred instance")
+
+        raise PluginErrorInternal(f"Error {resp.status_code} {resp.reason}")
