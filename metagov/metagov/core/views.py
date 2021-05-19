@@ -171,7 +171,7 @@ def list_events(request, name):
     result = []
     for plugin in Plugin.objects.filter(community=community):
         cls = plugin_registry.get(plugin.name)
-        for event in cls.events:
+        for event in cls._event_schemas:
             if event.get("type"):
                 result.append({"event_type": event["type"], "source": plugin.name, "schema": event.get("schema")})
     return JsonResponse({"events": result})

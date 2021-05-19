@@ -125,6 +125,7 @@ list_events = {
                         type=openapi.TYPE_OBJECT,
                         properties={
                             "type": openapi.Schema(type=openapi.TYPE_STRING),
+                            "source": openapi.Schema(type=openapi.TYPE_STRING),
                             "schema": openapi.Schema(type=openapi.TYPE_OBJECT),
                         },
                     ),

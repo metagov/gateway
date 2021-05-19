@@ -65,7 +65,7 @@ class Plugin(models.Model):
     config = models.JSONField(default=dict, null=True, blank=True, help_text="Configuration for this plugin instance")
     state = models.OneToOneField(DataStore, models.CASCADE, help_text="Datastore to persist any state", null=True)
     config_schema = {}  # can be overridden to set jsonschema of config
-    events = []  # override to declare events and their schemas
+
     objects = PluginManager()
 
     class Meta:
