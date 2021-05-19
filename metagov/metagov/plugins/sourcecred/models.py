@@ -1,7 +1,11 @@
+import logging
+
 import metagov.core.plugin_decorators as Registry
 import requests
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import Plugin
+
+logger = logging.getLogger(__name__)
 
 
 @Registry.plugin
@@ -39,6 +43,14 @@ class SourceCred(Plugin):
         return {"value": cred}
 
     def get_user_cred(self, username):
+        cred_data = self.fetch_accounts_analysis()
+        for account in cred_data["accounts"]:
+            name = account["account"]["identity"]["name"]
+            if name == username:
+                return account["totalCred"]
+        raise PluginErrorInternal(f"{username} not found in sourcecred instance")
+
+    def fetch_accounts_analysis(self):
         server = self.config["server_url"]
         resp = requests.get(f"{server}/output/accounts.json")
         if resp.status_code == 404:
@@ -46,11 +58,7 @@ class SourceCred(Plugin):
                 "'output/accounts.json' file not present. Run 'yarn sourcecred analysis' when generating sourcecred instance."
             )
         if resp.status_code == 200:
-            cred_data = resp.json()
-            for account in cred_data["accounts"]:
-                name = account["account"]["identity"]["name"]
-                if name == username:
-                    return account["totalCred"]
-            raise PluginErrorInternal(f"{username} not found in sourcecred instance")
+            accounts = resp.json()
+            return accounts
 
-        raise PluginErrorInternal(f"Error {resp.status_code} {resp.reason}")
+        raise PluginErrorInternal(f"Error fetching SourceCred accounts.json: {resp.status_code} {resp.reason}")

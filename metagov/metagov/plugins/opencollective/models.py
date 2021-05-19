@@ -31,7 +31,6 @@ class OpenCollective(Plugin):
         },
         "required": ["api_key", "collective_slug"],
     }
-    events = [{"type": EVENT_EXPENSE_CREATED, "schema": Schemas.expense_created_event}]
 
     class Meta:
         proxy = True
@@ -112,7 +111,9 @@ class OpenCollective(Plugin):
         self.add_expense_url(expense_data)
         return expense_data
 
-    @Registry.webhook_receiver()
+    @Registry.webhook_receiver(
+        event_schemas=[{"type": EVENT_EXPENSE_CREATED, "schema": Schemas.expense_created_event}]
+    )
     def process_oc_webhook(self, request):
         body = json.loads(request.body)
         collective_legacy_id = self.state.get("collective_legacy_id")

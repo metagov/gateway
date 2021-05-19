@@ -32,7 +32,6 @@ class Discourse(Plugin):
         },
         "required": ["api_key", "server_url", "webhook_secret"],
     }
-    events = [{"type": EVENT_POST_CREATED}, {"type": EVENT_TOPIC_CREATED}]
 
     class Meta:
         proxy = True
@@ -168,7 +167,12 @@ class Discourse(Plugin):
         if instance != self.config["server_url"]:
             raise PluginErrorInternal("Unexpected X-Discourse-Instance")
 
-    @Registry.webhook_receiver()
+    @Registry.webhook_receiver(
+        event_schemas=[
+            {"type": EVENT_POST_CREATED, "schema": Schemas.post_topic_created_event},
+            {"type": EVENT_TOPIC_CREATED, "schema": Schemas.post_topic_created_event},
+        ]
+    )
     def process_discourse_webhook(self, request):
         self.validate_request_signature(request)
         event = request.headers.get("X-Discourse-Event")

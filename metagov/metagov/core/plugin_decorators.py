@@ -22,6 +22,7 @@ def plugin(cls):
     cls._process_registry = {}
     cls._task_function = None
     cls._webhook_receiver_function = None
+    cls._event_schemas = []
 
     plugin_registry[cls.name] = cls
     for methodname in dir(cls):
@@ -34,8 +35,10 @@ def plugin(cls):
             cls._action_registry[meta.slug] = method._meta
         elif hasattr(method, "_meta_task"):
             cls._task_function = methodname
+            cls._event_schemas.extend(method._meta_task.event_schemas)
         elif hasattr(method, "_meta_webhook_receiver"):
             cls._webhook_receiver_function = methodname
+            cls._event_schemas.extend(method._meta_webhook_receiver.event_schemas)
     return cls
 
 
@@ -66,22 +69,31 @@ def governance_process(cls):
     cls.add_to_class("get_plugin", get_plugin)
     return cls
 
-def event_producer_task():
+class EventProducerMeta:
+    def __init__(self, function_name, event_schemas):
+        self.function_name = function_name
+        self.event_schemas = event_schemas
+
+def event_producer_task(event_schemas=[]):
     """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register a task that sends Events to the Driver."""
 
     def wrapper(function):
-        # TODO attach Event schemas
-        function._meta_task = True
+        function._meta_task = EventProducerMeta(
+            function_name=function.__name__,
+            event_schemas=event_schemas,
+        )
         return function
 
     return wrapper
 
-def webhook_receiver():
+def webhook_receiver(event_schemas=[]):
     """Use this decorator on a method of a registered :class:`~metagov.core.models.Plugin` to register a webhook receiver. Webhook requests recieved for this plugin instance will be passed to the registered method."""
 
     def wrapper(function):
-        # TODO attach Event schemas
-        function._meta_webhook_receiver = True
+        function._meta_webhook_receiver = EventProducerMeta(
+            function_name=function.__name__,
+            event_schemas=event_schemas,
+        )
         return function
     return wrapper
 

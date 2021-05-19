@@ -40,3 +40,12 @@ lock_post_parameters = {
     "required": ["id", "locked"],
 }
 lock_post_response = {"type": "object", "properties": {"locked": {"type": "boolean"}}}
+
+post_topic_created_event = {
+    "type": "object",
+    "additionalProperties": True,
+    "properties": {
+        "id": {"type": "integer"},
+        "url": {"type": "string"}
+    }
+}
