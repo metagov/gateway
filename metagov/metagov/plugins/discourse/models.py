@@ -102,6 +102,11 @@ class Discourse(Plugin):
         post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
         return self.construct_post_response(post)
 
+    @Registry.action(slug="get-topic", description="Get a topic", input_schema=Schemas.delete_post_or_topic_parameters)
+    def get_topic(self, parameters):
+        topic_id = parameters["id"]
+        return self.discourse_request("GET", f"t/{topic_id}.json")
+
     @Registry.action(
         slug="delete-post",
         description="Delete a post",
