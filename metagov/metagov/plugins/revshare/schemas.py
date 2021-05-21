@@ -18,6 +18,13 @@ pointers = {
     "required": ["pointers"],
 }
 
+discourse_pick_pointer_input = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {"topic_id": {"type": "integer"}},
+    "required": ["topic_id"],
+}
+
 lock_post_parameters = {
     "type": "object",
     "additionalProperties": False,
