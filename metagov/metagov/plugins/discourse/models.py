@@ -220,8 +220,29 @@ class DiscoursePoll(GovernanceProcess):
             "details": {"type": "string"},
             "category": {"type": "integer"},
             "closing_at": {"type": "string", "format": "date"},
+            "poll_type": {"type": "string", "enum": ["regular", "multiple", "number"]},
+            "public": {"type": "boolean", "description": "whether votes are public"},
+            "results": {
+                "type": "string",
+                "enum": ["always", "on_vote", "on_close", "staff_only"],
+                "description": "when to show results",
+            },
+            "min": {
+                "type": "integer",
+                "description": "Must be at least 1. For 'number' poll type, this is the minimum number. For 'multiple' poll type, this is the minumum number of options that a user can vote for. For 'regular' poll type, this option is ignored.",
+            },
+            "max": {
+                "type": "integer",
+                "description": "Must be at least 1, but less than or equal with the number of options. For 'number' poll type, this is the maximum number. For 'multiple' poll type, this is the maximum number of options that a user can vote for. For 'regular' poll type, this option is ignored.",
+            },
+            "step": {
+                "type": "integer",
+                "description": "For 'number' poll type, the step in between numbers. Ignored for other poll types. The minimum step value is 1.",
+            },
+            "chart_type": {"type": "string", "enum": ["pie", "bar"]},
+            "groups": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["title", "options"],
+        "required": ["title"],
     }
     # TODO: define outcome schema
 
@@ -232,13 +253,27 @@ class DiscoursePoll(GovernanceProcess):
         discourse_server_url = self.plugin.config["server_url"]
         url = f"{discourse_server_url}/posts.json"
 
-        closes_at = ""
+        poll_type = parameters.get("poll_type", "regular")
+        if poll_type != "number" and not len(parameters.get("options", [])):
+            raise PluginErrorInternal(f"Options are required for poll type {poll_type}")
+
+        optional_params = []
         if parameters.get("closing_at"):
-            closes_at = "close=" + parameters["closing_at"]
-        options = "".join([f"* {opt}\n" for opt in parameters["options"]])
+            optional_params.append(f"close={parameters['closing_at']}")
+        if parameters.get("groups"):
+            optional_params.append(f"groups={','.join(parameters['groups'])}")
+        if parameters.get("public") is True:
+            optional_params.append("public=true")
+        if parameters.get("chart_type"):
+            optional_params.append(f"chartType={parameters['chart_type']}")
+        for p in ["min", "max", "step", "results"]:
+            if parameters.get(p) is not None:
+                optional_params.append(f"{p}={parameters[p]}")
+
+        options = "".join([f"* {opt}\n" for opt in parameters["options"]]) if poll_type != "number" else ""
         raw = f"""
 {parameters.get("details") or ""}
-[poll type=regular results=always chartType=bar {closes_at}]
+[poll type={poll_type} {' '.join(optional_params)}]
 # {parameters["title"]}
 {options}
 [/poll]

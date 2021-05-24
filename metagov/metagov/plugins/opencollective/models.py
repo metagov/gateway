@@ -207,7 +207,6 @@ class OpenCollectiveVote(GovernanceProcess):
 
     def update_outcome_from_conversation(self, conversation):
         """Save changes to outcome and state if changed"""
-        dirty = False
         # get reaction count for thumbs-up and thumbs-down
         reactions = {k.encode("utf-8"): v for (k, v) in conversation["body"]["reactions"].items()}
         yes_count = reactions.get(self.THUMBS_UP_UTF8, 0)

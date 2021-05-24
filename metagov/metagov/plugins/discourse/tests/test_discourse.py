@@ -1,6 +1,5 @@
 from django.test import Client, TestCase
-from metagov.core.models import Community, Plugin
-from metagov.plugins.discourse.models import Discourse, DiscoursePoll
+from metagov.plugins.discourse.models import DiscoursePoll
 import metagov.plugins.discourse.tests.mocks as DiscourseMock
 import requests_mock
 import requests
