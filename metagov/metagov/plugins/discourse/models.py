@@ -174,16 +174,15 @@ class Discourse(Plugin):
             raise PluginErrorInternal("Unexpected X-Discourse-Instance")
 
     def store_user_list(self):
+        # TODO paginate request
         response = self.discourse_request("GET", f"admin/users/list/active.json")
-        # logger.info(response)
+        logger.info(f"Fetching {len(response)} users...")
         users = {}
         for user in response:
             id = user["id"]
-            u = self.discourse_request("GET", f"admin/users/{id}.json")
-            logger.info("----")
-            logger.info(u)
-            users[id] = u
+            users[id] = self.discourse_request("GET", f"admin/users/{id}.json")
         self.state.set("users", users)
+        logger.info(f"Saved {len(response)} users in state.")
 
     @Registry.webhook_receiver(
         event_schemas=[
@@ -222,15 +221,16 @@ class Discourse(Plugin):
         elif event == "user_updated":
             updated_user = body.get("user")
 
-            # get old user from state
+            # Get the old user record from state
             user_map = self.state.get("users")
             user_id = str(updated_user['id'])
             old_user = user_map.get(user_id)
 
-            # update state so we have the latest user map
+            # Update state so that we have the latest user map
             user_map[user_id] = updated_user
             self.state.set("users", user_map)
 
+            # if `user_fields` changed, send an event to the Driver
             if not old_user or old_user["user_fields"] != updated_user["user_fields"]:
                 data = {
                     'id': updated_user['id'],
@@ -238,7 +238,6 @@ class Discourse(Plugin):
                     'user_fields': updated_user['user_fields'],
                     'old_user_fields': old_user['user_fields'] if old_user else None,
                 }
-                logger.info(data)
                 initiator = {"user_id": updated_user["username"], "provider": "discourse"}
                 self.send_event_to_driver(event_type=EVENT_USER_FIELDS_CHANGED, initiator=initiator, data=data)
 
