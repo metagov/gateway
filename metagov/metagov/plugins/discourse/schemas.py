@@ -44,8 +44,5 @@ lock_post_response = {"type": "object", "properties": {"locked": {"type": "boole
 post_topic_created_event = {
     "type": "object",
     "additionalProperties": True,
-    "properties": {
-        "id": {"type": "integer"},
-        "url": {"type": "string"}
-    }
+    "properties": {"id": {"type": "integer"}, "url": {"type": "string"}},
 }

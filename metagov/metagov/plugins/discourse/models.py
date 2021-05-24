@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 EVENT_POST_CREATED = "post_created"
 EVENT_TOPIC_CREATED = "topic_created"
+EVENT_USER_FIELDS_CHANGED = "user_fields_changed"
 
 
 @Registry.plugin
@@ -42,6 +43,7 @@ class Discourse(Plugin):
         community_name = response.get("about").get("title")
         logger.info(f"Initialized Discourse plugin for community {community_name}")
         self.state.set("community_name", community_name)
+        self.store_user_list()
 
     def construct_post_url(self, post):
         return f"{self.config['server_url']}/t/{post['topic_slug']}/{post['topic_id']}/{post['post_number']}"
@@ -167,10 +169,22 @@ class Discourse(Plugin):
         if instance != self.config["server_url"]:
             raise PluginErrorInternal("Unexpected X-Discourse-Instance")
 
+    def store_user_list(self):
+        # TODO paginate request
+        response = self.discourse_request("GET", f"admin/users/list/active.json")
+        logger.info(f"Fetching {len(response)} users...")
+        users = {}
+        for user in response:
+            id = str(user["id"])
+            users[id] = self.discourse_request("GET", f"admin/users/{id}.json")
+        self.state.set("users", users)
+        logger.info(f"Saved {len(response)} users in state.")
+
     @Registry.webhook_receiver(
         event_schemas=[
             {"type": EVENT_POST_CREATED, "schema": Schemas.post_topic_created_event},
             {"type": EVENT_TOPIC_CREATED, "schema": Schemas.post_topic_created_event},
+            {"type": EVENT_USER_FIELDS_CHANGED},
         ]
     )
     def process_discourse_webhook(self, request):
@@ -200,6 +214,28 @@ class Discourse(Plugin):
             }
             initiator = {"user_id": topic["created_by"]["username"], "provider": "discourse"}
             self.send_event_to_driver(event_type=EVENT_TOPIC_CREATED, initiator=initiator, data=data)
+        elif event == "user_updated":
+            updated_user = body.get("user")
+
+            # Get the old user record from state
+            user_map = self.state.get("users")
+            user_id = str(updated_user["id"])
+            old_user = user_map.get(user_id)
+
+            # Update state so that we have the latest user map
+            user_map[user_id] = updated_user
+            self.state.set("users", user_map)
+
+            # if `user_fields` changed, send an event to the Driver
+            if not old_user or old_user["user_fields"] != updated_user["user_fields"]:
+                data = {
+                    "id": updated_user["id"],
+                    "username": updated_user["username"],
+                    "user_fields": updated_user["user_fields"],
+                    "old_user_fields": old_user["user_fields"] if old_user else None,
+                }
+                initiator = {"user_id": updated_user["username"], "provider": "discourse"}
+                self.send_event_to_driver(event_type=EVENT_USER_FIELDS_CHANGED, initiator=initiator, data=data)
 
 
 """

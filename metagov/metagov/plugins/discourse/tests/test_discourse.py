@@ -1,5 +1,5 @@
 from django.test import Client, TestCase
-from metagov.plugins.discourse.models import DiscoursePoll
+from metagov.plugins.discourse.models import Discourse, DiscoursePoll
 import metagov.plugins.discourse.tests.mocks as DiscourseMock
 import requests_mock
 import requests
@@ -35,7 +35,22 @@ class ApiTests(TestCase):
         # create a community with the discourse plugin enabled
         with requests_mock.Mocker() as m:
             m.get(f"{mock_server_url}/about.json", json={"about": {"title": "my community"}})
+            m.get(
+                f"{mock_server_url}/admin/users/list/active.json",
+                json=[{"id": 1, "username": "alice"}],
+            )
+            m.get(
+                f"{mock_server_url}/admin/users/1.json",
+                json={"id": 1, "username": "alice", "foo": "bar"},
+            )
+
             self.client.put(self.community_url, data=self.community_data, content_type="application/json")
+
+    def test_init_works(self):
+        """Plugin is properly initialized"""
+        plugin = Discourse.objects.first()
+        self.assertIsNotNone(plugin)
+        self.assertEqual(plugin.state.get("users").get("1").get("username"), "alice")
 
     def start_discourse_poll(self):
         self.assertEqual(DiscoursePoll.objects.all().count(), 0)

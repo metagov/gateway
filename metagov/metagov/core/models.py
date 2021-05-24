@@ -100,7 +100,7 @@ class Plugin(models.Model):
         logger.debug("Sending event to Driver: " + serialized)
         resp = requests.post(settings.DRIVER_EVENT_RECEIVER_URL, data=serialized)
         if not resp.ok:
-            logger.error(f"Error sending event to driver: {resp.status_code} {resp.reason}")
+            logger.error(f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}")
 
 
 class ProcessStatus(Enum):
