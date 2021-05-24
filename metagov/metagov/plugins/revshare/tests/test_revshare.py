@@ -38,6 +38,12 @@ class ApiTests(TestCase):
         )
         self.assertContains(response, "$alice.example")
 
+        # get config
+        response = self.client.post(
+            "/api/action/revshare.get-config", content_type="application/json", **self.headers
+        )
+        self.assertContains(response, "$alice.example")
+
         # remove a pointer
         parameters = {"pointer": "$alice.example"}
         response = self.client.post(
