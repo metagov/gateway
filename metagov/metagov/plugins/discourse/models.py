@@ -175,13 +175,14 @@ class Discourse(Plugin):
 
     def store_user_list(self):
         response = self.discourse_request("GET", f"admin/users/list/active.json")
-        logger.info(response)
+        # logger.info(response)
         users = {}
         for user in response:
-            u = self.discourse_request("GET", f"admin/users/{user.id}.json")
-            users[user.id] = u
-            logger.info("USER:")
+            id = user["id"]
+            u = self.discourse_request("GET", f"admin/users/{id}.json")
+            logger.info("----")
             logger.info(u)
+            users[id] = u
         self.state.set("users", users)
 
     @Registry.webhook_receiver(
@@ -225,9 +226,9 @@ class Discourse(Plugin):
 
             # get old user from state
             user_map = self.state.get("users")
-            old_user = user_map.get(updated_user.id)
+            old_user = user_map.get(updated_user['id'])
             # update state so we have the latest user map
-            user_map[updated_user.id] = updated_user
+            user_map[updated_user['id']] = updated_user
             self.state.set("users", user_map)
 
             if old_user["user_fields"] != updated_user["user_fields"]:
