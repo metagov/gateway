@@ -175,7 +175,7 @@ class Discourse(Plugin):
         logger.info(f"Fetching {len(response)} users...")
         users = {}
         for user in response:
-            id = user["id"]
+            id = str(user["id"])
             users[id] = self.discourse_request("GET", f"admin/users/{id}.json")
         self.state.set("users", users)
         logger.info(f"Saved {len(response)} users in state.")
