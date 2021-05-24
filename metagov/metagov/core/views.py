@@ -390,7 +390,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
         parameters = {}
         if request.method == "POST" and request.body:
             payload = JSONParser().parse(request)
-            parameters = payload.get("parameters")
+            parameters = payload.get("parameters", {})
             # TODO: add back support for GET. Should be allowed if params are simple enough.
         if request.method == "GET":
             parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
