@@ -220,12 +220,11 @@ class DiscoursePoll(GovernanceProcess):
             "details": {"type": "string"},
             "category": {"type": "integer"},
             "closing_at": {"type": "string", "format": "date"},
-            "type": {"type": "string", "enum": ["regular", "multiple", "number"], "default": "regular"},
+            "poll_type": {"type": "string", "enum": ["regular", "multiple", "number"]},
             "public": {"type": "boolean", "description": "whether votes are public"},
             "results": {
                 "type": "string",
                 "enum": ["always", "on_vote", "on_close", "staff_only"],
-                "default": "always",
                 "description": "when to show results",
             },
             "min": {
@@ -240,11 +239,7 @@ class DiscoursePoll(GovernanceProcess):
                 "type": "integer",
                 "description": "For 'number' poll type, the step in between numbers. Ignored for other poll types. The minimum step value is 1.",
             },
-            "chart_type": {
-                "type": "string",
-                "enum": ["pie", "bar"],
-                "default": "bar",
-            },
+            "chart_type": {"type": "string", "enum": ["pie", "bar"]},
             "groups": {"type": "array", "items": {"type": "string"}},
         },
         "required": ["title"],
@@ -258,8 +253,9 @@ class DiscoursePoll(GovernanceProcess):
         discourse_server_url = self.plugin.config["server_url"]
         url = f"{discourse_server_url}/posts.json"
 
-        if parameters["type"] != "number" and not len(parameters.get("options", [])):
-            raise PluginErrorInternal(f"Options are required for poll type {parameters['type']}")
+        poll_type = parameters.get("poll_type", "regular")
+        if poll_type != "number" and not len(parameters.get("options", [])):
+            raise PluginErrorInternal(f"Options are required for poll type {poll_type}")
 
         optional_params = []
         if parameters.get("closing_at"):
@@ -268,14 +264,16 @@ class DiscoursePoll(GovernanceProcess):
             optional_params.append(f"groups={','.join(parameters['groups'])}")
         if parameters.get("public") is True:
             optional_params.append("public=true")
-        for p in ["min", "max", "step"]:
+        if parameters.get("chart_type"):
+            optional_params.append(f"chartType={parameters['chart_type']}")
+        for p in ["min", "max", "step", "results"]:
             if parameters.get(p) is not None:
                 optional_params.append(f"{p}={parameters[p]}")
 
-        options = "".join([f"* {opt}\n" for opt in parameters["options"]]) if parameters["type"] != "number" else ""
+        options = "".join([f"* {opt}\n" for opt in parameters["options"]]) if poll_type != "number" else ""
         raw = f"""
 {parameters.get("details") or ""}
-[poll type={parameters["type"]} results={parameters["results"]} chartType={parameters["chart_type"]} {' '.join(optional_params)}]
+[poll type={poll_type} {' '.join(optional_params)}]
 # {parameters["title"]}
 {options}
 [/poll]
