@@ -31,7 +31,7 @@ class RevShare(Plugin):
         pointer = parameters["pointer"]
         weight = parameters["weight"]
         key = parameters.get("key", DEFAULT_KEY)
-        config = self.state.get(key, {})
+        config = self.state.get(key) or {}
         config[pointer] = weight
         self.state.set(key, config)
         return config
@@ -44,7 +44,7 @@ class RevShare(Plugin):
     def remove_pointer(self, parameters):
         pointer = parameters["pointer"]
         key = parameters.get("key", DEFAULT_KEY)
-        config = self.state.get(key, {})
+        config = self.state.get(key) or {}
         config.pop(pointer, None)
         self.state.set(key, config)
         return config
@@ -68,7 +68,7 @@ class RevShare(Plugin):
     )
     def get_config(self, parameters):
         key = parameters.get("key", DEFAULT_KEY)
-        return self.state.get(key, {})
+        return self.state.get(key) or {}
 
     @Registry.action(
         slug="pick-pointer",
@@ -79,7 +79,7 @@ class RevShare(Plugin):
     )
     def pick_pointer(self, parameters):
         key = parameters.get("key", DEFAULT_KEY)
-        pointers = self.state.get(key, {})
+        pointers = self.state.get(key) or {}
         if len(pointers) == 0:
             raise PluginErrorInternal(f"No pointers for key {key}")
         # based on https://webmonetization.org/docs/probabilistic-rev-sharing/
