@@ -81,29 +81,3 @@ class RevShare(Plugin):
             choice = choice - weight
             if choice <= 0:
                 return {"pointer": pointer}
-
-    @Registry.action(
-        slug="discourse-pick-pointer",
-        description="Choose a pointer for monetizing a Discourse topic",
-        input_schema=Schemas.discourse_pick_pointer_input,
-        output_schema=Schemas.pointer,
-        is_public=True,
-    )
-    def discourse_pick_pointer(self, parameters):
-        from metagov.plugins.discourse.models import Discourse
-
-        try:
-            discourse_plugin = Discourse.objects.get(community=self.community, name="discourse")
-        except Discourse.DoesNotExist:
-            raise PluginErrorInternal("Discourse plugin is not enabled for this community")
-
-        topic = discourse_plugin.get_topic({"id": parameters["topic_id"]})
-        author = topic["details"]["created_by"]["username"]
-        participants = [p["username"] for p in topic["details"]["participants"]]
-        logger.info(author)
-        logger.info(participants)
-
-        # TODO: find payment pointers for author and participants
-        # TODO: some logic for choosing payment pointer
-
-        return {"pointer": author}

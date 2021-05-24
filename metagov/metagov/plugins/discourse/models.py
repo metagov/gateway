@@ -206,6 +206,23 @@ class Discourse(Plugin):
             initiator = {"user_id": topic["created_by"]["username"], "provider": "discourse"}
             self.send_event_to_driver(event_type=EVENT_TOPIC_CREATED, initiator=initiator, data=data)
 
+    @Registry.action(
+        slug="pick-payment-pointer",
+        description="Choose a payment pointer for monetizing a Discourse topic",
+        input_schema=Schemas.pick_pointer_parameters,
+        output_schema=Schemas.pick_pointer_response,
+        is_public=True,
+    )
+    def pick_payment_pointer(self, parameters):
+        topic = self.get_topic({"id": parameters["topic_id"]})
+        author = topic["details"]["created_by"]["username"]
+        participants = [p["username"] for p in topic["details"]["participants"]]
+        logger.info(f"Topic authored by {author}")
+        logger.info(f"Topic participants: {participants}")
+        # TODO: fetch payment pointers for author and participants
+        # TODO: some logic for choosing payment pointer
+        return {"pointer": author}
+
 
 """
 GOVERNANCE PROCESSES
