@@ -220,23 +220,23 @@ class Discourse(Plugin):
             initiator = {"user_id": topic["created_by"]["username"], "provider": "discourse"}
             self.send_event_to_driver(event_type=EVENT_TOPIC_CREATED, initiator=initiator, data=data)
         elif event == "user_updated":
-            logger.info(">>>>> user_updated")
-            logger.info(body)
             updated_user = body.get("user")
 
             # get old user from state
             user_map = self.state.get("users")
-            old_user = user_map.get(updated_user['id'])
+            user_id = str(updated_user['id'])
+            old_user = user_map.get(user_id)
+
             # update state so we have the latest user map
-            user_map[updated_user['id']] = updated_user
+            user_map[user_id] = updated_user
             self.state.set("users", user_map)
 
-            if old_user["user_fields"] != updated_user["user_fields"]:
+            if not old_user or old_user["user_fields"] != updated_user["user_fields"]:
                 data = {
                     'id': updated_user['id'],
                     'username': updated_user['username'],
                     'user_fields': updated_user['user_fields'],
-                    'old_user_fields': old_user['user_fields'],
+                    'old_user_fields': old_user['user_fields'] if old_user else None,
                 }
                 logger.info(data)
                 initiator = {"user_id": updated_user["username"], "provider": "discourse"}
