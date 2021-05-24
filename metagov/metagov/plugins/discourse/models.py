@@ -15,6 +15,7 @@ EVENT_POST_CREATED = "post_created"
 EVENT_TOPIC_CREATED = "topic_created"
 EVENT_USER_FIELDS_CHANGED = "user_fields_changed"
 
+
 @Registry.plugin
 class Discourse(Plugin):
     name = "discourse"
@@ -102,11 +103,6 @@ class Discourse(Plugin):
         username = parameters.pop("initiator", "system")
         post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
         return self.construct_post_response(post)
-
-    @Registry.action(slug="get-topic", description="Get a topic", input_schema=Schemas.delete_post_or_topic_parameters)
-    def get_topic(self, parameters):
-        topic_id = parameters["id"]
-        return self.discourse_request("GET", f"t/{topic_id}.json")
 
     @Registry.action(
         slug="delete-post",
@@ -223,7 +219,7 @@ class Discourse(Plugin):
 
             # Get the old user record from state
             user_map = self.state.get("users")
-            user_id = str(updated_user['id'])
+            user_id = str(updated_user["id"])
             old_user = user_map.get(user_id)
 
             # Update state so that we have the latest user map
@@ -233,30 +229,13 @@ class Discourse(Plugin):
             # if `user_fields` changed, send an event to the Driver
             if not old_user or old_user["user_fields"] != updated_user["user_fields"]:
                 data = {
-                    'id': updated_user['id'],
-                    'username': updated_user['username'],
-                    'user_fields': updated_user['user_fields'],
-                    'old_user_fields': old_user['user_fields'] if old_user else None,
+                    "id": updated_user["id"],
+                    "username": updated_user["username"],
+                    "user_fields": updated_user["user_fields"],
+                    "old_user_fields": old_user["user_fields"] if old_user else None,
                 }
                 initiator = {"user_id": updated_user["username"], "provider": "discourse"}
                 self.send_event_to_driver(event_type=EVENT_USER_FIELDS_CHANGED, initiator=initiator, data=data)
-
-    @Registry.action(
-        slug="pick-payment-pointer",
-        description="Choose a payment pointer for monetizing a Discourse topic",
-        input_schema=Schemas.pick_pointer_parameters,
-        output_schema=Schemas.pick_pointer_response,
-        is_public=True,
-    )
-    def pick_payment_pointer(self, parameters):
-        topic = self.get_topic({"id": parameters["topic_id"]})
-        author = topic["details"]["created_by"]["username"]
-        participants = [p["username"] for p in topic["details"]["participants"]]
-        logger.info(f"Topic authored by {author}")
-        logger.info(f"Topic participants: {participants}")
-        # TODO: fetch payment pointers for author and participants
-        # TODO: some logic for choosing payment pointer
-        return {"pointer": author}
 
 
 """

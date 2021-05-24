@@ -41,19 +41,6 @@ lock_post_parameters = {
 }
 lock_post_response = {"type": "object", "properties": {"locked": {"type": "boolean"}}}
 
-pick_pointer_parameters = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {"topic_id": {"type": "integer"}},
-    "required": ["topic_id"],
-}
-pick_pointer_response = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {"pointer": {"type": "string"}},
-    "required": ["pointer"],
-}
-
 post_topic_created_event = {
     "type": "object",
     "additionalProperties": True,
