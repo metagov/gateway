@@ -6,23 +6,17 @@ send_message_parameters = {
         "is_warning": {"type": "boolean"},
         "topic_id": {"type": "integer"},
         "target_usernames": {"type": "array", "items": {"type": "string"}},
-        "initiator": {"type": "string"},
     },
     "required": ["raw", "target_usernames"],
 }
 create_post_parameters = {
     "type": "object",
-    "properties": {"raw": {"type": "string"}, "topic_id": {"type": "integer"}, "initiator": {"type": "string"}},
+    "properties": {"raw": {"type": "string"}, "topic_id": {"type": "integer"}},
     "required": ["raw", "topic_id"],
 }
 create_topic_parameters = {
     "type": "object",
-    "properties": {
-        "raw": {"type": "string"},
-        "category": {"type": "integer"},
-        "title": {"type": "string"},
-        "initiator": {"type": "string"},
-    },
+    "properties": {"raw": {"type": "string"}, "category": {"type": "integer"}, "title": {"type": "string"}},
     "required": ["raw", "title", "category"],
 }
 create_post_or_topic_response = {

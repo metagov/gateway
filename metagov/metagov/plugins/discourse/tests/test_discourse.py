@@ -86,6 +86,8 @@ class ApiTests(TestCase):
             m.get(f"{mock_server_url}/posts/1.json", json=DiscourseMock.post_with_open_poll_and_votes)
 
             # call "update" (in prod, would be invoked from celery task)
+            from metagov.core.views import get_proxy
+            process.plugin = get_proxy(process.plugin)
             process.update()
 
             # status should still be pending
