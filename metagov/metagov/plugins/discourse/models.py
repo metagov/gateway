@@ -15,6 +15,21 @@ EVENT_POST_CREATED = "post_created"
 EVENT_TOPIC_CREATED = "topic_created"
 EVENT_USER_FIELDS_CHANGED = "user_fields_changed"
 
+"""
+TODO: add actions and events for "user actions":
+ LIKE = 1
+ WAS_LIKED = 2
+ BOOKMARK = 3
+ NEW_TOPIC = 4
+ REPLY = 5
+ RESPONSE= 6
+ MENTION = 7
+ QUOTE = 9
+ EDIT = 11
+ NEW_PRIVATE_MESSAGE = 12
+ GOT_PRIVATE_MESSAGE = 13
+"""
+
 
 @Registry.plugin
 class Discourse(Plugin):
@@ -23,7 +38,10 @@ class Discourse(Plugin):
         "type": "object",
         "additionalProperties": False,
         "properties": {
-            "api_key": {"type": "string", "description": "Global Discourse API key with user level 'all users'"},
+            "api_key": {
+                "type": "string",
+                "description": "Discourse API key for a bot user that is an admin. Actions will be taken on behalf of this user.",
+            },
             "server_url": {"type": "string", "description": "URL of the Discourse server"},
             "webhook_secret": {
                 "type": "string",
@@ -54,16 +72,15 @@ class Discourse(Plugin):
     def construct_post_response(self, post):
         return {"url": self.construct_post_url(post), "topic_id": post["topic_id"], "post_id": post["id"]}
 
-    def discourse_request(self, method, route, username="system", json=None, data=None):
+    def discourse_request(self, method, route, json=None, data=None):
         url = f"{self.config['server_url']}/{route}"
         logger.info(f"{method} {url}")
 
-        headers = {"Api-Username": username, "Api-Key": self.config["api_key"]}
+        headers = {"Api-Key": self.config["api_key"]}
         resp = requests.request(method, url, headers=headers, json=json, data=data)
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason}")
             logger.error(resp.request.body)
-            # logger.error(resp.request.headers)
             raise PluginErrorInternal(resp.text)
         if resp.content:
             return resp.json()
@@ -76,13 +93,12 @@ class Discourse(Plugin):
         output_schema=Schemas.create_post_or_topic_response,
     )
     def create_message(self, parameters):
-        username = parameters.pop("initiator", "system")
         parameters["target_recipients"] = ",".join(parameters.pop("target_usernames"))
         if parameters.get("topic_id"):
             parameters["archetype"] = "regular"
         else:
             parameters["archetype"] = "private_message"
-        post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
+        post = self.discourse_request("POST", "posts.json", json=parameters)
         return self.construct_post_response(post)
 
     @Registry.action(
@@ -92,8 +108,7 @@ class Discourse(Plugin):
         output_schema=Schemas.create_post_or_topic_response,
     )
     def create_post(self, parameters):
-        username = parameters.pop("initiator", "system")
-        post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
+        post = self.discourse_request("POST", "posts.json", json=parameters)
         return self.construct_post_response(post)
 
     @Registry.action(
@@ -103,8 +118,7 @@ class Discourse(Plugin):
         output_schema=Schemas.create_post_or_topic_response,
     )
     def create_topic(self, parameters):
-        username = parameters.pop("initiator", "system")
-        post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
+        post = self.discourse_request("POST", "posts.json", json=parameters)
         return self.construct_post_response(post)
 
     @Registry.action(
@@ -258,7 +272,10 @@ class DiscoursePoll(GovernanceProcess):
             "options": {"type": "array", "items": {"type": "string"}},
             "details": {"type": "string"},
             "topic_id": {"type": "integer", "description": "required if creating the poll as a new post."},
-            "category": {"type": "integer", "description": "optional if creating the poll as a new topic, and ignored if creating it as a new post."},
+            "category": {
+                "type": "integer",
+                "description": "optional if creating the poll as a new topic, and ignored if creating it as a new post.",
+            },
             "closing_at": {"type": "string", "format": "date"},
             "poll_type": {"type": "string", "enum": ["regular", "multiple", "number"]},
             "public": {"type": "boolean", "description": "whether votes are public"},
@@ -323,20 +340,14 @@ class DiscoursePoll(GovernanceProcess):
             payload["category"] = parameters["category"]
         if parameters.get("topic_id"):
             payload["topic_id"] = parameters["topic_id"]
-        headers = {"Api-Key": self.plugin.config["api_key"], "Api-Username": "system"}
+
         logger.info(payload)
         logger.info(url)
 
-        resp = requests.post(url, data=payload, headers=headers)
-        if not resp.ok:
-            logger.error(f"Error: {resp.status_code} {resp.text}")
-            raise PluginErrorInternal(resp.text or "unknown error")
-
-        response = resp.json()
+        response = self.plugin.discourse_request("POST", "posts.json", json=payload)
         if response.get("errors"):
             errors = response["errors"]
             raise PluginErrorInternal(str(errors))
-
 
         poll_url = self.plugin.construct_post_url(response)
         logger.info(f"Poll created at {poll_url}")
@@ -354,13 +365,8 @@ class DiscoursePoll(GovernanceProcess):
         manually by a user. Would be simplified if we disallow that, and instead this function could just
         check if `closing_at` has happened yet (if set) and call close() if it has.
         """
-        headers = {"Api-Username": "system", "Api-Key": self.plugin.config["api_key"]}
         post_id = self.state.get("post_id")
-        resp = requests.get(f"{self.plugin.config['server_url']}/posts/{post_id}.json", headers=headers)
-        if not resp.ok:
-            logger.error(f"{resp.status_code} {resp.reason}")
-            raise PluginErrorInternal(resp.text)
-        response = resp.json()
+        response = self.plugin.discourse_request("GET", f"posts/{post_id}.json")
         poll = response["polls"][0]
         self.update_outcome_from_discourse_poll(poll)
 
@@ -369,24 +375,14 @@ class DiscoursePoll(GovernanceProcess):
         Invoked by the Driver to manually close the poll. This would be used in cases where `closing_at` param is not set,
         or in cases where the Driver wants to close the poll early (before closing_at time).
         """
-        url = f"{self.plugin.config['server_url']}/polls/toggle_status"
         post_id = self.state.get("post_id")
         data = {"post_id": post_id, "poll_name": "poll", "status": "closed"}
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Api-Username": "system",
-            "Api-Key": self.plugin.config["api_key"],
-        }
-
-        resp = requests.put(url, data=data, headers=headers)
-        if not resp.ok:
-            logger.error(f"{resp.status_code} {resp.reason} {resp.text}")
-            raise PluginErrorInternal(resp.text)
-        poll = resp.json()["poll"]
+        response = self.plugin.discourse_request("PUT", "polls/toggle_status", data=data)
+        poll = response["poll"]
         self.update_outcome_from_discourse_poll(poll)
 
         # Lock the post
-        # self.get_plugin().lock_post({"locked": True, "id": post_id})
+        # self.plugin.lock_post({"locked": True, "id": post_id})
 
     def update_outcome_from_discourse_poll(self, poll):
         """Save changes to outcome and state if changed"""
