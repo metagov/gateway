@@ -257,7 +257,8 @@ class DiscoursePoll(GovernanceProcess):
             "title": {"type": "string"},
             "options": {"type": "array", "items": {"type": "string"}},
             "details": {"type": "string"},
-            "category": {"type": "integer"},
+            "topic_id": {"type": "integer", "description": "required if creating the poll as a new post."},
+            "category": {"type": "integer", "description": "optional if creating the poll as a new topic, and ignored if creating it as a new post."},
             "closing_at": {"type": "string", "format": "date"},
             "poll_type": {"type": "string", "enum": ["regular", "multiple", "number"]},
             "public": {"type": "boolean", "description": "whether votes are public"},
@@ -320,6 +321,8 @@ class DiscoursePoll(GovernanceProcess):
         payload = {"raw": raw, "title": parameters["title"]}
         if parameters.get("category"):
             payload["category"] = parameters["category"]
+        if parameters.get("topic_id"):
+            payload["topic_id"] = parameters["topic_id"]
         headers = {"Api-Key": self.plugin.config["api_key"], "Api-Username": "system"}
         logger.info(payload)
         logger.info(url)
@@ -334,7 +337,8 @@ class DiscoursePoll(GovernanceProcess):
             errors = response["errors"]
             raise PluginErrorInternal(str(errors))
 
-        poll_url = f"{discourse_server_url}/t/{response.get('topic_slug')}/{response.get('topic_id')}"
+
+        poll_url = self.plugin.construct_post_url(response)
         logger.info(f"Poll created at {poll_url}")
         self.state.set("post_id", response.get("id"))
         self.state.set("topic_id", response.get("topic_id"))
@@ -351,14 +355,13 @@ class DiscoursePoll(GovernanceProcess):
         check if `closing_at` has happened yet (if set) and call close() if it has.
         """
         headers = {"Api-Username": "system", "Api-Key": self.plugin.config["api_key"]}
-        topic_id = self.state.get("topic_id")
-        resp = requests.get(f"{self.plugin.config['server_url']}/t/{topic_id}.json", headers=headers)
+        post_id = self.state.get("post_id")
+        resp = requests.get(f"{self.plugin.config['server_url']}/posts/{post_id}.json", headers=headers)
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason}")
             raise PluginErrorInternal(resp.text)
         response = resp.json()
-        topic_post = response["post_stream"]["posts"][0]
-        poll = topic_post["polls"][0]
+        poll = response["polls"][0]
         self.update_outcome_from_discourse_poll(poll)
 
     def close(self):

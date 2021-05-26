@@ -1,5 +1,6 @@
 import json
 import logging
+import traceback
 
 from django.http import HttpResponseBadRequest, HttpResponseServerError
 from metagov.core.models import Community
@@ -38,6 +39,7 @@ def api_500_exception_handler(exception, context):
     """
     response = exception_handler(exception, context)
     if response is None:
-        logger.error(f"ERROR: '{str(exception)}' thrown in context '{context}'")
+        logger.error(traceback.format_exc())
+        logger.error(f"ERROR: {type(exception).__name__} {str(exception)} thrown in context '{context}'")
         return HttpResponseServerError(json.dumps({"detail": "A server error occurred."}))
     return response
