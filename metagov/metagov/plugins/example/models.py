@@ -84,8 +84,8 @@ class StochasticVote(GovernanceProcess):
         print(f'Starting process with options {parameters["options"]}')
 
         # can safely access plugin state and config
-        print(self.plugin.config["default_high"])
-        print(self.plugin.state.get("lucky_number"))
+        print(self.plugin_inst.config["default_high"])
+        print(self.plugin_inst.state.get("lucky_number"))
 
         # save options to internal state
         self.state.set("options", parameters["options"])
@@ -108,8 +108,8 @@ class StochasticVote(GovernanceProcess):
 
         options = self.state.get("options")
 
-        # use `get_plugin()` to get access to plugin functions
-        result = self.get_plugin().rand_int({"low": 0, "high": len(options)})
+        # use `plugin_inst` to access plugin functions
+        result = self.plugin_inst.rand_int({"low": 0, "high": len(options)})
         rand_index = result["value"]
         print(f"Winner is {options[rand_index]}!")
 

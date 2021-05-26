@@ -307,7 +307,7 @@ class DiscoursePoll(GovernanceProcess):
         proxy = True
 
     def start(self, parameters) -> None:
-        discourse_server_url = self.plugin.config["server_url"]
+        discourse_server_url = self.plugin_inst.config["server_url"]
         url = f"{discourse_server_url}/posts.json"
 
         poll_type = parameters.get("poll_type", "regular")
@@ -344,12 +344,12 @@ class DiscoursePoll(GovernanceProcess):
         logger.info(payload)
         logger.info(url)
 
-        response = self.plugin.discourse_request("POST", "posts.json", json=payload)
+        response = self.plugin_inst.discourse_request("POST", "posts.json", json=payload)
         if response.get("errors"):
             errors = response["errors"]
             raise PluginErrorInternal(str(errors))
 
-        poll_url = self.plugin.construct_post_url(response)
+        poll_url = self.plugin_inst.construct_post_url(response)
         logger.info(f"Poll created at {poll_url}")
         self.state.set("post_id", response.get("id"))
         self.state.set("topic_id", response.get("topic_id"))
@@ -366,7 +366,7 @@ class DiscoursePoll(GovernanceProcess):
         check if `closing_at` has happened yet (if set) and call close() if it has.
         """
         post_id = self.state.get("post_id")
-        response = self.plugin.discourse_request("GET", f"posts/{post_id}.json")
+        response = self.plugin_inst.discourse_request("GET", f"posts/{post_id}.json")
         poll = response["polls"][0]
         self.update_outcome_from_discourse_poll(poll)
 
@@ -377,12 +377,12 @@ class DiscoursePoll(GovernanceProcess):
         """
         post_id = self.state.get("post_id")
         data = {"post_id": post_id, "poll_name": "poll", "status": "closed"}
-        response = self.plugin.discourse_request("PUT", "polls/toggle_status", data=data)
+        response = self.plugin_inst.discourse_request("PUT", "polls/toggle_status", data=data)
         poll = response["poll"]
         self.update_outcome_from_discourse_poll(poll)
 
         # Lock the post
-        # self.plugin.lock_post({"locked": True, "id": post_id})
+        # self.plugin_inst.lock_post({"locked": True, "id": post_id})
 
     def update_outcome_from_discourse_poll(self, poll):
         """Save changes to outcome and state if changed"""

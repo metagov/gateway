@@ -27,9 +27,6 @@ def execute_plugin_tasks():
             for process in active_processes:
                 logger.debug(f"[tasks] updating process: '{process}'")
 
-                # hack so process has access to parent proxy instance
-                process.plugin = get_proxy(process.plugin)
-
                 # Invoke `update`. It may lead to the outcome or status being changed,
                 # which will send a callback notification to the Driver from the `pre_save signal`
                 try:
