@@ -1,22 +1,10 @@
-from django.test import Client, TestCase
 from metagov.plugins.revshare.models import RevShare
+from metagov.tests.plugin_test_utils import PluginTestCase
 
 
-class ApiTests(TestCase):
+class ApiTests(PluginTestCase):
     def setUp(self):
-        # create a test community with the revshare plugin enabled
-        self.client = Client()
-
-        self.community_name = "revshare-test-community"
-        self.headers = {"HTTP_X_METAGOV_COMMUNITY": self.community_name}
-        self.community_url = f"/api/internal/community/{self.community_name}"
-        self.community_data = {
-            "name": self.community_name,
-            "readable_name": "miriams new community",
-            "plugins": [{"name": "revshare", "config": {}}],
-        }
-        # create a community with the revshare plugin enabled
-        self.client.put(self.community_url, data=self.community_data, content_type="application/json")
+        self.enable_plugin(name="revshare")
 
     def test_revshare(self):
         """Test adding, removing, and requesting pointer from default key"""
@@ -28,19 +16,19 @@ class ApiTests(TestCase):
             "/api/internal/action/revshare.add-pointer",
             data={"parameters": parameters},
             content_type="application/json",
-            **self.headers,
+            **self.COMMUNITY_HEADER,
         )
         self.assertContains(response, "$alice.example")
 
         # request a random pointer
         response = self.client.post(
-            "/api/action/revshare.pick-pointer", content_type="application/json", **self.headers
+            "/api/action/revshare.pick-pointer", content_type="application/json", **self.COMMUNITY_HEADER
         )
         self.assertContains(response, "$alice.example")
 
         # get config
         response = self.client.post(
-            "/api/action/revshare.get-config", content_type="application/json", **self.headers
+            "/api/action/revshare.get-config", content_type="application/json", **self.COMMUNITY_HEADER
         )
         self.assertContains(response, "$alice.example")
 
@@ -50,7 +38,7 @@ class ApiTests(TestCase):
             "/api/internal/action/revshare.remove-pointer",
             data={"parameters": parameters},
             content_type="application/json",
-            **self.headers,
+            **self.COMMUNITY_HEADER,
         )
         self.assertNotContains(response, "$alice.example")
 
@@ -67,7 +55,7 @@ class ApiTests(TestCase):
             "/api/internal/action/revshare.add-pointer",
             data={"parameters": parameters},
             content_type="application/json",
-            **self.headers,
+            **self.COMMUNITY_HEADER,
         )
         self.assertContains(response, "$alice.example")
 
@@ -77,7 +65,7 @@ class ApiTests(TestCase):
             "/api/internal/action/revshare.add-pointer",
             data={"parameters": parameters},
             content_type="application/json",
-            **self.headers,
+            **self.COMMUNITY_HEADER,
         )
         self.assertContains(response, "$bob.example")
         self.assertNotContains(response, "$alice.example")
@@ -87,7 +75,7 @@ class ApiTests(TestCase):
             "/api/action/revshare.pick-pointer",
             data={"parameters": {"key": key2}},
             content_type="application/json",
-            **self.headers,
+            **self.COMMUNITY_HEADER,
         )
         self.assertContains(response, "$bob.example")
 
@@ -97,7 +85,7 @@ class ApiTests(TestCase):
             "/api/internal/action/revshare.remove-pointer",
             data={"parameters": parameters},
             content_type="application/json",
-            **self.headers,
+            **self.COMMUNITY_HEADER,
         )
         self.assertNotContains(response, "$bob.example")
 
@@ -107,6 +95,6 @@ class ApiTests(TestCase):
             "/api/internal/action/revshare.get-config",
             data={"parameters": parameters},
             content_type="application/json",
-            **self.headers,
+            **self.COMMUNITY_HEADER,
         )
         self.assertContains(response, "{}")
