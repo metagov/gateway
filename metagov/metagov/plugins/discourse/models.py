@@ -355,14 +355,13 @@ class DiscoursePoll(GovernanceProcess):
         check if `closing_at` has happened yet (if set) and call close() if it has.
         """
         headers = {"Api-Username": "system", "Api-Key": self.plugin.config["api_key"]}
-        topic_id = self.state.get("topic_id")
-        resp = requests.get(f"{self.plugin.config['server_url']}/t/{topic_id}.json", headers=headers)
+        post_id = self.state.get("post_id")
+        resp = requests.get(f"{self.plugin.config['server_url']}/posts/{post_id}.json", headers=headers)
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason}")
             raise PluginErrorInternal(resp.text)
         response = resp.json()
-        topic_post = response["post_stream"]["posts"][0]
-        poll = topic_post["polls"][0]
+        poll = response["polls"][0]
         self.update_outcome_from_discourse_poll(poll)
 
     def close(self):

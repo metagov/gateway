@@ -1,4 +1,5 @@
 import logging
+import traceback
 
 from celery import shared_task
 from metagov.core.models import ProcessStatus
@@ -35,4 +36,4 @@ def execute_plugin_tasks():
                     process.update()
                 except Exception as e:
                     logger.error("Error updating process!")
-                    logger.error(e)
+                    logger.error(traceback.format_exc())
