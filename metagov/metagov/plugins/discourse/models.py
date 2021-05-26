@@ -257,7 +257,8 @@ class DiscoursePoll(GovernanceProcess):
             "title": {"type": "string"},
             "options": {"type": "array", "items": {"type": "string"}},
             "details": {"type": "string"},
-            "category": {"type": "integer"},
+            "topic_id": {"type": "integer", "description": "required if creating the poll as a new post."},
+            "category": {"type": "integer", "description": "optional if creating the poll as a new topic, and ignored if creating it as a new post."},
             "closing_at": {"type": "string", "format": "date"},
             "poll_type": {"type": "string", "enum": ["regular", "multiple", "number"]},
             "public": {"type": "boolean", "description": "whether votes are public"},
@@ -320,6 +321,8 @@ class DiscoursePoll(GovernanceProcess):
         payload = {"raw": raw, "title": parameters["title"]}
         if parameters.get("category"):
             payload["category"] = parameters["category"]
+        if parameters.get("topic_id"):
+            payload["topic_id"] = parameters["topic_id"]
         headers = {"Api-Key": self.plugin.config["api_key"], "Api-Username": "system"}
         logger.info(payload)
         logger.info(url)
@@ -334,7 +337,8 @@ class DiscoursePoll(GovernanceProcess):
             errors = response["errors"]
             raise PluginErrorInternal(str(errors))
 
-        poll_url = f"{discourse_server_url}/t/{response.get('topic_slug')}/{response.get('topic_id')}"
+
+        poll_url = self.plugin.construct_post_url(response)
         logger.info(f"Poll created at {poll_url}")
         self.state.set("post_id", response.get("id"))
         self.state.set("topic_id", response.get("topic_id"))

@@ -57,7 +57,7 @@ class ApiTests(TestCase):
 
         with requests_mock.Mocker() as m:
             # mock Discourse response to creating a new poll
-            mock_response = {"id": 1, "topic_id": 0, "topic_slug": "test"}
+            mock_response = {"id": 1, "topic_id": 0, "topic_slug": "test", "post_number": 1}
             m.post(f"{mock_server_url}/posts.json", json=mock_response)
             # mock Discourse response to getting a topic
             m.get(f"{mock_server_url}/t/0.json", json=DiscourseMock.topic_with_open_poll)
