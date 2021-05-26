@@ -66,7 +66,7 @@ def governance_process(cls):
         except plugin_cls.DoesNotExist:
             return None
 
-    cls.add_to_class("get_plugin", get_plugin)
+    setattr(cls, "plugin_inst", property(get_plugin))
     return cls
 
 class EventProducerMeta:

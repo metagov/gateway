@@ -65,7 +65,7 @@ class LoomioPoll(GovernanceProcess):
         payload = {
             **parameters,
             "options[]": options,
-            "api_key": self.plugin.config["api_key"],
+            "api_key": self.plugin_inst.config["api_key"],
         }
 
         resp = requests.post(url, payload)
@@ -107,7 +107,7 @@ class LoomioPoll(GovernanceProcess):
 
     def fetch_and_update_outcome(self):
         poll_key = self.state.get("poll_key")
-        url = f"https://www.loomio.org/api/b1/polls/{poll_key}?api_key={self.plugin.config['api_key']}"
+        url = f"https://www.loomio.org/api/b1/polls/{poll_key}?api_key={self.plugin_inst.config['api_key']}"
         resp = requests.get(url)
         if not resp.ok:
             logger.error(f"Error fetching poll: {resp.status_code} {resp.text}")

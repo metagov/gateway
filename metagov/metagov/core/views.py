@@ -346,9 +346,6 @@ def decorated_get_process_view(plugin_name, slug):
         except cls.DoesNotExist:
             return HttpResponseNotFound()
 
-        # This is a hack so that the process can access proxy-specific functions..
-        process.plugin = get_proxy(process.plugin)
-
         # 'DELETE'  means close the process and return it. This will update process state.
         if request.method == "DELETE":
             if process.status == ProcessStatus.COMPLETED.value:
@@ -445,8 +442,3 @@ def get_plugin_instance(plugin_name, community):
     if not plugin:
         raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community.name}'")
     return plugin
-
-
-def get_proxy(plugin):
-    cls = plugin_registry.get(plugin.name)
-    return cls.objects.get(pk=plugin.pk)

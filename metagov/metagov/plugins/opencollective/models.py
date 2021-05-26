@@ -161,7 +161,7 @@ class OpenCollectiveVote(GovernanceProcess):
         proxy = True
 
     def start(self, parameters) -> None:
-        result = self.plugin.create_conversation(
+        result = self.plugin_inst.create_conversation(
             {"raw": parameters["details"], "title": parameters["title"], "tags": ["metagov-vote"]}
         )
         logger.info(f"Poll created at {result['url']}")
@@ -170,7 +170,7 @@ class OpenCollectiveVote(GovernanceProcess):
         self.state.set("title", result["title"])
         self.outcome = {"vote_url": result["url"], "votes": {self.YES: 0, self.NO: 0}}
 
-        result = self.plugin.run_query(Queries.conversation, {"id": self.state.get("id")})
+        result = self.plugin_inst.run_query(Queries.conversation, {"id": self.state.get("id")})
         data = result["conversation"]
         self.update_outcome_from_conversation(data)
 
@@ -178,7 +178,7 @@ class OpenCollectiveVote(GovernanceProcess):
         self.save()
 
     def update(self):
-        result = self.plugin.run_query(Queries.conversation, {"id": self.state.get("id")})
+        result = self.plugin_inst.run_query(Queries.conversation, {"id": self.state.get("id")})
         data = result["conversation"]
         self.update_outcome_from_conversation(data)
 
@@ -189,13 +189,13 @@ class OpenCollectiveVote(GovernanceProcess):
         # change conversation title
         conversation_id = self.state.get("id")
         new_title = "[CLOSED] " + self.state.get("title")
-        result = self.plugin.run_query(Queries.edit_conversation, {"id": conversation_id, "title": new_title})
+        result = self.plugin_inst.run_query(Queries.edit_conversation, {"id": conversation_id, "title": new_title})
 
         # add a comment
         votes = self.outcome["votes"]
         yes_votes = votes[self.YES]
         no_votes = votes[self.NO]
-        self.plugin.create_comment(
+        self.plugin_inst.create_comment(
             {
                 # TODO: Driver should be able to customize this msg for each process instance. Include template in input_schema?
                 "raw": f"Voting period is closed. Final count is {yes_votes} for and {no_votes} against.",
