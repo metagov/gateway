@@ -78,7 +78,10 @@ class Discourse(Plugin):
     def create_message(self, parameters):
         username = parameters.pop("initiator", "system")
         parameters["target_recipients"] = ",".join(parameters.pop("target_usernames"))
-        parameters["archetype"] = "private_message"
+        if parameters.get("topic_id"):
+            parameters["archetype"] = "regular"
+        else:
+            parameters["archetype"] = "private_message"
         post = self.discourse_request("POST", "posts.json", username=username, json=parameters)
         return self.construct_post_response(post)
 

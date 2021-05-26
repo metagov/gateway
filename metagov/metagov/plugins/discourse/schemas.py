@@ -4,10 +4,11 @@ send_message_parameters = {
         "title": {"type": "string"},
         "raw": {"type": "string"},
         "is_warning": {"type": "boolean"},
+        "topic_id": {"type": "integer"},
         "target_usernames": {"type": "array", "items": {"type": "string"}},
         "initiator": {"type": "string"},
     },
-    "required": ["title", "raw", "target_usernames"],
+    "required": ["raw", "target_usernames"],
 }
 create_post_parameters = {
     "type": "object",
