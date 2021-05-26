@@ -59,8 +59,8 @@ class ApiTests(TestCase):
             # mock Discourse response to creating a new poll
             mock_response = {"id": 1, "topic_id": 0, "topic_slug": "test", "post_number": 1}
             m.post(f"{mock_server_url}/posts.json", json=mock_response)
-            # mock Discourse response to getting a topic
-            m.get(f"{mock_server_url}/t/0.json", json=DiscourseMock.topic_with_open_poll)
+            # mock Discourse response to getting a post
+            m.get(f"{mock_server_url}/posts/1.json", json=DiscourseMock.post_with_open_poll)
 
             # make Metagov API request to create a new poll
             input_params = {
@@ -83,7 +83,7 @@ class ApiTests(TestCase):
             self.assertEqual(process.status, "pending")
 
             # change mock to include some votes
-            m.get(f"{mock_server_url}/t/0.json", json=DiscourseMock.topic_with_open_poll_and_votes)
+            m.get(f"{mock_server_url}/posts/1.json", json=DiscourseMock.post_with_open_poll_and_votes)
 
             # call "update" (in prod, would be invoked from celery task)
             process.update()
@@ -104,7 +104,7 @@ class ApiTests(TestCase):
 
         with requests_mock.Mocker() as m:
             # change mock to be closed
-            m.get(f"{mock_server_url}/t/0.json", json=DiscourseMock.topic_with_closed_poll_and_votes)
+            m.get(f"{mock_server_url}/posts/1.json", json=DiscourseMock.post_with_closed_poll_and_votes)
 
             # call "update" (in prod, would be invoked from celery task)
             process.update()
