@@ -1,5 +1,6 @@
-from django.test import Client, TestCase
 from metagov.plugins.discourse.models import Discourse, DiscoursePoll
+from metagov.tests.plugin_test_utils import PluginTestCase
+
 import metagov.plugins.discourse.tests.mocks as DiscourseMock
 import requests_mock
 import requests
@@ -14,25 +15,9 @@ session.mount("mock://", adapter)
 adapter.register_uri("GET", "mock://test.com", text="data")
 
 
-class ApiTests(TestCase):
+class ApiTests(PluginTestCase):
     def setUp(self):
-        # create a test community with the revshare plugin enabled
-        self.client = Client()
-
-        self.community_name = "test-community"
-        self.headers = {"HTTP_X_METAGOV_COMMUNITY": self.community_name}
-        self.community_url = f"/api/internal/community/{self.community_name}"
-        self.community_data = {
-            "name": self.community_name,
-            "plugins": [
-                {
-                    "name": "discourse",
-                    "config": {"server_url": mock_server_url, "api_key": "empty", "webhook_secret": "empty"},
-                }
-            ],
-        }
-
-        # create a community with the discourse plugin enabled
+        # set up mocks needed for the `initialize` method, which is called with the plugin is enabled
         with requests_mock.Mocker() as m:
             m.get(f"{mock_server_url}/about.json", json={"about": {"title": "my community"}})
             m.get(
@@ -44,7 +29,10 @@ class ApiTests(TestCase):
                 json={"id": 1, "username": "alice", "foo": "bar"},
             )
 
-            self.client.put(self.community_url, data=self.community_data, content_type="application/json")
+            # enable the plugin
+            self.enable_plugin(
+                name="discourse", config={"server_url": mock_server_url, "api_key": "empty", "webhook_secret": "empty"}
+            )
 
     def test_init_works(self):
         """Plugin is properly initialized"""
@@ -70,7 +58,7 @@ class ApiTests(TestCase):
                 "closing_at": "2023-04-22",
             }
             response = self.client.post(
-                discourse_process_url, data=input_params, content_type="application/json", **self.headers
+                discourse_process_url, data=input_params, content_type="application/json", **self.COMMUNITY_HEADER
             )
             self.assertEqual(response.status_code, 202)
             location = response["location"]
