@@ -31,4 +31,8 @@ def execute_plugin_tasks():
 
                 # Invoke `update`. It may lead to the outcome or status being changed,
                 # which will send a callback notification to the Driver from the `pre_save signal`
-                process.update()
+                try:
+                    process.update()
+                except Exception as e:
+                    logger.error("Error updating process!")
+                    logger.error(e)
