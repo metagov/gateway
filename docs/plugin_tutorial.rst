@@ -313,6 +313,7 @@ This snippet shows all possible functions you can implement on your proxy model:
         def close(self):
             # Override this function (OPTIONAL).
             # Close the governance process and save the outcome.
+            pass
 
         def update(self):
             # Override this function (OPTIONAL).
