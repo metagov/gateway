@@ -8,8 +8,7 @@ You'll want to do this if...
 * You are developing Metagov Core, or
 * You are testing or developing a Driver locally
 
-If you're ready to install Metagov on an Ubuntu server,
-head over to `Installing Metagov <../installation>`_ instead.
+If you're ready to deploy Metagov to a server, head over to :doc:`Installing Metagov <../installation>` instead.
 
 Run a local Django web server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
