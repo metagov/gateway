@@ -1,9 +1,9 @@
+import metagov.plugins.discourse.tests.mocks as DiscourseMock
+import requests
+import requests_mock
+from metagov.core.tasks import execute_plugin_tasks
 from metagov.plugins.discourse.models import Discourse, DiscoursePoll
 from metagov.tests.plugin_test_utils import PluginTestCase
-
-import metagov.plugins.discourse.tests.mocks as DiscourseMock
-import requests_mock
-import requests
 
 mock_server_url = "https://discourse.metagov.org"
 discourse_process_url = "/api/internal/process/discourse.poll"
@@ -73,8 +73,8 @@ class ApiTests(PluginTestCase):
             # change mock to include some votes
             m.get(f"{mock_server_url}/posts/1.json", json=DiscourseMock.post_with_open_poll_and_votes)
 
-            # call "update" (in prod, would be invoked from celery task)
-            process.update()
+            # call celery task function, which should invoke process.update()
+            execute_plugin_tasks()
 
             # status should still be pending
             response = self.client.get(location, content_type="application/json")
@@ -94,8 +94,8 @@ class ApiTests(PluginTestCase):
             # change mock to be closed
             m.get(f"{mock_server_url}/posts/1.json", json=DiscourseMock.post_with_closed_poll_and_votes)
 
-            # call "update" (in prod, would be invoked from celery task)
-            process.update()
+            # call celery task function, which should invoke process.update()
+            execute_plugin_tasks()
 
             # status should be completed
             response = self.client.get(location, content_type="application/json")

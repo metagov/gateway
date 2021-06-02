@@ -4,7 +4,6 @@ import traceback
 from celery import shared_task
 from metagov.core.models import ProcessStatus
 from metagov.core.plugin_decorators import plugin_registry
-from metagov.core.views import get_proxy
 
 logger = logging.getLogger(__name__)
 
