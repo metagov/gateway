@@ -1,12 +1,14 @@
 Installing Metagov
 ==================
 
+This documentation will walk through how to set up Metagov on an Ubuntu server.
+If you want to set up Metagov for local development, follow the instructions at :doc:`Local Development <../development>` instead.
+
 Metagov needs to be installed on the same server as your governance "Driver":
 
 * If you're using PolicyKit as your Driver, head over to the `PolicyKit Documentation <https://policykit.readthedocs.io/>`_ for instructions on how to install PolicyKit on your server.
-* If you're using Metagov alongside your existing system, just make sure that you're installing Metagov on the same machine. This is necessary because Metagov and your system will communicate over the local network.
+* If you're using Metagov alongside your existing system, just make sure that you're installing Metagov on the same server. This is necessary because Metagov and your system will communicate over the local network.
 
-Follow these isntructions to set up Metagov on your Ubuntu server.
 We’ll assume that you don’t have Python or apache2 installed on your Ubuntu system.
 These installation instructions have only been tested on **Ubuntu 20.04**.
 
