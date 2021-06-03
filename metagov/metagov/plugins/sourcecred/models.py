@@ -53,7 +53,7 @@ class SourceCred(Plugin):
         total = 0
         for account in cred_data["accounts"]:
             total += account["totalCred"]
-        return total
+        return {"value": total}
 
     def get_user_cred(self, username):
         cred_data = self.fetch_accounts_analysis()
