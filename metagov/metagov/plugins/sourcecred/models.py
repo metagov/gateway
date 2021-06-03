@@ -42,6 +42,19 @@ class SourceCred(Plugin):
         cred = self.get_user_cred(username)
         return {"value": cred}
 
+    @Registry.action(
+        slug="total-cred",
+        description="Get total cred for the community",
+        output_schema={"type": "object", "properties": {"value": {"type": "number"}}},
+        is_public=True,
+    )
+    def fetch_total_cred(self, parameters):
+        cred_data = self.fetch_accounts_analysis()
+        total = 0
+        for account in cred_data["accounts"]:
+            total += account["totalCred"]
+        return {"value": total}
+
     def get_user_cred(self, username):
         cred_data = self.fetch_accounts_analysis()
         for account in cred_data["accounts"]:
