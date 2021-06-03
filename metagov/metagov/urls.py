@@ -85,6 +85,11 @@ urlpatterns = [
         views.receive_webhook,
         name="receive_webhook",
     ),
+    path("api/hooks/<slug:plugin_name>", views.receive_webhook_global, name="receive_webhook_global"),
+    # initiate an authorization flow defined in a plugin. results in a redirect to obtain consent from the user.
+    path("auth/<slug:plugin_name>/authorize", views.plugin_authorize, name="plugin_authorize"),
+    # callback URL for oauth flow. this is where code is exchanged for a token, and the plugin is enabled for the community.
+    path("auth/<slug:plugin_name>/callback", views.plugin_auth_callback, name="plugin_auth_callback"),
     path(
         f"{utils.internal_path}/plugin-schemas",
         views.plugin_config_schemas,
