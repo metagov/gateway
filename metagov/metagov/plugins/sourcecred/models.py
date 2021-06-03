@@ -48,7 +48,7 @@ class SourceCred(Plugin):
         output_schema={"type": "object", "properties": {"value": {"type": "number"}}},
         is_public=True,
     )
-    def fetch_total_cred(self):
+    def fetch_total_cred(self, parameters):
         cred_data = self.fetch_accounts_analysis()
         total = 0
         for account in cred_data["accounts"]:
