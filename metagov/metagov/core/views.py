@@ -128,13 +128,13 @@ def generate_nonce(length=8):
     return "".join([str(random.randint(0, 9)) for i in range(length)])
 
 
+@swagger_auto_schema(**MetagovSchemas.plugin_authorize)
 @api_view(["GET"])
 def plugin_authorize(request, plugin_name):
     plugin_cls = plugin_registry.get(plugin_name)
     if not plugin_cls:
         return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
 
-    # TODO: validate with DRF
     community_slug = request.GET.get("community")
     redirect_uri = request.GET.get("redirect_uri")
 
@@ -159,6 +159,7 @@ def plugin_authorize(request, plugin_name):
     return HttpResponseRedirect(url)
 
 
+@swagger_auto_schema(method="GET", auto_schema=None)
 @api_view(["GET"])
 def plugin_auth_callback(request, plugin_name):
     plugin_cls = plugin_registry.get(plugin_name)
