@@ -7,6 +7,7 @@ class Tags(object):
     PUBLIC_ACTION = "Actions (Public)"
     ACTION = "Actions"
     COMMUNITY = "Community Configuration"
+    PLUGIN_AUTH = "Plugin Auth"
 
 
 community_header = openapi.Parameter(
@@ -135,4 +136,34 @@ list_events = {
     },
     "manual_parameters": [community_name_in_path],
     "tags": [Tags.COMMUNITY],
+}
+
+plugin_authorize = {
+    "method": "get",
+    "operation_id": "Authorize plugin",
+    "operation_description": "Initiate an authorization flow to get user consent to install Metagov to some external platform, as defined in the plugin. On success, the plugin is enabled for the specified community, and this method returns a redirect to the specified redirect_uri.",
+    "tags": [Tags.PLUGIN_AUTH],
+    "manual_parameters": [
+        openapi.Parameter(
+            "plugin_name",
+            openapi.IN_PATH,
+            required=True,
+            type=openapi.TYPE_STRING,
+            description="The plugin to authorize",
+        ),
+        openapi.Parameter(
+            "community",
+            openapi.IN_QUERY,
+            required=True,
+            type=openapi.TYPE_STRING,
+            description="Unique slug for an existing community",
+        ),
+        openapi.Parameter(
+            "redirect_uri",
+            openapi.IN_QUERY,
+            required=True,
+            type=openapi.TYPE_STRING,
+            description="Where to redirect to after the oauth flow has completed",
+        ),
+    ],
 }

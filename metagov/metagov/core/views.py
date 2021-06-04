@@ -1,20 +1,16 @@
+import base64
+import importlib
 import json
 import logging
+import random
 from http import HTTPStatus
 
 import jsonschema
+import metagov.core.openapi_schemas as MetagovSchemas
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.dispatch import receiver
-from django.http import (
-    HttpResponse,
-    HttpResponseBadRequest,
-    HttpResponseNotFound,
-    HttpResponseServerError,
-    JsonResponse,
-)
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
-from django.template import loader
 from django.utils.decorators import decorator_from_middleware
 from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
@@ -23,7 +19,6 @@ from metagov.core import utils
 from metagov.core.middleware import CommunityMiddleware
 from metagov.core.models import Community, Plugin, ProcessStatus
 from metagov.core.openapi_schemas import Tags
-import metagov.core.openapi_schemas as MetagovSchemas
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer
 from rest_framework import status
@@ -126,6 +121,98 @@ def list_hooks(request, name):
                 url += "/" + p.config.get(WEBHOOK_SLUG_CONFIG_KEY)
             hooks.append(url)
     return JsonResponse({"hooks": hooks})
+
+
+def generate_nonce(length=8):
+    """Generate pseudorandom number."""
+    return "".join([str(random.randint(0, 9)) for i in range(length)])
+
+
+@swagger_auto_schema(**MetagovSchemas.plugin_authorize)
+@api_view(["GET"])
+def plugin_authorize(request, plugin_name):
+    plugin_cls = plugin_registry.get(plugin_name)
+    if not plugin_cls:
+        return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
+
+    community_slug = request.GET.get("community")
+    redirect_uri = request.GET.get("redirect_uri")
+
+    try:
+        Community.objects.get(name=community_slug)
+    except Community.DoesNotExist:
+        return HttpResponseBadRequest(f"No such community: {community_slug}")
+
+    # Store the community in state
+    nonce = generate_nonce()
+    state = {nonce: {"community": community_slug, "redirect_uri": redirect_uri}}
+    state_str = json.dumps(state).encode("ascii")
+    state_encoded = base64.b64encode(state_str).decode("ascii")
+    # Store nonce in the session so we can validate the callback request
+    request.session["nonce"] = nonce
+
+    # FIXME: figure out a better way to register these functions
+    plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
+
+    url = plugin_views.get_authorize_url(state=state_encoded)
+    logger.info(f"Redirecting to authorize {plugin_name} for community {community_slug}")
+    return HttpResponseRedirect(url)
+
+
+@swagger_auto_schema(method="GET", auto_schema=None)
+@api_view(["GET"])
+def plugin_auth_callback(request, plugin_name):
+    plugin_cls = plugin_registry.get(plugin_name)
+    if not plugin_cls:
+        return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
+
+    # Validate state
+    nonce = request.session.get("nonce")
+    if not nonce:
+        return HttpResponseBadRequest("missing session nonce")
+    state = request.GET.get("state")
+    if not state:
+        return HttpResponseBadRequest("missing state")
+    state = json.loads(base64.b64decode(state).decode("ascii"))
+    logger.info(state)
+    if not state.get(nonce):
+        return HttpResponseBadRequest("bad state: nonce key is missing")
+
+    # Get community and redirect URI from state
+    state = state.get(nonce)
+    community_slug = state.get("community")
+    redirect_uri = state.get("redirect_uri")
+    if not community_slug:
+        return HttpResponseBadRequest("bad state: community is missing")
+    if not redirect_uri:
+        return HttpResponseBadRequest("bad state: redirect_uri is missing")
+
+    # Validate community
+    community = None
+    try:
+        community = Community.objects.get(name=community_slug)
+    except Community.DoesNotExist:
+        return HttpResponseBadRequest(f"No such community: {community_slug}")
+
+    # FIXME: figure out a better way to register these functions
+    plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
+
+    logger.info(f"Hitting auth callback for {plugin_name} for {community}")
+    config = plugin_views.auth_callback(request)
+
+    # If this Plugin type is already enabled for this community, delete and re-create it
+    # TODO: duplicated with serializers.py - move into new module for updating/reloading plugins
+    try:
+        plugin = plugin_cls.objects.get(name=plugin_name, community=community)
+        logger.info(f"Deleting plugin {plugin}")
+        plugin.delete()
+    except plugin_cls.DoesNotExist:
+        pass
+    logger.info(f"Creating plugin instance with config {config}")
+    plugin = plugin_cls.objects.create(name=plugin_name, community=community, config=config)
+    logger.info(f"Created plugin {plugin}")
+
+    return HttpResponseRedirect(redirect_uri)
 
 
 @swagger_auto_schema(**MetagovSchemas.list_actions)
@@ -244,6 +331,29 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
                 logger.error(e)
 
     return HttpResponse()
+
+
+@csrf_exempt
+@swagger_auto_schema(method="post", auto_schema=None)
+@api_view(["POST"])
+def receive_webhook_global(request, plugin_name):
+    """
+    API endpoint for receiving webhook requests from external services.
+    For plugins that receive events for multiple communities to a single URL -- like Slack and Discord
+    """
+    # FIXME: figure out a better way to register the event processing function
+    try:
+        plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
+    except ModuleNotFoundError:
+        logger.error(f"no receiver for {plugin_name}")
+        return HttpResponse()
+
+    if not hasattr(plugin_views, "process_event"):
+        logger.error(f"no receiver for {plugin_name}")
+        return HttpResponse()
+
+    logger.debug(f"Processing incoming event for {plugin_name}")
+    return plugin_views.process_event(request)
 
 
 def decorated_create_process_view(plugin_name, slug):

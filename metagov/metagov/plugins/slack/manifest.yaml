@@ -1,0 +1,89 @@
+_metadata:
+  major_version: 1
+  minor_version: 1
+display_information:
+  name: Metagov
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: true
+  bot_user:
+    display_name: Metagov
+    always_online: true
+oauth_config:
+  redirect_urls:
+    - https://prototype.metagov.org/auth/slack/callback
+  scopes:
+    user:
+      - reactions:read
+    bot:
+      - app_mentions:read
+      - calls:read
+      - calls:write
+      - channels:history
+      - channels:join
+      - channels:manage
+      - channels:read
+      - chat:write
+      - chat:write.customize
+      - chat:write.public
+      - commands
+      - dnd:read
+      - emoji:read
+      - files:read
+      - groups:history
+      - groups:read
+      - groups:write
+      - im:history
+      - im:read
+      - im:write
+      - incoming-webhook
+      - links:read
+      - links:write
+      - mpim:history
+      - mpim:read
+      - mpim:write
+      - pins:read
+      - pins:write
+      - reactions:read
+      - reactions:write
+      - team:read
+      - usergroups:read
+      - usergroups:write
+      - users.profile:read
+      - users:read
+      - users:read.email
+      - users:write
+settings:
+  event_subscriptions:
+    request_url: https://prototype.metagov.org/api/hooks/slack
+    bot_events:
+      - app_home_opened
+      - app_mention
+      - app_uninstalled
+      - call_rejected
+      - channel_archive
+      - channel_created
+      - channel_deleted
+      - channel_id_changed
+      - channel_rename
+      - channel_unarchive
+      - email_domain_changed
+      - group_archive
+      - group_deleted
+      - group_rename
+      - group_unarchive
+      - member_joined_channel
+      - member_left_channel
+      - message.channels
+      - pin_added
+      - pin_removed
+      - reaction_added
+      - reaction_removed
+      - team_domain_change
+      - team_rename
+      - user_change
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  is_hosted: false
