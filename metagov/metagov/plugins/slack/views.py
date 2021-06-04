@@ -99,7 +99,7 @@ def validate_slack_event(request):
 
 
 def verify_signature(request, timestamp, signature):
-    # FIXME! this sin't working for some reason
+    # FIXME! this isn't working for some reason
     return True
 
     signing_secret = env("SLACK_SIGNING_SECRET")
