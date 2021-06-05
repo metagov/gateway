@@ -56,10 +56,11 @@ class Tutorial(Plugin):
         }
     )
     def send_message(self, data):
+        # making post request to mailgun api
         response = requests.post(
             url='https://api.mailgun.net/v3/{0}/messages'.format(self.config['domain_name']),
             auth=('api', self.config['api_key']),
-            data=data
+            data=data # this is the json set in internal/action/mailgun.send-mail
         )
 
         return response.json()
