@@ -4,7 +4,7 @@ from metagov.core.models import Plugin
 import requests
 
 @Registry.plugin
-class Tutorial(Plugin):
+class Mailgun(Plugin):
     name = 'mailgun'
     config_schema = {
         "type": "object",
