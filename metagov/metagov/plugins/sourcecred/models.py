@@ -1,4 +1,5 @@
 import logging
+from typing import Dict, Optional
 
 import metagov.core.plugin_decorators as Registry
 import requests
@@ -30,22 +31,28 @@ class SourceCred(Plugin):
                 "username": {
                     "description": "Username on the platform used with this sourcecred instance",
                     "type": "string",
-                }
+                },
+                "id": {
+                    "description": "The id of any account on the platform used with this sourcecred instance",
+                    "type": "string",
+                },
             },
-            "required": ["username"],
         },
-        output_schema={"type": "object", "properties": {"value": {"type": "number"}}},
+        output_schema={"type": "object", "properties": {
+            "value": {"type": "number"}}},
         is_public=True,
     )
     def get_cred(self, parameters):
         username = parameters["username"]
-        cred = self.get_user_cred(username)
+        id = parameters["id"]
+        cred = self.get_user_cred(username=username, id=id)
         return {"value": cred}
 
     @Registry.action(
         slug="total-cred",
         description="Get total cred for the community",
-        output_schema={"type": "object", "properties": {"value": {"type": "number"}}},
+        output_schema={"type": "object", "properties": {
+            "value": {"type": "number"}}},
         is_public=True,
     )
     def fetch_total_cred(self, parameters):
@@ -55,13 +62,32 @@ class SourceCred(Plugin):
             total += account["totalCred"]
         return {"value": total}
 
-    def get_user_cred(self, username):
+    def get_user_cred(self, username: Optional[str] = None, id: Optional[str] = None):
         cred_data = self.fetch_accounts_analysis()
+        if not (username or id):
+            raise PluginErrorInternal(
+                "Either a username or an id argument is required")
         for account in cred_data["accounts"]:
             name = account["account"]["identity"]["name"]
-            if name == username:
+            """
+            Account aliases is how sourcecred stores internal ids of accounts for
+            all platforms, storing the id in a format like this 
+            "N\u0000sourcecred\u0000discord\u0000MEMBER\u0000user\u0000140750062325202944\u0000"
+            the discord id for example is store in the index before last always
+            the same could apply to discourse, github, and whatever 
+            """
+            account_aliases: list = account['account']["identity"]["aliases"]
+            if id:
+                # Making sure the id is in string form for comparison
+                id = str(id)
+                for alias in account_aliases:
+                    alias_id = alias["address"].split("\u0000")[-2]
+                    if alias_id == id:
+                        return account["totalCred"]
+            if username and name == username:
                 return account["totalCred"]
-        raise PluginErrorInternal(f"{username} not found in sourcecred instance")
+        raise PluginErrorInternal(
+            f"{username or id} not found in sourcecred instance")
 
     def fetch_accounts_analysis(self):
         server = self.config["server_url"]
@@ -74,4 +100,5 @@ class SourceCred(Plugin):
             accounts = resp.json()
             return accounts
 
-        raise PluginErrorInternal(f"Error fetching SourceCred accounts.json: {resp.status_code} {resp.reason}")
+        raise PluginErrorInternal(
+            f"Error fetching SourceCred accounts.json: {resp.status_code} {resp.reason}")
