@@ -85,6 +85,29 @@ class ApiTests(TestCase):
         )
         self.assertContains(response, '"value":')
 
+        # Doesn't work if neither a username nor an id is sent 
+        sourcecred_request_url = "/api/internal/action/sourcecred.user-cred"
+        response = client.post(
+            sourcecred_request_url,
+            data={"parameters": {}},
+            content_type="application/json",
+            **headers,
+        )
+        self.assertContains(
+            response, "Either a username or an id argument is required", status_code=500
+        )
+
+        # works on an existing id
+        sourcecred_request_url = "/api/internal/action/sourcecred.user-cred"
+        response = client.post(
+            sourcecred_request_url,
+            data={"parameters": {"id": "hozzjss"}},
+            content_type="application/json",
+            **headers,
+        )
+        self.assertContains(response, '"value":')
+
+
         # activate randomness plugin
         data["plugins"].append({"name": "randomness", "config": {"default_low": 2, "default_high": 200}})
         response = client.put(url, data=data, content_type="application/json")
