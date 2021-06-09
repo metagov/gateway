@@ -43,8 +43,8 @@ class SourceCred(Plugin):
         is_public=True,
     )
     def get_cred(self, parameters):
-        username = parameters["username"]
-        id = parameters["id"]
+        username = parameters.get('username')
+        id = parameters.get('id')
         cred = self.get_user_cred(username=username, id=id)
         return {"value": cred}
 
