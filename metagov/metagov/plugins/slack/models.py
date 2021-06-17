@@ -8,16 +8,6 @@ from metagov.core.models import Plugin, GovernanceProcess
 
 logger = logging.getLogger(__name__)
 
-"""
-
-App Manifest
-https://app.slack.com/app-settings/TMQ3PKXT9/A01HT9U26NT/app-manifest
-
-1. Upload the App Manifest
-2. Copy the Client ID/Secret/etc onto the server
-"""
-
-
 @Registry.plugin
 class Slack(Plugin):
     name = "slack"

@@ -13,10 +13,13 @@ features:
     always_online: true
 oauth_config:
   redirect_urls:
-    - https://prototype.metagov.org/auth/slack/callback
+    #- https://prototype.metagov.org/auth/slack/callback
+    # Replace me!
+    - $METAGOV_SERVER/auth/slack/callback
   scopes:
     user:
       - reactions:read
+      - chat:write
     bot:
       - app_mentions:read
       - calls:read
@@ -57,7 +60,11 @@ oauth_config:
       - users:write
 settings:
   event_subscriptions:
-    request_url: https://prototype.metagov.org/api/hooks/slack
+    # request_url: https://prototype.metagov.org/api/hooks/slack
+    # Replace me!
+    request_url: $METAGOV_SERVER/api/hooks/slack
+    user_events:
+      - reaction_added
     bot_events:
       - app_home_opened
       - app_mention
@@ -86,4 +93,3 @@ settings:
       - user_change
   org_deploy_enabled: false
   socket_mode_enabled: false
-  is_hosted: false
