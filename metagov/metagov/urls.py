@@ -17,8 +17,6 @@ from metagov.core.plugin_decorators import plugin_registry
 
 logger = logging.getLogger(__name__)
 
-# TODO: Add endpoints to expose schemas for actions, processes, and resources
-
 schema_view = get_schema_view(
     openapi.Info(
         title="Metagov Prototype API",
@@ -95,9 +93,14 @@ urlpatterns = [
         views.plugin_config_schemas,
         name="plugin_config_schemas",
     ),
-    path(f"{utils.internal_path}/community/<slug:name>", views.community, name="community"),
-    path(f"{utils.internal_path}/community/<slug:name>/hooks", views.list_hooks, name="list_hooks"),
-    path(f"{utils.internal_path}/community/<slug:name>/actions", views.list_actions, name="list_actions"),
-    path(f"{utils.internal_path}/community/<slug:name>/processes", views.list_processes, name="list_processes"),
-    path(f"{utils.internal_path}/community/<slug:name>/events", views.list_events, name="list_events"),
+    # Create a new community
+    path(f"{utils.internal_path}/community", views.create_community, name="community"),
+    # Get, update, or delete a community
+    path(f"{utils.internal_path}/community/<slug:slug>", views.community, name="community"),
+    # Get webhook receiver hooks for a given community
+    path(f"{utils.internal_path}/community/<slug:slug>/hooks", views.list_hooks, name="list_hooks"),
+    # Get actions, processes, and events available to a given community
+    path(f"{utils.internal_path}/community/<slug:slug>/actions", views.list_actions, name="list_actions"),
+    path(f"{utils.internal_path}/community/<slug:slug>/processes", views.list_processes, name="list_processes"),
+    path(f"{utils.internal_path}/community/<slug:slug>/events", views.list_events, name="list_events"),
 ] + plugin_patterns

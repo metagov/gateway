@@ -23,13 +23,13 @@ class CommunityMiddleware:
         return self.get_response(request)
 
     def process_view(self, request, view_func, *view_args, **view_kwargs):
-        community_name = request.headers.get(COMMUNITY_HEADER)
-        if not community_name:
+        slug = request.headers.get(COMMUNITY_HEADER)
+        if not slug:
             return HttpResponseBadRequest(f"Missing required header '{COMMUNITY_HEADER}'")
         try:
-            community = Community.objects.get(name=community_name)
+            community = Community.objects.get(slug=slug)
         except Community.DoesNotExist:
-            return HttpResponseBadRequest(f"Community '{community_name}' not found")
+            return HttpResponseBadRequest(f"Community '{slug}' not found")
         request.community = community
 
 

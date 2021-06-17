@@ -14,26 +14,37 @@ community_header = openapi.Parameter(
     COMMUNITY_HEADER, openapi.IN_HEADER, required=True, type=openapi.TYPE_STRING, description="Unique community slug"
 )
 
-community_name_in_path = openapi.Parameter(
-    "name", openapi.IN_PATH, required=True, type=openapi.TYPE_STRING, description="Unique community slug"
+community_slug_in_path = openapi.Parameter(
+    "slug", openapi.IN_PATH, required=True, type=openapi.TYPE_STRING, description="Unique community slug"
 )
+
+plugins_list = openapi.Schema(
+    type=openapi.TYPE_ARRAY,
+    description="List of enabled plugins and their configs",
+    items=openapi.Items(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            "name": openapi.Schema(type=openapi.TYPE_STRING, description="plugin name"),
+            "config": openapi.Schema(type=openapi.TYPE_OBJECT, description="plugin config"),
+        },
+    ),
+)
+
+create_community_schema = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={
+        "readable_name": openapi.Schema(type=openapi.TYPE_STRING, description="Human-readable community name"),
+        "plugins": plugins_list,
+    },
+)
+
 
 community_schema = openapi.Schema(
     type=openapi.TYPE_OBJECT,
     properties={
-        "name": openapi.Schema(type=openapi.TYPE_STRING, description="Unique community slug"),
+        "slug": openapi.Schema(type=openapi.TYPE_STRING, description="Unique community slug"),
         "readable_name": openapi.Schema(type=openapi.TYPE_STRING, description="Human-readable community name"),
-        "plugins": openapi.Schema(
-            type=openapi.TYPE_ARRAY,
-            description="List of enabled plugins and their configs",
-            items=openapi.Items(
-                type=openapi.TYPE_OBJECT,
-                properties={
-                    "name": openapi.Schema(type=openapi.TYPE_STRING, description="plugin name"),
-                    "config": openapi.Schema(type=openapi.TYPE_OBJECT, description="plugin config"),
-                },
-            ),
-        ),
+        "plugins": plugins_list,
     },
 )
 
@@ -57,7 +68,7 @@ list_hooks = {
             },
         ),
     },
-    "manual_parameters": [community_name_in_path],
+    "manual_parameters": [community_slug_in_path],
     "tags": [Tags.COMMUNITY],
 }
 
@@ -83,7 +94,7 @@ list_actions = {
             },
         ),
     },
-    "manual_parameters": [community_name_in_path],
+    "manual_parameters": [community_slug_in_path],
     "tags": [Tags.COMMUNITY],
 }
 
@@ -109,7 +120,7 @@ list_processes = {
             },
         ),
     },
-    "manual_parameters": [community_name_in_path],
+    "manual_parameters": [community_slug_in_path],
     "tags": [Tags.COMMUNITY],
 }
 
@@ -134,7 +145,7 @@ list_events = {
             },
         ),
     },
-    "manual_parameters": [community_name_in_path],
+    "manual_parameters": [community_slug_in_path],
     "tags": [Tags.COMMUNITY],
 }
 

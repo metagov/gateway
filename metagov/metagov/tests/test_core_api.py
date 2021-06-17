@@ -12,18 +12,20 @@ class ApiTests(TestCase):
 
     def test_community(self):
         client = Client()
-        community_name = "miriams-community"
-        data = {"name": community_name, "readable_name": "miriams new community"}
+        data = {"readable_name": "new community for api test"}
 
-        # bad request to create community
-        response = client.put(f"{self.community_url}/different-name", data=data, content_type="application/json")
-        # name and slug dont match
-        self.assertContains(response, "Expected name", status_code=400)
+        # bad request (update community that doesn't exist)
+        response = client.put(f"{self.community_url}/nonexistent", data=data, content_type="application/json")
+        self.assertEqual(response.status_code, 404)
 
         # good request to create community
-        url = f"{self.community_url}/{community_name}"
-        response = client.put(url, data=data, content_type="application/json")
+
+        response = client.post(self.community_url, data=data, content_type="application/json")
         self.assertEqual(response.status_code, 201)
+        data = response.json()
+        community_slug = data["slug"]
+        url = f"{self.community_url}/{community_slug}"
+
         self.assertEqual(Community.objects.all().count(), 1)
         # there should be no plugins
         self.assertEqual(Plugin.objects.all().count(), 0)
@@ -51,7 +53,7 @@ class ApiTests(TestCase):
         self.assertContains(response, "Missing required header 'X-Metagov-Community'", status_code=400)
 
         # bad sourcecred request (plugin not activated)
-        headers = {"HTTP_X_METAGOV_COMMUNITY": community_name}
+        headers = {"HTTP_X_METAGOV_COMMUNITY": community_slug}
         sourcecred_request_url = "/api/internal/action/sourcecred.user-cred"
         response = client.post(
             sourcecred_request_url,
@@ -59,9 +61,7 @@ class ApiTests(TestCase):
             content_type="application/json",
             **headers,
         )
-        self.assertContains(
-            response, "Plugin 'sourcecred' not enabled for community 'miriams-community'", status_code=400
-        )
+        self.assertContains(response, "not enabled for community", status_code=400)
 
         # good request to activate plugin
         sc_server = "https://metagov.github.io/sourcecred-instance"

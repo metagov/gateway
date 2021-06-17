@@ -47,7 +47,7 @@ class CommunitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Community
-        fields = ("name", "readable_name", "plugins")
+        fields = ("slug", "readable_name", "plugins")
 
     def update(self, instance, validated_data):
         plugins = validated_data.get("plugins") or []
@@ -63,13 +63,14 @@ class CommunitySerializer(serializers.ModelSerializer):
                 # TODO what happens to pending processes?
                 inst.delete()
 
-        instance.name = validated_data.get("name", instance.name)
+        instance.slug = validated_data.get("slug", instance.slug)
         instance.readable_name = validated_data.get("readable_name", instance.readable_name)
         instance.save()
 
         return instance
 
     def create(self, validated_data):
+        logger.debug(f"Creating community from data: {validated_data}")
         plugins = validated_data.get("plugins") or []
         validated_data.pop("plugins", None)
         instance = Community.objects.create(**validated_data)
@@ -92,4 +93,4 @@ class GovernanceProcessSerializer(serializers.ModelSerializer):
         return f"{inst.plugin.name}.{inst.name}"
 
     def get_community(self, inst):
-        return inst.plugin.community.name
+        return inst.plugin.community.slug

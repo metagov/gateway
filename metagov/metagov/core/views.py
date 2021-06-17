@@ -10,17 +10,20 @@ import metagov.core.openapi_schemas as MetagovSchemas
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, HttpResponseRedirect, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.utils.decorators import decorator_from_middleware
 from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from metagov.core import utils
+from metagov.core.errors import PluginAuthError
 from metagov.core.middleware import CommunityMiddleware
 from metagov.core.models import Community, Plugin, ProcessStatus
 from metagov.core.openapi_schemas import Tags
+from metagov.core.plugin_constants import AuthType
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer
+from requests.models import PreparedRequest
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import APIException, ValidationError
@@ -34,80 +37,82 @@ WEBHOOK_SLUG_CONFIG_KEY = "webhook_slug"
 
 
 def index(request):
-    return render(request, "login.html", {})
+    return redirect("/redoc")
 
 
-@login_required
-def home(request):
-    return HttpResponse(f"<p>hello {request.user.username}!</p><a href='/admin'>Site Admin</a>")
+@swagger_auto_schema(
+    method="post",
+    operation_id="Create community",
+    operation_description="Create a new community",
+    request_body=MetagovSchemas.create_community_schema,
+    responses={200: MetagovSchemas.community_schema, 201: MetagovSchemas.community_schema},
+    tags=[Tags.COMMUNITY],
+)
+@api_view(["POST"])
+def create_community(request):
+    data = JSONParser().parse(request)
+    community_serializer = CommunitySerializer(data=data)
+    if not community_serializer.is_valid():
+        return JsonResponse(community_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    community_serializer.save()
+    return JsonResponse(community_serializer.data, status=status.HTTP_201_CREATED)
 
 
 @swagger_auto_schema(
     method="delete",
     operation_id="Delete community",
-    manual_parameters=[MetagovSchemas.community_name_in_path],
-    operation_description="Delete the community",
+    manual_parameters=[MetagovSchemas.community_slug_in_path],
+    operation_description="Delete an existing community",
     tags=[Tags.COMMUNITY],
 )
 @swagger_auto_schema(
     method="get",
     operation_id="Get community",
-    manual_parameters=[MetagovSchemas.community_name_in_path],
+    operation_description="Get the configuration for an existing community",
+    manual_parameters=[MetagovSchemas.community_slug_in_path],
     responses={200: MetagovSchemas.community_schema},
     tags=[Tags.COMMUNITY],
 )
 @swagger_auto_schema(
     method="put",
-    operation_id="Create or update community",
-    manual_parameters=[MetagovSchemas.community_name_in_path],
+    operation_id="Update community",
+    operation_description="Update the configuration for an existing community",
+    manual_parameters=[MetagovSchemas.community_slug_in_path],
     request_body=MetagovSchemas.community_schema,
     responses={200: MetagovSchemas.community_schema, 201: MetagovSchemas.community_schema},
     tags=[Tags.COMMUNITY],
 )
 @api_view(["GET", "PUT", "DELETE"])
-def community(request, name):
-    if request.method == "GET":
-        try:
-            community = Community.objects.get(name=name)
-        except Community.DoesNotExist:
-            return HttpResponseNotFound()
+def community(request, slug):
+    try:
+        community = Community.objects.get(slug=slug)
+    except Community.DoesNotExist:
+        return HttpResponseNotFound()
 
+    if request.method == "GET":
+        # get community
         community_serializer = CommunitySerializer(community)
         return JsonResponse(community_serializer.data, safe=False)
 
     elif request.method == "PUT":
+        # update community (change readable name or enable/disable plugins)
         data = JSONParser().parse(request)
-        created = False
-        try:
-            community = Community.objects.get(name=name)
-            community_serializer = CommunitySerializer(community, data=data)
-        except Community.DoesNotExist:
-            if data.get("name") != name:
-                # if creating a new community, the name and slug should match
-                return HttpResponseBadRequest(f"Expected name {name}, found {data.get('name')}")
-            community_serializer = CommunitySerializer(data=data)
-            created = True
-
-        if community_serializer.is_valid():
-            community_serializer.save()
-            s = status.HTTP_201_CREATED if created else status.HTTP_200_OK
-            return JsonResponse(community_serializer.data, status=s)
-        return JsonResponse(community_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        community_serializer = CommunitySerializer(community, data=data)
+        if not community_serializer.is_valid():
+            return JsonResponse(community_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        community_serializer.save()
+        return JsonResponse(community_serializer.data)
 
     elif request.method == "DELETE":
-        try:
-            community = Community.objects.get(name=name)
-        except Community.DoesNotExist:
-            return HttpResponseNotFound()
         community.delete()
         return JsonResponse({"message": "Community was deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
 
 
 @swagger_auto_schema(**MetagovSchemas.list_hooks)
 @api_view(["GET"])
-def list_hooks(request, name):
+def list_hooks(request, slug):
     try:
-        community = Community.objects.get(name=name)
+        community = Community.objects.get(slug=slug)
     except Community.DoesNotExist:
         return HttpResponseNotFound()
 
@@ -116,7 +121,7 @@ def list_hooks(request, name):
     for p in list(plugins):
         cls = plugin_registry[p.name]
         if cls._webhook_receiver_function:
-            url = f"/api/hooks/{name}/{p.name}"
+            url = f"/api/hooks/{slug}/{p.name}"
             if p.config and p.config.get(WEBHOOK_SLUG_CONFIG_KEY):
                 url += "/" + p.config.get(WEBHOOK_SLUG_CONFIG_KEY)
             hooks.append(url)
@@ -135,17 +140,32 @@ def plugin_authorize(request, plugin_name):
     if not plugin_cls:
         return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
 
-    community_slug = request.GET.get("community")
+    # auth type (user login or app installation)
+    type = request.GET.get("type")
+    # required for "install" type. community to install to.
+    community = request.GET.get("community")
+    # where to redirect after auth flow is done
     redirect_uri = request.GET.get("redirect_uri")
+    # state to pass along to final redirect after auth flow is done
+    received_state = request.GET.get("state")
+    request.session["received_authorize_state"] = received_state
 
-    try:
-        Community.objects.get(name=community_slug)
-    except Community.DoesNotExist:
-        return HttpResponseBadRequest(f"No such community: {community_slug}")
+    if type != AuthType.APP_INSTALL and type != AuthType.USER_LOGIN:
+        return HttpResponseBadRequest(f"Parameter 'type' must be '{AuthType.APP_INSTALL}' or '{AuthType.USER_LOGIN}'")
 
-    # Store the community in state
+    if type == AuthType.APP_INSTALL and not community:
+        return HttpResponseBadRequest("Missing 'community'")
+
+    if community is not None:
+        # validate that community exists
+        try:
+            Community.objects.get(slug=community)
+        except Community.DoesNotExist:
+            return HttpResponseBadRequest(f"No such community: {community}")
+
+    # Create the state
     nonce = generate_nonce()
-    state = {nonce: {"community": community_slug, "redirect_uri": redirect_uri}}
+    state = {nonce: {"community": community, "redirect_uri": redirect_uri, "type": type}}
     state_str = json.dumps(state).encode("ascii")
     state_encoded = base64.b64encode(state_str).decode("ascii")
     # Store nonce in the session so we can validate the callback request
@@ -154,72 +174,87 @@ def plugin_authorize(request, plugin_name):
     # FIXME: figure out a better way to register these functions
     plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
 
-    url = plugin_views.get_authorize_url(state=state_encoded)
-    logger.info(f"Redirecting to authorize {plugin_name} for community {community_slug}")
+    url = plugin_views.get_authorize_url(state_encoded, type)
+
+    if type == AuthType.APP_INSTALL:
+        logger.info(f"Redirecting to authorize '{plugin_name}' for community {community}")
+    elif type == AuthType.USER_LOGIN:
+        logger.info(f"Redirecting to authorize user for '{plugin_name}'")
     return HttpResponseRedirect(url)
+
+
+def redirect_with_params(url, params):
+    req = PreparedRequest()
+    req.prepare_url(url, params)
+    return HttpResponseRedirect(req.url)
 
 
 @swagger_auto_schema(method="GET", auto_schema=None)
 @api_view(["GET"])
 def plugin_auth_callback(request, plugin_name):
+    logger.debug(f"Plugin auth callback received request: {request.GET}")
     plugin_cls = plugin_registry.get(plugin_name)
     if not plugin_cls:
         return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
+    state_str = request.GET.get("state")
+    if not state_str:
+        return HttpResponseBadRequest("missing state")
 
-    # Validate state
+    # Validate and decode state
     nonce = request.session.get("nonce")
     if not nonce:
         return HttpResponseBadRequest("missing session nonce")
-    state = request.GET.get("state")
-    if not state:
-        return HttpResponseBadRequest("missing state")
-    state = json.loads(base64.b64decode(state).decode("ascii"))
-    logger.info(state)
-    if not state.get(nonce):
-        return HttpResponseBadRequest("bad state: nonce key is missing")
 
-    # Get community and redirect URI from state
-    state = state.get(nonce)
+    state_obj = json.loads(base64.b64decode(state_str).decode("ascii"))
+    logger.debug(f"Decoded state: {state_obj}")
+    state = state_obj.get(nonce)
+    type = state.get("type")
     community_slug = state.get("community")
     redirect_uri = state.get("redirect_uri")
-    if not community_slug:
-        return HttpResponseBadRequest("bad state: community is missing")
+    state_to_pass = request.session.get("received_authorize_state")
+
     if not redirect_uri:
         return HttpResponseBadRequest("bad state: redirect_uri is missing")
 
-    # Validate community
+    if request.GET.get("error"):
+        return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": request.GET.get("error")})
+
+    code = request.GET.get("code")
+    if not code:
+        return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": "server_error"})
+
     community = None
-    try:
-        community = Community.objects.get(name=community_slug)
-    except Community.DoesNotExist:
-        return HttpResponseBadRequest(f"No such community: {community_slug}")
+    if type == AuthType.APP_INSTALL:
+        # For installs, validate the community
+        if not community_slug:
+            return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": "bad_state"})
+        try:
+            community = Community.objects.get(slug=community_slug)
+        except Community.DoesNotExist:
+            return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": "community_not_found"})
 
     # FIXME: figure out a better way to register these functions
     plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
 
-    logger.info(f"Hitting auth callback for {plugin_name} for {community}")
-    config = plugin_views.auth_callback(request)
-
-    # If this Plugin type is already enabled for this community, delete and re-create it
-    # TODO: duplicated with serializers.py - move into new module for updating/reloading plugins
     try:
-        plugin = plugin_cls.objects.get(name=plugin_name, community=community)
-        logger.info(f"Deleting plugin {plugin}")
-        plugin.delete()
-    except plugin_cls.DoesNotExist:
-        pass
-    logger.info(f"Creating plugin instance with config {config}")
-    plugin = plugin_cls.objects.create(name=plugin_name, community=community, config=config)
-    logger.info(f"Created plugin {plugin}")
-
-    return HttpResponseRedirect(redirect_uri)
+        return plugin_views.auth_callback(
+            type=type,
+            code=code,
+            redirect_uri=redirect_uri,
+            community=community,
+            state=state_to_pass,
+        )
+    except PluginAuthError as e:
+        return redirect_with_params(
+            redirect_uri, {"state": state_to_pass, "error": e.get_codes(), "error_description": e.detail}
+        )
 
 
 @swagger_auto_schema(**MetagovSchemas.list_actions)
 @api_view(["GET"])
-def list_actions(request, name):
+def list_actions(request, slug):
     try:
-        community = Community.objects.get(name=name)
+        community = Community.objects.get(slug=slug)
     except Community.DoesNotExist:
         return HttpResponseNotFound()
 
@@ -249,9 +284,9 @@ def plugin_config_schemas(request):
 
 @swagger_auto_schema(**MetagovSchemas.list_events)
 @api_view(["GET"])
-def list_events(request, name):
+def list_events(request, slug):
     try:
-        community = Community.objects.get(name=name)
+        community = Community.objects.get(slug=slug)
     except Community.DoesNotExist:
         return HttpResponseNotFound()
 
@@ -266,9 +301,9 @@ def list_events(request, name):
 
 @swagger_auto_schema(**MetagovSchemas.list_processes)
 @api_view(["GET"])
-def list_processes(request, name):
+def list_processes(request, slug):
     try:
-        community = Community.objects.get(name=name)
+        community = Community.objects.get(slug=slug)
     except Community.DoesNotExist:
         return HttpResponseNotFound()
 
@@ -296,7 +331,7 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
     """
 
     try:
-        community = Community.objects.get(name=community)
+        community = Community.objects.get(slug=community)
     except Community.DoesNotExist:
         return HttpResponseNotFound()
 
@@ -550,5 +585,5 @@ def get_plugin_instance(plugin_name, community):
 
     plugin = cls.objects.filter(name=plugin_name, community=community).first()
     if not plugin:
-        raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community.name}'")
+        raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community}'")
     return plugin

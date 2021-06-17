@@ -5,70 +5,161 @@ import logging
 
 import environ
 import requests
-from django.http.response import HttpResponse
-from metagov.core.errors import PluginErrorInternal
+from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
+from metagov.core.errors import PluginErrorInternal, PluginAuthError
+from metagov.core.plugin_constants import AuthType
 from metagov.plugins.slack.models import Slack
+from requests.models import PreparedRequest
 
 logger = logging.getLogger(__name__)
 
 env = environ.Env()
 environ.Env.read_env()
 
+# whether to require the installer to be an admin, and request user scopes for the installing user
+# if true, the installer's access token will be passed back after installation
+# TODO: let driver choose dynamically, or make this a real config somewhere
+REQUIRE_INSTALLER_TO_BE_ADMIN = True
 
-def get_authorize_url(state):
+
+class NonAdminInstallError(PluginAuthError):
+    default_code = "user_is_not_admin"
+    default_detail = "Non-admin user is not permitted to install"
+
+
+def get_authorize_url(state, type):
     client_id = env("SLACK_CLIENT_ID")
-    return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope="
+    if type == AuthType.APP_INSTALL:
+        # TODO: make requested scopes configurable?
+        user_scope = (
+            "chat:write,channels:write,groups:write,im:write,mpim:write" if REQUIRE_INSTALLER_TO_BE_ADMIN else ""
+        )
+        return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope={user_scope}"
+    if type == AuthType.USER_LOGIN:
+        return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&user_scope=identity.basic,identity.avatar"
 
 
-def auth_callback(request):
+def auth_callback(type, code, redirect_uri, community, state=None):
     """
+    Exchange code for access token
+
     https://api.slack.com/authentication/oauth-v2#exchanging
     """
     data = {
         "client_id": env("SLACK_CLIENT_ID"),
         "client_secret": env("SLACK_CLIENT_SECRET"),
-        "code": request.GET.get("code"),
+        "code": code,
     }
     resp = requests.post("https://slack.com/api/oauth.v2.access", data=data)
     if not resp.ok:
-        raise PluginErrorInternal(f"Slack auth failed: {resp.status_code} {resp.reason}")
+        logger.error(f"Slack auth failed: {resp.status_code} {resp.reason}")
+        raise PluginAuthError
+
     response = resp.json()
     if not response["ok"]:
-        raise PluginErrorInternal(f"Slack auth failed: {response['error']}")
+        raise PluginAuthError(code=response["error"])
 
-    # {
-    #     "ok": true,
-    #     "access_token": "xoxb-17653672481-19874698323-pdFZKVeTuE8sk7oOcBrzbqgy",
-    #     "token_type": "bot",
-    #     "scope": "commands,incoming-webhook",
-    #     "bot_user_id": "U0KRQLJ9H",
-    #     "app_id": "A0KRD7HC3",
-    #     "team": {
-    #         "name": "Slack Softball Team",
-    #         "id": "T9TK3CUKW"
-    #     },
-    #     "enterprise": {
-    #         "name": "slack-sports",
-    #         "id": "E12345678"
-    #     },
-    #     "authed_user": {
-    #         "id": "U1234",
-    #         "scope": "chat:write",
-    #         "access_token": "xoxp-1234",
-    #         "token_type": "user"
-    #     }
-    # }
+    logger.info(f"---- {response} ----")
 
-    # app_id = response["app_id"]
-    if response["token_type"] != "bot":
-        raise PluginErrorInternal("Expected token_type bot")
-    config = {
-        "team_id": response["team"]["id"],
-        "team_name": response["team"]["name"],
-        "bot_token": response["access_token"],
-        "bot_user_id": response["bot_user_id"],
-    }
-    return config
+    if type == AuthType.APP_INSTALL:
+        if response["token_type"] != "bot":
+            raise PluginAuthError(detail="Incorrect token_type")
+
+        installer_user_id = response["authed_user"]["id"]
+        team_id = response["team"]["id"]
+
+        # Configuration for the Slack Plugin
+        plugin_config = {
+            "team_id": team_id,
+            "team_name": response["team"]["name"],
+            "bot_token": response["access_token"],
+            "bot_user_id": response["bot_user_id"],
+            "installer_user_id": installer_user_id,
+        }
+
+        installer_user_token = response["authed_user"].get("access_token")
+        if REQUIRE_INSTALLER_TO_BE_ADMIN:
+            # Check whether installing user is an admin. Use the Bot Token to make the request.
+            resp = requests.get(
+                "https://slack.com/api/users.info",
+                params={"user": installer_user_id},
+                headers={"Authorization": f"Bearer {response['access_token']}"},
+            )
+
+            # TODO call auth.revoke if anything fails, to uninstall the bot and delete the bot token
+
+            if not resp.ok:
+                logger.error(f"Slack req failed: {resp.status_code} {resp.reason}")
+                raise PluginAuthError(detail="Error getting user info for installing user")
+            response = resp.json()
+            if not response["ok"]:
+                logger.error(f"Slack req failed: {response['error']}")
+                raise PluginAuthError(detail="Error getting user info for installing user")
+            if response["user"]["is_admin"] == False:
+                raise NonAdminInstallError
+
+            # store the installer's user token in config, so it can be used by the plugin to make requests later..
+            plugin_config["installer_user_token"] = installer_user_token
+
+        # Check if there is already a Slack Plugin enabled for this Community
+        try:
+            existing_plugin = Slack.objects.get(community=community)
+            logger.info(f"Deleting existing Slack plugin found for requested community {existing_plugin}")
+            existing_plugin.delete()
+        except Slack.DoesNotExist:
+            pass
+
+        # Check if there is already a Slack Plugin enabled for this unique Slack "team", possibly for a different Metagov Community
+        for inst in Slack.objects.all():
+            if inst.config["team_id"] == team_id:
+                logger.info(
+                    f"Slack Plugin for team {team_id} already exists: {inst}. Assigning authorized Slack plugin to community '{inst.community}' instead of '{community}'"
+                )
+                # There is an existing Community that has an active Slack Plugin for this team, so, delete and recreate that one instead
+                # This could happen if Slack is being re-installed to a Slack team from PolicyKit (support re-installation to enable updating
+                # bot token, if scopes changed for example)
+                community = inst.community
+                logger.info(f"Deleting existing Slack plugin {inst}")
+                inst.delete()
+                break
+
+        plugin = Slack.objects.create(name="slack", community=community, config=plugin_config)
+        logger.info(f"Created Slack plugin {plugin}")
+
+        # Add some params to redirect
+        params = {
+            # Metagov community that now has the Slack plugin enabled (may be diff from the community that was requested on initial authorization request)
+            "community": community.slug,
+            # Slack User ID for installer
+            "user_id": installer_user_id if REQUIRE_INSTALLER_TO_BE_ADMIN else None,
+            # Slack User Token for installer
+            "user_token": installer_user_token if REQUIRE_INSTALLER_TO_BE_ADMIN else None,
+            # (Optional) State that was originally passed from Driver, so it can validate it
+            "state": state,
+        }
+        url = add_query_parameters(redirect_uri, params)
+        return HttpResponseRedirect(url)
+
+    elif type == AuthType.USER_LOGIN:
+        user = response["authed_user"]
+        if user["token_type"] != "user":
+            raise PluginAuthError(detail="Unexpected token_type")
+
+        # Add some params to redirect
+        params = {
+            # Slack User ID for logged-in user
+            "user_id": user["id"],
+            # Slack User Token for logged-in user
+            "user_token": user["access_token"],
+            # Team that the user logged into
+            "team_id": response["team"]["id"],
+            # (Optional) State that was originally passed from Driver, so it can validate it
+            "state": state,
+        }
+        url = add_query_parameters(redirect_uri, params)
+        return HttpResponseRedirect(url)
+
+    return HttpResponseBadRequest()
 
 
 def process_event(request):
@@ -83,9 +174,8 @@ def process_event(request):
         validate_slack_event(request)
         for plugin in Slack.objects.all():
             if plugin.config["team_id"] == json_data["team_id"]:
-                logger.info(f"passing event to {plugin}")
+                logger.info(f"Passing event to {plugin}")
                 plugin.receive_event(request)
-                break
     return HttpResponse()
 
 
@@ -104,8 +194,14 @@ def verify_signature(request, timestamp, signature):
 
     signing_secret = env("SLACK_SIGNING_SECRET")
     signing_secret = bytes(signing_secret, "utf-8")
-    body = request.body.decode('utf-8')
+    body = request.body.decode("utf-8")
     base = f"v0:{timestamp}:{body}".encode("utf-8")
     request_hash = hmac.new(signing_secret, base, hashlib.sha256).hexdigest()
     expected_signature = f"v0={request_hash}"
     return hmac.compare_digest(signature, expected_signature)
+
+
+def add_query_parameters(url, params):
+    req = PreparedRequest()
+    req.prepare_url(url, params)
+    return req.url

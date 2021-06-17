@@ -30,7 +30,7 @@ Enable the plugin for a test community:
 curl -X PUT 'http://127.0.0.1:8000/api/internal/community/my-community-123' \
     -H 'Content-Type: application/json' \
     --data-raw '{
-        "name": "my-community-123",
+        "slug": "my-community-123",
         "readable_name": "my test community",
         "plugins": [
             {
