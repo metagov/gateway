@@ -18,6 +18,7 @@ that are exposed in the `Metagov API <https://prototype.metagov.org/redoc/>`_.
 * `NEAR <https://www.near.org>`_
 * `Discourse <https://www.discourse.org/>`_
 * `Web Monetization <https://webmonetization.org/>`_
+* Slack
 ..
     * `Stanford Participatory Budgeting Platform <https://pbstanford.org/>`_
 

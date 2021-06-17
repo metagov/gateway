@@ -109,7 +109,7 @@ Use the Django shell to interact with the application:
         Plugins.objects.all()
 
         # Get the enabled plugins for a specific community
-        community = Community.objects.get(name='my-community-1234')
+        community = Community.objects.get(slug='my-community-1234')
         Plugin.objects.filter(community=community)
 
         # Get the governance processes for a specific community
