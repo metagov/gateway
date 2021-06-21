@@ -12,8 +12,6 @@ logger = logging.getLogger(__name__)
 
 opencollective_url = "https://opencollective.com"
 
-EVENT_EXPENSE_CREATED = "expense_created"
-
 
 @Registry.plugin
 class OpenCollective(Plugin):
@@ -111,9 +109,7 @@ class OpenCollective(Plugin):
         self.add_expense_url(expense_data)
         return expense_data
 
-    @Registry.webhook_receiver(
-        event_schemas=[{"type": EVENT_EXPENSE_CREATED, "schema": Schemas.expense_created_event}]
-    )
+    @Registry.webhook_receiver()
     def process_oc_webhook(self, request):
         body = json.loads(request.body)
         collective_legacy_id = self.state.get("collective_legacy_id")
@@ -124,13 +120,29 @@ class OpenCollective(Plugin):
             )
 
         event_type = body.get("type")
-        if event_type == "collective.expense.created":
+
+        logger.debug(f"Received Open Collective event '{event_type}': {body}")
+
+        if event_type.startswith("collective.expense."):
+            expense_event = event_type.replace("collective.expense.", "")
+            event_name = f"expense_{expense_event}"
             # Hit API to get expense data
-            variables = {"reference": {"legacyId": body["data"]["expense"]["id"]}}
-            expense_data = self.run_query(Queries.expense, variables)["expense"]
-            self.add_expense_url(expense_data)
-            initiator = {"user_id": expense_data["createdByAccount"]["slug"], "provider": "opencollective"}
-            self.send_event_to_driver(event_type=EVENT_EXPENSE_CREATED, initiator=initiator, data=expense_data)
+            expense_data = self.get_expense_data(body["data"]["expense"]["id"])
+
+            if expense_event == "created":
+                initiator = {"user_id": expense_data["createdByAccount"]["slug"], "provider": "opencollective"}
+            else:
+                # find the expense activity that corresponds to this event
+                activity = [a for a in expense_data["activities"] if a["createdAt"] == body["createdAt"]]
+                initiator = {"user_id": activity[0].get("individual", {}).get("slug"), "provider": "opencollective"}
+
+            self.send_event_to_driver(event_type=event_name, initiator=initiator, data=expense_data)
+
+    def get_expense_data(self, legacy_id: str):
+        variables = {"reference": {"legacyId": legacy_id}}
+        expense_data = self.run_query(Queries.expense, variables)["expense"]
+        self.add_expense_url(expense_data)
+        return expense_data
 
     def add_expense_url(self, expense):
         url = f"{opencollective_url}/{self.config['collective_slug']}/expenses/{expense['legacyId']}"

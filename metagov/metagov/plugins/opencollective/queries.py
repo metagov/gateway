@@ -29,6 +29,16 @@ fragment expenseFields on Expense {
       legacyId
       slug
     }
+    activities {
+      id,
+      type,
+      createdAt,
+      data,
+      individual {
+        id,
+        slug
+      }
+    }
     items {
       id
       amount
