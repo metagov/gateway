@@ -2,14 +2,18 @@ from django.test import Client, TestCase
 
 
 class PluginTestCase(TestCase):
-    COMMUNITY_NAME = "test-community"
-    COMMUNITY_URL = "/api/internal/community/test-community"
-    COMMUNITY_HEADER = {"HTTP_X_METAGOV_COMMUNITY": "test-community"}
-
     def _pre_setup(self):
         # Create community with no plugins enabled
         self.client = Client()
-        self.client.put(self.COMMUNITY_URL, data={"name": self.COMMUNITY_NAME}, content_type="application/json")
+        response = self.client.post(
+            "/api/internal/community", data={"readable_name": "my community"}, content_type="application/json"
+        )
+        data = response.json()
+
+        self.COMMUNITY_SLUG = data["slug"]
+        self.COMMUNITY_URL = f"/api/internal/community/{data['slug']}"
+        self.COMMUNITY_HEADER = {"HTTP_X_METAGOV_COMMUNITY": self.COMMUNITY_SLUG}
+
         super(PluginTestCase, self)._pre_setup()
 
     def _post_teardown(self):

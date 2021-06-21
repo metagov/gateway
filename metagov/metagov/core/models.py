@@ -1,27 +1,30 @@
-import json
 import logging
 import time
 from enum import Enum
 
 import jsonpickle
 import requests
+import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
-from drf_yasg import openapi
 
 logger = logging.getLogger(__name__)
 
 
 class Community(models.Model):
-    name = models.CharField(max_length=50, primary_key=True)
-    readable_name = models.CharField(max_length=50, blank=True)
+    slug = models.SlugField(
+        max_length=36, default=uuid.uuid4, unique=True, help_text="Unique slug identifier for the community"
+    )
+    readable_name = models.CharField(max_length=50, blank=True, help_text="Human-readable name for the community")
 
     def __str__(self):
-        return f"{self.readable_name} ({self.name})"
+        if self.readable_name:
+            return f"{self.readable_name} ({self.slug})"
+        return self.slug
 
 
 class DataStore(models.Model):
@@ -72,7 +75,7 @@ class Plugin(models.Model):
         unique_together = ["name", "community"]
 
     def __str__(self):
-        return f"{self.name} for {self.community.name}"
+        return f"{self.name} for '{self.community}'"
 
     def save(self, *args, **kwargs):
         if not self.pk:
@@ -89,7 +92,7 @@ class Plugin(models.Model):
         if not settings.DRIVER_EVENT_RECEIVER_URL:
             return
         event = {
-            "community": self.community.name,
+            "community": self.community.slug,
             "source": self.name,
             "event_type": event_type,
             "timestamp": str(time.time()),
@@ -100,7 +103,9 @@ class Plugin(models.Model):
         logger.debug("Sending event to Driver: " + serialized)
         resp = requests.post(settings.DRIVER_EVENT_RECEIVER_URL, data=serialized)
         if not resp.ok:
-            logger.error(f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}")
+            logger.error(
+                f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}"
+            )
 
 
 class ProcessStatus(Enum):
@@ -147,7 +152,7 @@ class GovernanceProcess(models.Model):
     objects = GovernanceProcessManager()
 
     def __str__(self):
-        return f"{self.plugin.name}.{self.name} for '{self.plugin.community.name}' ({self.pk}, {self.status})"
+        return f"{self.plugin.name}.{self.name} for '{self.plugin.community.slug}' ({self.pk}, {self.status})"
 
     def save(self, *args, **kwargs):
         if not self.pk:

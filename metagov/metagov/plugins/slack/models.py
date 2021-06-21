@@ -4,26 +4,15 @@ import logging
 import metagov.core.plugin_decorators as Registry
 import requests
 from metagov.core.errors import PluginErrorInternal
-from metagov.core.models import Plugin
+from metagov.core.models import Plugin, GovernanceProcess
 
 logger = logging.getLogger(__name__)
-
-"""
-
-App Manifest
-https://app.slack.com/app-settings/TMQ3PKXT9/A01HT9U26NT/app-manifest
-
-1. Upload the App Manifest
-2. Copy the Client ID/Secret/etc onto the server
-"""
-
 
 @Registry.plugin
 class Slack(Plugin):
     name = "slack"
     config_schema = {
         "type": "object",
-        "additionalProperties": False,
         "properties": {
             # these are set automatically if using the oauth flow
             "team_id": {"description": "Slack Team ID", "type": "string"},
@@ -37,8 +26,7 @@ class Slack(Plugin):
         proxy = True
 
     def initialize(self):
-        logger.info(f"Initializing Slack Plugin for {self.community}")
-        logger.info(self.config["team_name"])
+        logger.info(f"Initialized Slack Plugin for '{self.config['team_name']}' (Community: {self.community})")
 
     @Registry.webhook_receiver(event_schemas=[])
     def receive_event(self, request):
@@ -49,7 +37,7 @@ class Slack(Plugin):
         if json_data["type"] != "event_callback" or json_data["team_id"] != self.config["team_id"]:
             return
 
-        # Datat types: https://api.slack.com/apis/connections/events-api#the-events-api__receiving-events__events-dispatched-as-json
+        # Data types: https://api.slack.com/apis/connections/events-api#the-events-api__receiving-events__events-dispatched-as-json
         # Event list: https://api.slack.com/events
 
         event = json_data["event"]
@@ -88,7 +76,18 @@ class Slack(Plugin):
         curl -iX POST "https://prototype.metagov.org/api/internal/action/slack.method" -H  "accept: application/json" -H  "X-Metagov-Community: slack-tmq3pkxt9" -d '{"parameters":{"channel":"C0177HZTV7X","method":"pins.remove","timestamp":"1622820212.008000"}}'
         """
         method = parameters.pop("method_name")
-        data = {"token": self.config["bot_token"], **parameters}
+
+        # special param for using admin token if present
+        # necessary for some methods like "chat.delete"
+        # use_admin_token = parameters.pop("use_admin_token", False)
+
+        token = self.config["bot_token"]
+        # if use_admin_token:
+        #     admin_token = self.state.get("admin_token")
+        #     if admin_token:
+        #         token = admin_token
+
+        data = {"token": token, **parameters}
         return self.slack_request("POST", method, data=data)
 
     def slack_request(self, method, route, json=None, data=None):
@@ -106,3 +105,24 @@ class Slack(Plugin):
                 raise PluginErrorInternal(data["error"])
             return data
         return {}
+
+
+# @Registry.governance_process
+# class SlackVote(GovernanceProcess):
+#     name = "vote"
+#     plugin_name = "slack"
+
+#     class Meta:
+#         proxy = True
+
+#     def start(self, parameters) -> None:
+#         pass
+
+#     def update(self):
+#         pass
+
+#     def close(self):
+#         pass
+
+#     def update_outcome_from_slack(self):
+#         pass

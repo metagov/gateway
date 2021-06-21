@@ -377,3 +377,32 @@ try running celery directly to see if there are errors in your code:
 
     celery -A metagov worker -l info --uid celery
     celery -A metagov beat -l info --uid celery --schedule=/var/run/celery/celerybeat-metagov-schedule
+
+Plugins
+^^^^^^^^^^^^
+
+Some plugins require administrator setup before they can be used.
+
+Slack
+"""""
+
+In order to use the Metagov Slack plugin, the Metagov server administrator
+needs to create a new Slack App and store its credentials on the Metagov server:
+
+1. Go to https://api.slack.com/apps
+2. Click “Create New App” and select "From and app manifest"
+3. Paste in the `manifest.yaml file <https://github.com/metagov/metagov-prototype/blob/master/metagov/metagov/plugins/slack/manifest.yaml>`_. Replace ``$METAGOV_SERVER`` with the URL for your Metagov server under ``redirect_urls`` and ``request_url``. Optional: adjust scopes, events, and bot name as desired.
+4. Click “Manage Distribution”->”Activate Public Distribution.” This step is necessary if you want your app to be installable to multiple Slack workspaces.
+5. On the Metagov server, create the Slack ``.env`` file and fill in the App ID, Client ID, Client Secret, and Signing Secret.
+
+    .. code-block:: shell
+
+        cd metagov/plugins/slack/
+        cp .env.example .env
+
+6. Reload apache2:
+
+    .. code-block:: shell
+
+        systemctl reload apache2
+
