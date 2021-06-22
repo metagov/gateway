@@ -10,6 +10,7 @@ from metagov.core.errors import PluginErrorInternal, PluginAuthError
 from metagov.core.plugin_constants import AuthType
 from metagov.plugins.slack.models import Slack
 from requests.models import PreparedRequest
+from django.core.exceptions import ImproperlyConfigured
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,11 @@ class NonAdminInstallError(PluginAuthError):
 
 
 def get_authorize_url(state, type):
-    client_id = env("SLACK_CLIENT_ID")
+    try:
+        client_id = env("SLACK_CLIENT_ID")
+    except ImproperlyConfigured:
+        raise PluginAuthError(detail="Client ID not configured")
+
     if type == AuthType.APP_INSTALL:
         # TODO: make requested scopes configurable?
         user_scope = (
