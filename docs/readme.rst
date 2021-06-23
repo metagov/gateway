@@ -8,7 +8,7 @@ social workflows across a range of platforms, from forums to chat services to bl
 Metagov is meant to be deployed alongside a "governance driver," which is loosely defined as any application
 that authors governance policies. `PolicyKit <https://www.policykit.org/>`_ is a powerful governance driver
 that integrates with Metagov, enabling policy authors to make use of the governance services
-that are exposed in the `Metagov API <https://prototype.metagov.org/redoc/>`_.
+that are exposed in the `Metagov API <https://metagov.policykit.org/redoc/>`_.
 
 **Currently supported governance services and platforms:**
 
@@ -24,7 +24,7 @@ that are exposed in the `Metagov API <https://prototype.metagov.org/redoc/>`_.
 
 **Quick links:**
 
-* `Metagov API docs <https://prototype.metagov.org/redoc/>`_
+* `Metagov API docs <https://metagov.policykit.org/redoc/>`_
 * `Metagov GitHub repo <https://github.com/metagov/metagov-prototype>`_
 * `PolicyKit Documentation <https://policykit.readthedocs.io/>`_
 

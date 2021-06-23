@@ -27,4 +27,4 @@ Metagov is a prototype under active development, so please help us out by sendin
    :caption: Reference
 
    metagov.core Reference <autodocs/core.rst>
-   OpenAPI Reference ↗️ <https://prototype.metagov.org/redoc/>
+   OpenAPI Reference ↗️ <https://metagov.policykit.org/redoc/>
