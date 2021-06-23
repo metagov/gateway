@@ -207,7 +207,7 @@ Install RabbitMQ and create a virtual host:
 
     sudo rabbitmqctl add_user 'username' 'password'
     sudo rabbitmqctl add_vhost 'metagov-vhost'
-    sudo rabbitmqctl set_permissions -p 'metagov-vhost' 'username'.*' '.*' '.*'
+    sudo rabbitmqctl set_permissions -p 'metagov-vhost' 'username' '.*' '.*' '.*'
 
 In ``metagov/settings.py``, set the ``CELERY_BROKER_URL`` as follows, substituting values for your RabbitMQ username, password, and virtual host:
 
