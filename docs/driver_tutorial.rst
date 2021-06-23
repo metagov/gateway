@@ -84,7 +84,7 @@ The Driver can perform an action by making a request to the Metagov API at ``/ap
 
 The available actions, along with their input and output types, are listed in the API docs.
 You can find those at ``/swagger`` or ``/redoc`` of your Metagov instance. Or, take a look at the
-`dev instance Metagov API docs <https://prototype.metagov.org/redoc/>`_.
+`dev instance Metagov API docs <https://metagov.policykit.org/redoc/>`_.
 
 Here's an example of an API request to perform the action ``sourcecred.user-cred`` for the ``my-community-1234`` community:
 
@@ -115,7 +115,7 @@ A Governance Process is a decision-making process, such as a vote, election, or 
 This process typically involves some engagement from community members, and can last anywhere from minutes to hours to weeks.
 
 The currently supported governance processes are listed in the API docs, which can be found at ``/swagger`` or ``/redoc`` on your Metagov instance.
-Or, take a look at the `dev instance Metagov API docs <https://prototype.metagov.org/redoc/>`_.
+Or, take a look at the `dev instance Metagov API docs <https://metagov.policykit.org/redoc/>`_.
 
 The governance process endpoints use a typical asynchronous request-reply pattern with callbacks.
 Here's an example CURL request that kicks off a ``loomio.poll`` process:

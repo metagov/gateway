@@ -2,7 +2,7 @@ Design Overview
 ===============
 
 Metagov is a Django backend service with a plugin architecture. Metagov is meant to be deployed alongside a governance :ref:`Driver`, which
-uses the `Metagov API <https://prototype.metagov.org/redoc/>`_ to communicate with zero or more third party services.
+uses the `Metagov API <https://metagov.policykit.org/redoc/>`_ to communicate with zero or more third party services.
 
 Metagov has a plugin architecture, with nearly all the functionality being defined in the plugins. Plugins are typically used to integrate with
 an external platform such as SourceCred or Loomio, and expose their governance-related functionality through a common API interface that can be consumed
