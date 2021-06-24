@@ -1,12 +1,14 @@
 import json
 import logging
+import random
 
 import metagov.core.plugin_decorators as Registry
 import requests
 from metagov.core.errors import PluginErrorInternal
-from metagov.core.models import Plugin, GovernanceProcess
+from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 
 logger = logging.getLogger(__name__)
+
 
 @Registry.plugin
 class Slack(Plugin):
@@ -107,22 +109,209 @@ class Slack(Plugin):
         return {}
 
 
-# @Registry.governance_process
-# class SlackVote(GovernanceProcess):
-#     name = "vote"
-#     plugin_name = "slack"
+EMOJI_MAP = {
+    "numbers": [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "keycap_ten",
+    ],
+    "flowers": [
+        "tulip",
+        "sunflower",
+        "cherry_blossom",
+        "rose",
+        "wilter_flower",
+        "bouquet",
+        "hibiscus",
+        "blossom",
+    ],
+    "hearts": [
+        "blue_heart",
+        "purple_heart",
+        "heart",
+        "green_heart",
+        "sparkling_heart",
+        "orange_heart",
+        "green_heart",
+    ],
+}
 
-#     class Meta:
-#         proxy = True
 
-#     def start(self, parameters) -> None:
-#         pass
+class Bool:
+    YES = "yes"
+    NO = "no"
 
-#     def update(self):
-#         pass
 
-#     def close(self):
-#         pass
+@Registry.governance_process
+class SlackVote(GovernanceProcess):
+    name = "vote"
+    plugin_name = "slack"
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            # TODO(enhancement): let the caller define the emoji for each option
+            "options": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "options to use for choice selection. ignored for 'boolean' poll type",
+            },
+            "details": {"type": "string"},
+            "poll_type": {"type": "string", "enum": ["boolean", "choice"]},
+            # TODO(enhancement): support votes in im and mpim
+            "channel": {
+                "type": "string",
+                "description": "channel to post the vote in",
+            },
+            # TODO(enhancement): add suport for "closing_at" time
+            "emoji_family": {
+                "type": "string",
+                "enum": ["hearts", "flowers", "numbers"],
+                "description": "emoji family to use for choice selection. ignored for 'boolean' poll type",
+            },
+        },
+        "required": ["title", "channel", "poll_type"],
+    }
 
-#     def update_outcome_from_slack(self):
-#         pass
+    class Meta:
+        proxy = True
+
+    def start(self, parameters) -> None:
+        text = parameters["title"]
+        poll_type = parameters["poll_type"]
+        options = [Bool.YES, Bool.NO] if poll_type == "boolean" else parameters["options"]
+        if options is None:
+            raise PluginErrorInternal("Options required for non-boolean votes")
+
+        if poll_type == "boolean":
+            option_emoji_map = {"+1": Bool.YES, "-1": Bool.NO}
+        else:
+            family = parameters.get("emoji_family", "numbers")
+            emojis = EMOJI_MAP[family]
+            if len(emojis) < len(options):
+                raise PluginErrorInternal("There are more voting options than possible emojis")
+            if family != "numbers":
+                random.shuffle(emojis)
+            emojis = emojis[: len(options)]
+            option_emoji_map = dict(zip(emojis, options))
+            for (k, v) in option_emoji_map.items():
+                text += f"\n> :{k}:  {v}"
+
+        self.state.set("option_emoji_map", option_emoji_map)
+
+        channel = parameters["channel"]
+        response = self.plugin_inst.method({"method_name": "chat.postMessage", "channel": channel, "text": text})
+        ts = response["ts"]
+
+        response = self.plugin_inst.method(
+            {
+                "method_name": "chat.getPermalink",
+                "channel": parameters["channel"],
+                "message_ts": ts,
+            }
+        )
+        self.state.set("poll_type", parameters["poll_type"])
+        self.state.set("text", text)
+
+        self.outcome = {
+            "url": response["permalink"],
+            "channel": channel,
+            "message_ts": ts,
+            "votes": dict([(k, {"users": [], "count": 0}) for k in options]),
+        }
+        self.status = ProcessStatus.PENDING.value
+        self.save()
+
+    @Registry.webhook_receiver()
+    def receive_event(self, request):
+        json_data = json.loads(request.body)
+        data = json_data["event"]
+        evt_type = data["type"]
+        if not evt_type.startswith("reaction_"):
+            return
+        ts = data["item"]["ts"]
+        if ts != self.outcome["message_ts"]:
+            return
+
+        reaction = normalize_reaction(data["reaction"])
+        option_emoji_map = self.state.get("option_emoji_map")
+        if reaction not in option_emoji_map:
+            return
+
+        option = option_emoji_map[reaction]
+        logger.info(f"Processing reaction '{reaction}' as a vote for '{option}'")
+
+        ts = self.outcome["message_ts"]
+        response = self.plugin_inst.method(
+            {
+                "method_name": "conversations.history",
+                "channel": self.outcome["channel"],
+                "latest": ts,
+                "oldest": ts,
+                "inclusive": True,
+                "limit": 1,
+            }
+        )
+        self.update_outcome_from_reaction_list(response["messages"][0].get("reactions", []))
+
+    def close(self):
+        # Edit content of the post to mark it as "closed."
+        ts = self.outcome["message_ts"]
+        old_text = self.state.get("text")
+        counts = [(v["count"], k) for (k, v) in self.outcome["votes"].items()]
+        counts.sort(key=lambda x: x[0], reverse=True)
+        votes_summary = "\n".join(
+            [f"> {count} vote{'' if count == 1 else 's'} for '{opt}'" for (count, opt) in counts]
+        )
+        self.plugin_inst.method(
+            {
+                "method_name": "chat.update",
+                "channel": self.outcome["channel"],
+                "ts": ts,
+                "text": f"{old_text}\n--------\n_Voting period closed._\n{votes_summary}",
+            }
+        )
+        self.status = ProcessStatus.COMPLETED.value
+        self.save()
+
+    def update_outcome_from_reaction_list(self, reaction_list):
+        self.outcome["votes"] = reactions_to_dict(reaction_list, self.state.get("option_emoji_map"))
+        self.save()
+
+
+def reactions_to_dict(reaction_list, emoji_to_option):
+    """Convert list of reactions from Slack API into a dictionary of option votes"""
+    votes = {}
+    for r in reaction_list:
+        emoji = normalize_reaction(r.pop("name"))
+        option = emoji_to_option.get(emoji)
+        if not option:
+            continue
+        if votes.get(option):
+            uniq_users = list(set(votes[option]["users"] + r["users"]))
+            uniq_users.sort()
+            votes[option] = {"users": uniq_users, "count": len(uniq_users)}
+        else:
+            votes[option] = r
+
+    # add zeros for options that don't have any reactions
+    for v in emoji_to_option.values():
+        if votes.get(v) is None:
+            votes[v] = {"users": [], "count": 0}
+
+    return votes
+
+
+def normalize_reaction(reaction: str):
+    if reaction.startswith("+1::skin-tone-"):
+        return "+1"
+    if reaction.startswith("-1::skin-tone-"):
+        return "-1"
+    return reaction

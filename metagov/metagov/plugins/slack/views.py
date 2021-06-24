@@ -8,9 +8,10 @@ import requests
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from metagov.core.errors import PluginErrorInternal, PluginAuthError
 from metagov.core.plugin_constants import AuthType
-from metagov.plugins.slack.models import Slack
+from metagov.plugins.slack.models import Slack, SlackVote
 from requests.models import PreparedRequest
 from django.core.exceptions import ImproperlyConfigured
+from metagov.core.models import ProcessStatus
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,11 @@ def process_event(request):
             if plugin.config["team_id"] == json_data["team_id"]:
                 logger.info(f"Passing event to {plugin}")
                 plugin.receive_event(request)
+                evt_type = json_data["event"]["type"]
+                if evt_type == "reaction_added" or evt_type == "reaction_removed":
+                    active_processes = SlackVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
+                    for process in active_processes:
+                        process.receive_event(request)
     return HttpResponse()
 
 
