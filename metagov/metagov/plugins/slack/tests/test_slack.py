@@ -1,6 +1,6 @@
 import requests_mock
 from django.test import TestCase
-from metagov.plugins.slack.models import Slack, SlackVote, reactions_to_dict
+from metagov.plugins.slack.models import Slack, SlackEmojiVote, reactions_to_dict
 from metagov.tests.plugin_test_utils import PluginTestCase
 
 
