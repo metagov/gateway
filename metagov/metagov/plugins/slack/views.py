@@ -178,6 +178,10 @@ def process_event(request):
         return HttpResponse()
     if json_data["type"] == "event_callback":
         validate_slack_event(request)
+        retry_num = request.headers.get("X-Slack-Retry-Num")
+        retry_reason = request.headers.get("X-Slack-Retry-Reason")
+        logger.debug(f"Retry: {retry_num} {retry_reason}")
+
         for plugin in Slack.objects.all():
             if plugin.config["team_id"] == json_data["team_id"]:
                 logger.info(f"Passing event to {plugin}")

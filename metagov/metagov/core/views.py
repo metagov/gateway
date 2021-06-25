@@ -388,7 +388,7 @@ def receive_webhook_global(request, plugin_name):
         return HttpResponse()
 
     logger.debug(f"Processing incoming event for {plugin_name}")
-    return plugin_views.process_event(request)
+    return plugin_views.process_event(request) #try-catch ?
 
 
 def decorated_create_process_view(plugin_name, slug):

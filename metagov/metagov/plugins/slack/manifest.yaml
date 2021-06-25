@@ -21,7 +21,6 @@ oauth_config:
       - reactions:read
       - chat:write
     bot:
-      - app_mentions:read
       - calls:read
       - calls:write
       - channels:history
