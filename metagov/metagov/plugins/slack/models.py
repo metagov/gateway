@@ -151,7 +151,7 @@ class Bool:
 
 @Registry.governance_process
 class SlackVote(GovernanceProcess):
-    name = "vote"
+    name = "emoji-vote"
     plugin_name = "slack"
     input_schema = {
         "type": "object",

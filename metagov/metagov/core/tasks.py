@@ -14,8 +14,8 @@ def execute_plugin_tasks():
     for (plugin_name, cls) in plugin_registry.items():
         if cls._task_function:
             active_plugins = cls.objects.all()
-            logger.debug(f"[tasks] calling task function for {active_plugins.count()} instances of {plugin_name}")
-
+            if active_plugins.count() > 0:
+                logger.debug(f"[tasks] calling task function for {active_plugins.count()} instances of {plugin_name}")
             for plugin in active_plugins:
                 task_function = getattr(plugin, cls._task_function)
                 task_function()
