@@ -8,7 +8,7 @@ import requests
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from metagov.core.errors import PluginErrorInternal, PluginAuthError
 from metagov.core.plugin_constants import AuthType
-from metagov.plugins.slack.models import Slack, SlackVote
+from metagov.plugins.slack.models import Slack, SlackEmojiVote
 from requests.models import PreparedRequest
 from django.core.exceptions import ImproperlyConfigured
 from metagov.core.models import ProcessStatus
@@ -178,13 +178,18 @@ def process_event(request):
         return HttpResponse()
     if json_data["type"] == "event_callback":
         validate_slack_event(request)
+        retry_num = request.headers.get("X-Slack-Retry-Num")
+        if retry_num is not None:
+            retry_reason = request.headers.get("X-Slack-Retry-Reason")
+            logger.warn(f"Received retried event: {retry_num} {retry_reason}")
+
         for plugin in Slack.objects.all():
             if plugin.config["team_id"] == json_data["team_id"]:
                 logger.info(f"Passing event to {plugin}")
                 plugin.receive_event(request)
                 evt_type = json_data["event"]["type"]
                 if evt_type == "reaction_added" or evt_type == "reaction_removed":
-                    active_processes = SlackVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
+                    active_processes = SlackEmojiVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
                     for process in active_processes:
                         process.receive_event(request)
     return HttpResponse()
