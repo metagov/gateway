@@ -20,15 +20,19 @@ class UnitTests(TestCase):
     def test_boolean_reaction_dict(self):
         """Test that the reactions_to_dict function collapses thumb votes correctly"""
         reactions = [
-            {"name": "-1", "users": ["U1", "U2"], "count": 2},
-            {"name": "-1::skin-tone-2", "users": ["U2"], "count": 1},
-            {"name": "-1::skin-tone-6", "users": ["U3"], "count": 1},
-            {"name": "+1", "users": ["U4"], "count": 1},
+            {"name": "-1", "users": ["B1", "U1", "U2"], "count": 2},
+            {"name": "-1::skin-tone-2", "users": ["B1", "U2"], "count": 1},
+            {"name": "-1::skin-tone-6", "users": ["B1", "U3"], "count": 1},
+            {"name": "+1", "users": ["B1", "U4"], "count": 1},
             {"name": "blue_heart", "users": ["U4"], "count": 1},
             {"name": "yellow_heart", "users": ["U4"], "count": 1},
         ]
         emoji_to_option = {"+1": "yes", "-1": "no"}
-        votes = reactions_to_dict(reactions, emoji_to_option)
+        votes = reactions_to_dict(
+            reactions,
+            emoji_to_option,
+            excluded_users=["B1"],
+        )
         self.assertDictEqual(
             votes,
             {
