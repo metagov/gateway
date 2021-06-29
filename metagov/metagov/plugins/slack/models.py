@@ -220,12 +220,9 @@ class SlackEmojiVote(GovernanceProcess):
 
         # Add 1 initial reaction for each emoji type
         for emoji in option_emoji_map.keys():
-            self.plugin_inst.method({
-                "method_name": "reactions.add",
-                "channel": parameters["channel"],
-                "timestamp": ts,
-                "name": emoji
-            })
+            self.plugin_inst.method(
+                {"method_name": "reactions.add", "channel": parameters["channel"], "timestamp": ts, "name": emoji}
+            )
 
         self.state.set("poll_type", parameters["poll_type"])
         self.state.set("text", text)
@@ -292,11 +289,13 @@ class SlackEmojiVote(GovernanceProcess):
         self.save()
 
     def update_outcome_from_reaction_list(self, reaction_list):
-        self.outcome["votes"] = reactions_to_dict(reaction_list, self.state.get("option_emoji_map"))
+        self.outcome["votes"] = reactions_to_dict(
+            reaction_list, self.state.get("option_emoji_map"), excluded_users=[self.plugin_inst.config["bot_user_id"]]
+        )
         self.save()
 
 
-def reactions_to_dict(reaction_list, emoji_to_option):
+def reactions_to_dict(reaction_list, emoji_to_option, excluded_users=[]):
     """Convert list of reactions from Slack API into a dictionary of option votes"""
     votes = {}
     for r in reaction_list:
@@ -304,13 +303,19 @@ def reactions_to_dict(reaction_list, emoji_to_option):
         option = emoji_to_option.get(emoji)
         if not option:
             continue
+        # remove excluded users from list of reactions
+        user_list = set(r["users"])
+        user_list.difference_update(set(excluded_users))
+        user_list = list(user_list)
+        user_list.sort()
+
         if votes.get(option):
-            uniq_users = list(set(votes[option]["users"] + r["users"]))
-            #TODO minus bot
+            # we already have some users listed (because of normalized reactions)
+            uniq_users = list(set(votes[option]["users"] + user_list))
             uniq_users.sort()
             votes[option] = {"users": uniq_users, "count": len(uniq_users)}
         else:
-            votes[option] = r
+            votes[option] = {"users": user_list, "count": len(user_list)}
 
     # add zeros for options that don't have any reactions
     for v in emoji_to_option.values():
