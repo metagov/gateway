@@ -182,6 +182,10 @@ def process_event(request):
         if retry_num is not None:
             retry_reason = request.headers.get("X-Slack-Retry-Reason")
             logger.warn(f"Received retried event: {retry_num} {retry_reason}")
+            if retry_reason == "http_timeout":
+                # This is retry because we took over 3 second to reply to the last request.
+                # Ignore it and tell Slack not to retry this message again.
+                return HttpResponse(headers={"X-Slack-No-Retry": 1})
 
         for plugin in Slack.objects.all():
             if plugin.config["team_id"] == json_data["team_id"]:
