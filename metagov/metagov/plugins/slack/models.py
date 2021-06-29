@@ -184,7 +184,8 @@ class SlackEmojiVote(GovernanceProcess):
         proxy = True
 
     def start(self, parameters) -> None:
-        text = parameters["title"]
+        text = construct_message_header(parameters["title"], parameters.get("details"))
+        self.state.set("message_header", text)
         poll_type = parameters["poll_type"]
         options = [Bool.YES, Bool.NO] if poll_type == "boolean" else parameters["options"]
         if options is None:
@@ -213,7 +214,7 @@ class SlackEmojiVote(GovernanceProcess):
         permalink_resp = self.plugin_inst.method(
             {
                 "method_name": "chat.getPermalink",
-                "channel": parameters["channel"],
+                "channel": channel,
                 "message_ts": ts,
             }
         )
@@ -221,11 +222,10 @@ class SlackEmojiVote(GovernanceProcess):
         # Add 1 initial reaction for each emoji type
         for emoji in option_emoji_map.keys():
             self.plugin_inst.method(
-                {"method_name": "reactions.add", "channel": parameters["channel"], "timestamp": ts, "name": emoji}
+                {"method_name": "reactions.add", "channel": channel, "timestamp": ts, "name": emoji}
             )
 
         self.state.set("poll_type", parameters["poll_type"])
-        self.state.set("text", text)
 
         self.outcome = {
             "url": permalink_resp["permalink"],
@@ -270,19 +270,23 @@ class SlackEmojiVote(GovernanceProcess):
 
     def close(self):
         # Edit content of the post to mark it as "closed."
-        ts = self.outcome["message_ts"]
-        old_text = self.state.get("text")
-        counts = [(v["count"], k) for (k, v) in self.outcome["votes"].items()]
-        counts.sort(key=lambda x: x[0], reverse=True)
-        votes_summary = "\n".join(
-            [f"> {count} vote{'' if count == 1 else 's'} for '{opt}'" for (count, opt) in counts]
-        )
+        option_emoji_map = self.state.get("option_emoji_map")
+        text = self.state.get("message_header")
+        if self.state.get("poll_type") == "boolean":
+            yes = self.outcome["votes"][Bool.YES]["count"]
+            no = self.outcome["votes"][Bool.NO]["count"]
+            text += f"\n_outcome: {yes} for and {no} against._"
+        else:
+            for (k, v) in option_emoji_map.items():
+                count = self.outcome["votes"][v]["count"]
+                text += f"\n> :{k}:  {v} ({count})"
+
         self.plugin_inst.method(
             {
                 "method_name": "chat.update",
                 "channel": self.outcome["channel"],
-                "ts": ts,
-                "text": f"{old_text}\n--------\n_Voting period closed._\n{votes_summary}",
+                "ts": self.outcome["message_ts"],
+                "text": text,
             }
         )
         self.status = ProcessStatus.COMPLETED.value
@@ -294,6 +298,12 @@ class SlackEmojiVote(GovernanceProcess):
         )
         self.save()
 
+
+def construct_message_header(title, details=None):
+    text = f"*{title}*\n"
+    if details:
+        text += f"{details}\n"
+    return text
 
 def reactions_to_dict(reaction_list, emoji_to_option, excluded_users=[]):
     """Convert list of reactions from Slack API into a dictionary of option votes"""
