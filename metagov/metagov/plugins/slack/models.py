@@ -210,18 +210,28 @@ class SlackEmojiVote(GovernanceProcess):
         response = self.plugin_inst.method({"method_name": "chat.postMessage", "channel": channel, "text": text})
         ts = response["ts"]
 
-        response = self.plugin_inst.method(
+        permalink_resp = self.plugin_inst.method(
             {
                 "method_name": "chat.getPermalink",
                 "channel": parameters["channel"],
                 "message_ts": ts,
             }
         )
+
+        # Add 1 initial reaction for each emoji type
+        for emoji in option_emoji_map.keys():
+            self.plugin_inst.method({
+                "method_name": "reactions.add",
+                "channel": parameters["channel"],
+                "timestamp": ts,
+                "name": emoji
+            })
+
         self.state.set("poll_type", parameters["poll_type"])
         self.state.set("text", text)
 
         self.outcome = {
-            "url": response["permalink"],
+            "url": permalink_resp["permalink"],
             "channel": channel,
             "message_ts": ts,
             "votes": dict([(k, {"users": [], "count": 0}) for k in options]),
@@ -296,6 +306,7 @@ def reactions_to_dict(reaction_list, emoji_to_option):
             continue
         if votes.get(option):
             uniq_users = list(set(votes[option]["users"] + r["users"]))
+            #TODO minus bot
             uniq_users.sort()
             votes[option] = {"users": uniq_users, "count": len(uniq_users)}
         else:
