@@ -275,7 +275,7 @@ class SlackEmojiVote(GovernanceProcess):
         if self.state.get("poll_type") == "boolean":
             yes = self.outcome["votes"][Bool.YES]["count"]
             no = self.outcome["votes"][Bool.NO]["count"]
-            text += f"\n_outcome: {yes} for and {no} against._"
+            text += f"\nFinal vote count: {yes} for and {no} against."
         else:
             for (k, v) in option_emoji_map.items():
                 count = self.outcome["votes"][v]["count"]
