@@ -127,7 +127,7 @@ EMOJI_MAP = {
         "sunflower",
         "cherry_blossom",
         "rose",
-        "wilter_flower",
+        "wilted_flower",
         "bouquet",
         "hibiscus",
         "blossom",
