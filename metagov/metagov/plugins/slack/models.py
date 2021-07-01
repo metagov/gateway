@@ -2,6 +2,7 @@ import json
 import logging
 import random
 
+from rest_framework.exceptions import ValidationError
 import metagov.core.plugin_decorators as Registry
 import requests
 from metagov.core.errors import PluginErrorInternal
@@ -58,6 +59,34 @@ class Slack(Plugin):
         self.send_event_to_driver(event_type=event_type, initiator=initiator, data=event)
 
     @Registry.action(
+        slug="post-message",
+        input_schema={
+            "type": "object",
+            "properties": {"users": {"type": "array", "items": {"type": "string"}}, "channel": {"type": "string"}},
+        },
+        description="Post message either in a channel, direct message, or multi-person message. Supports all params accepted by Slack method chat.postMessage.",
+    )
+    def post_message(self, parameters):
+        bot_token = self.config["bot_token"]
+        data = {"token": bot_token, **parameters}  # note: parameters may include a token override!
+        if not parameters.get("users") and not parameters.get("channel"):
+            raise ValidationError("users or channel are required")
+        if parameters.get("users") and not parameters.get("channel"):
+            # open a conversation for DM or multi person message
+            users = ",".join(parameters.get("users"))
+            params = {"token": bot_token, "users": users}
+            response = self.slack_request("POST", "conversations.open", data=params)
+            channel = response["channel"]["id"]
+            logger.debug(f"Opened conversation {channel} with users {users}")
+            data["channel"] = channel
+        return self.slack_request("POST", "chat.postMessage", data=data)
+
+    def join_conversation(self, channel):
+        return self.slack_request(
+            "POST", "conversations.join", data={"token": self.config["bot_token"], "channel": channel}
+        )
+
+    @Registry.action(
         slug="method",
         input_schema={
             "type": "object",
@@ -78,23 +107,20 @@ class Slack(Plugin):
         curl -iX POST "https://metagov.policykit.org/api/internal/action/slack.method" -H  "accept: application/json" -H  "X-Metagov-Community: slack-tmq3pkxt9" -d '{"parameters":{"channel":"C0177HZTV7X","method":"pins.remove","timestamp":"1622820212.008000"}}'
         """
         method = parameters.pop("method_name")
-
-        # special param for using admin token if present
-        # necessary for some methods like "chat.delete"
-        # use_admin_token = parameters.pop("use_admin_token", False)
-
-        token = self.config["bot_token"]
-        # if use_admin_token:
-        #     admin_token = self.state.get("admin_token")
-        #     if admin_token:
-        #         token = admin_token
-
-        data = {"token": token, **parameters}
-        return self.slack_request("POST", method, data=data)
+        # note: parameters may include a token override!
+        data = {"token": self.config["bot_token"], **parameters}
+        try:
+            return self.slack_request("POST", method, data=data)
+        except PluginErrorInternal as e:
+            # TODO: make this configurable, might not be desirable in all cases. Bot must be in the channel for `reaction.add` method to work (and others).
+            if e.detail == "not_in_channel" and data.get("channel"):
+                logger.warn(f"Failed with not_in_channel. Adding bot to channel {data['channel']} and retrying...")
+                self.join_conversation(data["channel"])
+                return self.slack_request("POST", method, data=data)
 
     def slack_request(self, method, route, json=None, data=None):
         url = f"https://slack.com/api/{route}"
-        logger.info(f"{method} {url}")
+        logger.debug(f"{method} {url}")
         resp = requests.request(method, url, json=json, data=data)
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason}")
@@ -104,6 +130,9 @@ class Slack(Plugin):
             data = resp.json()
             is_ok = data.pop("ok")
             if not is_ok:
+                # logger.debug(f"X-OAuth-Scopes: {resp.headers.get('X-OAuth-Scopes')}")
+                # logger.debug(f"X-Accepted-OAuth-Scopes: {resp.headers.get('X-Accepted-OAuth-Scopes')}")
+                # logger.debug(data["error"])
                 raise PluginErrorInternal(data["error"])
             return data
         return {}
@@ -208,7 +237,7 @@ class SlackEmojiVote(GovernanceProcess):
         self.state.set("option_emoji_map", option_emoji_map)
 
         channel = parameters["channel"]
-        response = self.plugin_inst.method({"method_name": "chat.postMessage", "channel": channel, "text": text})
+        response = self.plugin_inst.post_message({"channel": channel, "text": text})
         ts = response["ts"]
 
         permalink_resp = self.plugin_inst.method(
@@ -253,8 +282,9 @@ class SlackEmojiVote(GovernanceProcess):
             return
 
         option = option_emoji_map[reaction]
-        logger.info(f"Processing reaction '{reaction}' as a vote for '{option}'")
+        logger.debug(f"Processing reaction '{reaction}' as a vote for '{option}'")
 
+        # Get the voting message post and update all the vote counts based on the emojis currently present
         ts = self.outcome["message_ts"]
         response = self.plugin_inst.method(
             {
@@ -304,6 +334,7 @@ def construct_message_header(title, details=None):
     if details:
         text += f"{details}\n"
     return text
+
 
 def reactions_to_dict(reaction_list, emoji_to_option, excluded_users=[]):
     """Convert list of reactions from Slack API into a dictionary of option votes"""
