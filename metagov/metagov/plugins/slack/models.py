@@ -180,13 +180,16 @@ class Bool:
 
 @Registry.governance_process
 class SlackEmojiVote(GovernanceProcess):
+    # TODO(enhancement): let the caller define the emoji for each option
+    # TODO(enhancement): add suport for "closing_at" time
+    # TODO(enhancement): support single-choice and multiple-choice
+    # TODO(enhancement): only allow one vote per person on boolean votes
     name = "emoji-vote"
     plugin_name = "slack"
     input_schema = {
         "type": "object",
         "properties": {
             "title": {"type": "string"},
-            # TODO(enhancement): let the caller define the emoji for each option
             "options": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -194,19 +197,22 @@ class SlackEmojiVote(GovernanceProcess):
             },
             "details": {"type": "string"},
             "poll_type": {"type": "string", "enum": ["boolean", "choice"]},
-            # TODO(enhancement): support votes in im and mpim
             "channel": {
                 "type": "string",
                 "description": "channel to post the vote in",
             },
-            # TODO(enhancement): add suport for "closing_at" time
+            "users": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "users to participate in vote in a multi-person message thread. ignored if channel is provided.",
+            },
             "emoji_family": {
                 "type": "string",
                 "enum": ["hearts", "flowers", "numbers"],
                 "description": "emoji family to use for choice selection. ignored for 'boolean' poll type",
             },
         },
-        "required": ["title", "channel", "poll_type"],
+        "required": ["title", "poll_type"],
     }
 
     class Meta:
@@ -218,7 +224,12 @@ class SlackEmojiVote(GovernanceProcess):
         poll_type = parameters["poll_type"]
         options = [Bool.YES, Bool.NO] if poll_type == "boolean" else parameters["options"]
         if options is None:
-            raise PluginErrorInternal("Options required for non-boolean votes")
+            raise ValidationError("Options are required for non-boolean votes")
+
+        maybe_channel = parameters.get("channel")
+        maybe_users = parameters.get("users")
+        if maybe_channel is None and (maybe_users is None or len(maybe_users) == 0):
+            raise ValidationError("users or channel are required")
 
         if poll_type == "boolean":
             option_emoji_map = {"+1": Bool.YES, "-1": Bool.NO}
@@ -236,9 +247,9 @@ class SlackEmojiVote(GovernanceProcess):
 
         self.state.set("option_emoji_map", option_emoji_map)
 
-        channel = parameters["channel"]
-        response = self.plugin_inst.post_message({"channel": channel, "text": text})
+        response = self.plugin_inst.post_message({"channel": maybe_channel, "users": maybe_users, "text": text})
         ts = response["ts"]
+        channel = response["channel"]
 
         permalink_resp = self.plugin_inst.method(
             {
