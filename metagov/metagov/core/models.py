@@ -19,7 +19,7 @@ class Community(models.Model):
     slug = models.SlugField(
         max_length=36, default=uuid.uuid4, unique=True, help_text="Unique slug identifier for the community"
     )
-    readable_name = models.CharField(max_length=50, blank=True, help_text="Human-readable name for the community")
+    readable_name = models.CharField(max_length=100, blank=True, help_text="Human-readable name for the community")
 
     def __str__(self):
         if self.readable_name:
@@ -128,7 +128,7 @@ class GovernanceProcess(models.Model):
 
     name = models.CharField(max_length=30)
     callback_url = models.CharField(
-        max_length=50, null=True, blank=True, help_text="Callback URL to notify when the process is updated"
+        max_length=100, null=True, blank=True, help_text="Callback URL to notify when the process is updated"
     )
     status = models.CharField(
         max_length=15, choices=[(s.value, s.name) for s in ProcessStatus], default=ProcessStatus.CREATED.value
