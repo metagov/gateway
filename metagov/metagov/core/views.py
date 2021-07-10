@@ -555,7 +555,11 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
                 raise ValidationError(err.message)
 
         # 5. Return response
-        return JsonResponse(response)
+        try:
+            return JsonResponse(response)
+        except TypeError:
+            logger.error(f"Failed to serialize {response}")
+            raise
 
     arg_dict = {
         "method": "post",
