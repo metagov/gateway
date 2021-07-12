@@ -117,6 +117,8 @@ class Slack(Plugin):
                 logger.warn(f"Failed with not_in_channel. Adding bot to channel {data['channel']} and retrying...")
                 self.join_conversation(data["channel"])
                 return self.slack_request("POST", method, data=data)
+            else:
+                raise
 
     def slack_request(self, method, route, json=None, data=None):
         url = f"https://slack.com/api/{route}"
