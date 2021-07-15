@@ -281,14 +281,13 @@ Anyone on the internet can post requests to the metagov webhook receiver endpoin
 Governance Processes
 ********************
 
-If you want to expose a way for the governance driver to perform an asynchronous governance process
-(such as a vote, election, or budgeting process) then you can implement a Governance Process. Governance
-processes are exposed as API endpoints at ``/api/internal/process/<plugin>.<slug>``.
+If you want to expose a way for the governance driver to perform an asynchronous governance process (such as a vote, election, or budgeting process) then you can implement a Governance Process. Governance processes are exposed as API endpoints at ``/api/internal/process/<plugin>.<slug>``.
 
-Create a proxy subclass of the ``GovernanceProcess`` Django model for our new governance process, ``MyGovProcess``.
-This model should be declared after the ``Tutorial`` model. Decorate it with the ``@Registry.governance_process``
-decorator so that Metagov core picks it up. In this example, the process will be exposed as an endpoint
-at ``/process/tutorial.my-gov-process``.
+Create a proxy subclass of the ``GovernanceProcess`` Django model for our new governance process, ``MyGovProcess``. This model should be declared after the ``Tutorial`` model. Decorate it with the ``@Registry.governance_process`` decorator so that Metagov core picks it up. In this example, the process will be exposed as an endpoint at ``/process/tutorial.my-gov-process``.
+
+You can optionally provide an ``input_schema``, which is a jsonschema with the same structure as the configuration schemas mentioned above.
+
+The GovernanceProcess object has access to the plugin instance it's associated with, through the attribute ``self.plugin_inst``.
 
 This snippet shows all possible functions you can implement on your proxy model:
 
@@ -306,12 +305,15 @@ This snippet shows all possible functions you can implement on your proxy model:
         def start(self, parameters):
             # Override this function (REQUIRED).
             # Kick off the asynchronous governance process and return immediately.
-            pass
+            self.status = ProcessStatus.PENDING.value
+            self.save()
 
         def close(self):
             # Override this function (OPTIONAL).
             # Close the governance process and save the outcome.
-            pass
+            self.outcome = "custom outcome data"  # optional
+            self.status = ProcessStatus.COMPLETED.value
+            self.save()
 
         def update(self):
             # Override this function (OPTIONAL).
@@ -335,8 +337,8 @@ This method will be invoked through ``POST /api/internal/process/tutorial.my-gov
 Closing a governance process
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There are multiple ways that a governance process can be "closed." A plugin may support one or several of them.
-A process is considered closed when the status is set to ``ProcessStatus.COMPLETED``.
+There are multiple ways that a governance process can be "closed." A plugin may support one or several of them. A process is considered closed when the status is set to ``ProcessStatus.COMPLETED``.
+
 Using the voting platform Loomio as an example, a vote can be closed in 3 ways:
 
 1) Loomio automatically closes the vote at a specified time ("closing_at").
@@ -346,7 +348,6 @@ Using the voting platform Loomio as an example, a vote can be closed in 3 ways:
 To support (1) and (2), Metagov needs to be made aware that the platform has closed the vote. This can happen through a "push" or "pull" approach, depending on the capabilities of the platform (see below).
 
 To support (3), the governance process needs to implement the ``close`` function. In order to support the driver in making a threshold-decision about when to close, use the "push" or "pull" approach to update the process outcome as votes are cast.
-
 
 ..
     Add fourth approach: Metagov-as-time-keeper.
