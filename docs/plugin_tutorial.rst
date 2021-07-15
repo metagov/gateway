@@ -9,7 +9,6 @@ This tutorial will show you have to write a Metagov Plugin. It will demonstrate 
 
 This tutorial assumes that you have the Metagov Django service set up for local development.
 
-
 Creating a Plugin
 *****************
 
@@ -72,6 +71,34 @@ Special configuration properties:
 
 Most plugins will use multiple jsonschemas. You may wish to keep your schemas in a separate file, which by convention is called `schemas.py`, as in `this example <https://github.com/metagov/metagov-prototype/blob/master/metagov/metagov/plugins/discourse/schemas.py>`_.
 
+Enabling the Plugin for a Community
+***********************************
+
+To create a new community with your plugin activated, make a PUT request to the ``community`` endpoint:
+
+.. code-block:: shell
+
+    curl -X PUT 'http://127.0.0.1:8000/api/internal/community/my-community-1234' \
+        -H 'Content-Type: application/json' \
+        --data-raw '{
+            "name": "my-community-1234",
+            "readable_name": "",
+            "plugins": [
+                {
+                    "name": "tutorial",
+                    "config": {
+                        "api_key": "ABC123",
+                        "foo": "baz"
+                    }
+                }
+            ]
+        }'
+
+
+See the Design Overview for more information about the data model.
+
+If you attempt to use a plugin without enabling it, you will get a ``RelatedObjectDoesNotExist`` error with message "Plugin has no community".
+
 Plugin Lifecycle
 ****************
 
@@ -111,34 +138,6 @@ The data stored in ``state`` must be serializable using `jsonpickle <https://jso
 
 .. note:: If the plugin config is changed, the plugin instance gets destroyed and recreated. At that point, all ``state`` is lost.
 
-Enabling the Plugin for a Community
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To create a new community with your plugin activated, make a PUT request to the ``community`` endpoint:
-
-.. code-block:: shell
-
-    curl -X PUT 'http://127.0.0.1:8000/api/internal/community/my-community-1234' \
-        -H 'Content-Type: application/json' \
-        --data-raw '{
-            "name": "my-community-1234",
-            "readable_name": "",
-            "plugins": [
-                {
-                    "name": "tutorial",
-                    "config": {
-                        "api_key": "ABC123",
-                        "foo": "baz"
-                    }
-                }
-            ]
-        }'
-
-
-See the Design Overview for more information about the data model.
-
-If you attempt to use a plugin without enabling it, you will get a ``RelatedObjectDoesNotExist`` error with message "Plugin has no community".
-
 Disabling the Plugin for a Community
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -155,13 +154,11 @@ the Plugin model instance is deleted, and all data in ``state`` is lost.
             "plugins": []
         }'
 
-
 Actions
 *******
 
 If you want to expose a way for the governance driver to **perform an action** or **get data**,
-then you can implement an action. An action is just a function on your Plugin class that is registered
-with metagov core, and exposed as an API endpoint at ``/api/internal/action/<plugin>.<slug>``.
+then you can implement an action. An action is just a function on your Plugin class that is registered with metagov core, and exposed as an API endpoint at ``/api/internal/action/<plugin>.<slug>``.
 
 All you need to do is decorate your function with the ``@Registry.action`` decorator:
 
@@ -196,7 +193,6 @@ Now you should be able to invoke the action through the Metagov API:
         --data-raw '{
             "parameters": { "value": 5 }
         }'
-
 
 Listener
 ********
