@@ -225,9 +225,9 @@ webhooks from the platform. Use the ``send_event_to_driver`` function to send th
 Tasks
 ^^^^^
 
-If the external platform does not support webhooks, you can use the ``event_producer_task`` decorator to register a task function to poll the external service.
-Metagov core will call the registered task function on a schedule. The schedule is defined in ``settings.py``
-under ``plugin-tasks-beat``. The same schedule is used for all plugins, for now.
+If the external platform does not support webhooks, you can use the ``event_producer_task`` decorator to register a task function to poll the external service. Metagov core will call the registered task function on a schedule. The schedule is defined in ``settings.py`` under ``plugin-tasks-beat``. The same schedule is used for all plugins, for now.
+
+Event producer task methods will function like webhook receivers, except that instead of automatically receiving a request object, they have to make a request themselves to the external endpoint.
 
 .. code-block:: python
 
@@ -241,8 +241,7 @@ under ``plugin-tasks-beat``. The same schedule is used for all plugins, for now.
             # send event to the driver
             self.send_event_to_driver(...)
 
-
-See :doc:`Reference Documentation <../autodocs/core>` for the full specification.
+See :doc:`Reference Documentation <../autodocs/core>` for the full specification. To run tasks locally, use the Django shell following the instructions :ref:`here<Celery and Scheduled tasks>`.
 
 Webhook Receiver URLs
 ^^^^^^^^^^^^^^^^^^^^^
