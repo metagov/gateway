@@ -83,8 +83,7 @@ If the community changes the plugin config, the plugin instance gets destroyed a
 Initialize
 ^^^^^^^^^^
 
-Override the ``initialize`` function to set up the plugin. It is called exactly once, when the plugin is created.
-
+You can optionally override the ``initialize`` function to do custom set up for the plugin. It is called exactly once, when the plugin is created.
 
 Persisting data
 ^^^^^^^^^^^^^^^
