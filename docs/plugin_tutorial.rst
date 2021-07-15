@@ -137,6 +137,8 @@ To create a new community with your plugin activated, make a PUT request to the 
 
 See the Design Overview for more information about the data model.
 
+If you attempt to use a plugin without enabling it, you will get a ``RelatedObjectDoesNotExist`` error with message "Plugin has no community".
+
 Disabling the Plugin for a Community
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
