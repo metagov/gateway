@@ -69,6 +69,7 @@ Special configuration properties:
 
 * ``webhook_slug``: If you are implementing a webhook listener, you can include this special property. When set, metagov core will expose the webhook endpoint at this slug. This is useful for creating hard-to-guess webhook receiver URL, in cases where the incoming requests can not be validated.
 
+Most plugins will use multiple jsonschemas. You may wish to keep your schemas in a separate file, which by convention is called `schemas.py`, as in `this example <https://github.com/metagov/metagov-prototype/blob/master/metagov/metagov/plugins/discourse/schemas.py>`_.
 
 Plugin Lifecycle
 ****************
