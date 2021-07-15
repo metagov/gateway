@@ -28,9 +28,6 @@ class Slack(Plugin):
     class Meta:
         proxy = True
 
-    def initialize(self):
-        logger.info(f"Initialized Slack Plugin for '{self.config['team_name']}' (Community: {self.community})")
-
     @Registry.webhook_receiver(event_schemas=[])
     def receive_event(self, request):
         """
@@ -49,7 +46,7 @@ class Slack(Plugin):
         event_type = event.pop("type")
         maybe_user = event.pop("user", None)
 
-        logger.info(f"Received event {event_type}")
+        logger.debug(f"Received event {event_type}")
 
         initiator = {
             "user_id": maybe_user,
