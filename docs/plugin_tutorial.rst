@@ -36,6 +36,7 @@ This new model goes in the ``models.py`` file. Decorate the class with the ``@Re
         class Meta:
             proxy = True # required
 
+Because these models are proxy models, you should not need to migrate the database in order for them to work. However, you may need to restart your development server.
 
 Configuration
 *************
