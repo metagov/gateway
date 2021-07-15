@@ -330,9 +330,20 @@ This snippet shows all possible functions you can implement on your proxy model:
 Starting a governance process
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Implement the ``start`` method to kick off a new asynchronous governance process.
-Set the status to ``ProcessStatus.PENDING`` (or ``ProcessStatus.COMPLETED`` if unable to start the process).
-This method will be invoked through ``POST /api/internal/process/tutorial.my-gov-process``.
+Implement the ``start`` method to kick off a new asynchronous governance process. Set the status to ``ProcessStatus.PENDING`` (or ``ProcessStatus.COMPLETED`` if unable to start the process). This method will be invoked through ``POST /api/internal/process/tutorial.my-gov-process``.
+
+Updating a governance process
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Just as with Plugins, GovernanceProcesses can be updated either through a "push" (webhook-based) or "pull" (task-based) approach.
+
+**PUSH approach: Use "receive_webhook" to get notified when the state of the process changes.**
+
+Use this approach if you're implementing a process that is performed on an external platform that is capable of emitting a webhook when the process ends (and/or when the process changes, such as a vote is cast). Implement the ``receive_webhook`` listener. Use it to update status and outcome, if applicable. See the Loomio plugin for an example.
+
+**PULL approach: Use "update" to poll for changes in the process.**
+
+Implement ``update`` to check the status of the async process, possibly by making a request to an external platform. Update status and outcome, if applicable. Metagov core calls the ``update`` function every minute from a scheduled task. See the Discourse plugin for an example.
 
 Closing a governance process
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -345,26 +356,12 @@ Using the voting platform Loomio as an example, a vote can be closed in 3 ways:
 2) A Loomio user clicks "close proposal early" in the Loomio interface.
 3) The Driver closes the vote by making an API request to ``DELETE /api/internal/process/loomio.poll/<id>``. It may do this after a certain amount of time, or when a certain threshold of votes is reached, or for some other reason.
 
-To support (1) and (2), Metagov needs to be made aware that the platform has closed the vote. This can happen through a "push" or "pull" approach, depending on the capabilities of the platform (see below).
+To support (1) and (2), Metagov needs to be made aware that the platform has closed the vote. This can happen through a "push" or "pull" approach, depending on the capabilities of the platform (see above).
 
-To support (3), the governance process needs to implement the ``close`` function. In order to support the driver in making a threshold-decision about when to close, use the "push" or "pull" approach to update the process outcome as votes are cast.
+To support (3), the governance process needs to implement the ``close`` function. This close function will be called by either ``update`` or ``receive_webhook`` depending on whether you're using a pull or pull apprach. It should set status to ``ProcessStatus.COMPLETED``.
 
 ..
     Add fourth approach: Metagov-as-time-keeper.
-
-**PUSH approach: Use "receive_webhook" to get notified when the state of the process changes.**
-
-Use this approach if you're implementing a process that is performed on an external
-platform that is capable of emitting a webhook when the process ends (and/or when the process changes, such as a vote is cast).
-Implement the ``receive_webhook`` listener. Use it to update status and outcome, if applicable.
-See the Loomio plugin for an example.
-
-**PULL approach: Use "update" to poll for changes in the process.**
-
-Implement ``update`` to check the status of the async process, possibly by making
-a request to an external platform. Update status and outcome, if applicable.
-Metagov core calls the ``update`` function every minute from a scheduled task.
-See the Discourse plugin for an example.
 
 .. seealso:: See the :doc:`Reference Documentation <../autodocs/core>` for more information about the ``GovernanceProcess`` models.
 
