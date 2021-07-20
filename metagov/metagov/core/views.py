@@ -162,6 +162,7 @@ def delete_plugin(request, plugin_name, id):
         plugin = Plugin.objects.get(pk=id)
     except Plugin.DoesNotExist:
         return HttpResponseNotFound()
+    logger.info(f"Deleting plugin {plugin}")
     plugin.delete()
     return HttpResponse(status=status.HTTP_204_NO_CONTENT)
 

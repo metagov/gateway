@@ -391,6 +391,9 @@ class DiscoursePoll(GovernanceProcess):
         votes = self.outcome.get("votes", {})
         for opt in poll["options"]:
             key = opt["html"]
+            if not opt.get("votes"):
+                # votes arent visible right now (depends on 'results' input parameters)
+                continue
             val = opt["votes"]
             if votes.get(key) != val:
                 votes[key] = val

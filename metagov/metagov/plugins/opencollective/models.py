@@ -10,7 +10,8 @@ from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthTy
 
 logger = logging.getLogger(__name__)
 
-opencollective_url = "https://opencollective.com"
+opencollective_url = "https://staging.opencollective.com"  # "https://opencollective.com"
+graphql_v2_url = "https://staging.opencollective.com/api/graphql/v2"  # "https://api.opencollective.com/graphql/v2"
 
 
 @Registry.plugin
@@ -47,7 +48,7 @@ class OpenCollective(Plugin):
 
     def run_query(self, query, variables):
         resp = requests.post(
-            "https://api.opencollective.com/graphql/v2",
+            graphql_v2_url,
             json={"query": query, "variables": variables},
             headers={"Api-Key": f"{self.config['api_key']}"},
         )
@@ -86,12 +87,16 @@ class OpenCollective(Plugin):
 
     @Registry.action(
         slug="create-comment",
-        description="Add a comment to a conversation on Open Collective",
+        description="Add a comment to a conversation or expense on Open Collective",
         input_schema=Schemas.create_comment,
     )
     def create_comment(self, parameters):
-        variables = {"comment": {"html": parameters["raw"], "ConversationId": parameters["conversation_id"]}}
-        result = self.run_query(Queries.create_comment, variables)
+        comment = {"html": parameters["raw"]}
+        if parameters.get("conversation_id"):
+            comment["ConversationId"] = parameters["conversation_id"]
+        if parameters.get("expense_id"):
+            comment["expense"] = {"id": parameters["expense_id"]}
+        result = self.run_query(Queries.create_comment, {"comment": comment})
         comment_data = result["createComment"]
         return comment_data
 

@@ -29,7 +29,6 @@ class Slack(Plugin):
     class Meta:
         proxy = True
 
-    @Registry.webhook_receiver(event_schemas=[])
     def receive_event(self, request):
         """
         Passes on ALL received events to the driver
