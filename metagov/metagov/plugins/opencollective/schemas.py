@@ -12,8 +12,8 @@ create_conversation = {
 create_comment = {
     "type": "object",
     "additionalProperties": False,
-    "properties": {"raw": {"type": "string"}, "conversation_id": {"type": "string"}},
-    "required": ["raw", "conversation_id"],
+    "properties": {"raw": {"type": "string"}, "conversation_id": {"type": "string"}, "expense_id": {"type": "string"}},
+    "required": ["raw"],
 }
 
 process_expense = {
@@ -26,10 +26,4 @@ process_expense = {
     "required": ["expense_id", "action"],
 }
 
-expense_created_event = {
-    "type": "object",
-    "additionalProperties": True,
-    "properties": {
-        "url": {"type": "string"}
-    }
-}
+expense_created_event = {"type": "object", "additionalProperties": True, "properties": {"url": {"type": "string"}}}
