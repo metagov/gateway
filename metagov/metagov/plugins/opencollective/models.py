@@ -10,8 +10,12 @@ from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthTy
 
 logger = logging.getLogger(__name__)
 
-opencollective_url = "https://staging.opencollective.com"  # "https://opencollective.com"
-graphql_v2_url = "https://staging.opencollective.com/api/graphql/v2"  # "https://api.opencollective.com/graphql/v2"
+OPEN_COLLECTIVE_URL = "https://opencollective.com"
+OPEN_COLLECTIVE_GRAPHQL = "https://api.opencollective.com/graphql/v2"
+
+# staging urls
+# OPEN_COLLECTIVE_URL = "https://staging.opencollective.com"
+# OPEN_COLLECTIVE_GRAPHQL = "https://staging.opencollective.com/api/graphql/v2"
 
 
 @Registry.plugin
@@ -48,7 +52,7 @@ class OpenCollective(Plugin):
 
     def run_query(self, query, variables):
         resp = requests.post(
-            graphql_v2_url,
+            OPEN_COLLECTIVE_GRAPHQL,
             json={"query": query, "variables": variables},
             headers={"Api-Key": f"{self.config['api_key']}"},
         )
@@ -151,11 +155,11 @@ class OpenCollective(Plugin):
         return expense_data
 
     def add_expense_url(self, expense):
-        url = f"{opencollective_url}/{self.config['collective_slug']}/expenses/{expense['legacyId']}"
+        url = f"{OPEN_COLLECTIVE_URL}/{self.config['collective_slug']}/expenses/{expense['legacyId']}"
         expense["url"] = url
 
     def add_conversation_url(self, conversation):
-        url = f"{opencollective_url}/{self.config['collective_slug']}/conversations/{conversation['slug']}-{conversation['id']}"
+        url = f"{OPEN_COLLECTIVE_URL}/{self.config['collective_slug']}/conversations/{conversation['slug']}-{conversation['id']}"
         conversation["url"] = url
 
 
