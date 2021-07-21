@@ -188,6 +188,7 @@ def plugin_authorize(request, plugin_name):
         return HttpResponseBadRequest(f"Parameter 'type' must be '{AuthType.APP_INSTALL}' or '{AuthType.USER_LOGIN}'")
 
     if type == AuthType.APP_INSTALL and not community:
+        #FIXME make this optional, create new comm if not provided.
         return HttpResponseBadRequest("Missing 'community'")
 
     if community is not None:

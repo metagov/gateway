@@ -29,6 +29,11 @@ class NonAdminInstallError(PluginAuthError):
     default_detail = "Non-admin user is not permitted to install"
 
 
+class AlreadyInstalledError(PluginAuthError):
+    default_code = "already_installed"
+    default_detail = "Already isntalled to this Slack workspace. Uninstall and try again."
+
+
 def get_authorize_url(state, type):
     try:
         client_id = env("SLACK_CLIENT_ID")
@@ -107,9 +112,10 @@ def auth_callback(type, code, redirect_uri, community, state=None):
             # store the installer's user token in config, so it can be used by the plugin to make requests later..
             plugin_config["installer_user_token"] = installer_user_token
 
-        # Check if there is already a Slack Plugin enabled for this Community
         try:
             existing_plugin = Slack.objects.get(community=community)
+            # If there is already a Slack Plugin enabled for this Community, we want to delete and recreate it.
+            # This is to support re-installation, which you might want to do if scopes have changed for example.
             logger.info(f"Deleting existing Slack plugin found for requested community {existing_plugin}")
             existing_plugin.delete()
         except Slack.DoesNotExist:
@@ -118,16 +124,10 @@ def auth_callback(type, code, redirect_uri, community, state=None):
         # Check if there is already a Slack Plugin enabled for this unique Slack "team", possibly for a different Metagov Community
         for inst in Slack.objects.all():
             if inst.config["team_id"] == team_id:
-                logger.info(
-                    f"Slack Plugin for team {team_id} already exists: {inst}. Assigning authorized Slack plugin to community '{inst.community}' instead of '{community}'"
-                )
-                # There is an existing Community that has an active Slack Plugin for this team, so, delete and recreate that one instead
-                # This could happen if Slack is being re-installed to a Slack team from PolicyKit (support re-installation to enable updating
-                # bot token, if scopes changed for example)
-                community = inst.community
-                logger.info(f"Deleting existing Slack plugin {inst}")
-                inst.delete()
-                break
+                logger.error(f"Slack Plugin for team {team_id} already exists: {inst}")
+                # Slack admin would need to go into the slack workspace and uninstall the app, if they want to create a Slack Pluign for
+                # the same workspace under a different community.
+                raise AlreadyInstalledError
 
         plugin = Slack.objects.create(name="slack", community=community, config=plugin_config)
         logger.info(f"Created Slack plugin {plugin}")
