@@ -195,7 +195,7 @@ def process_event(request):
                 if evt_type == "reaction_added" or evt_type == "reaction_removed":
                     active_processes = SlackEmojiVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
                     for process in active_processes:
-                        process.receive_event(request)
+                        process.receive_webhook(request)
     return HttpResponse()
 
 
