@@ -198,7 +198,7 @@ def plugin_authorize(request, plugin_name):
             community = Community.objects.create()
             # TODO: delete the community if installation fails.
             logger.debug(f"Created new community for installing {plugin_name}: {community}")
-        community_slug = community.slug
+        community_slug = str(community.slug)
 
     # Create the state
     nonce = utils.generate_nonce()
