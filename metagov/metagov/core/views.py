@@ -177,7 +177,7 @@ def plugin_authorize(request, plugin_name):
     # auth type (user login or app installation)
     type = request.GET.get("type")
     # required for "install" type. community to install to.
-    community = request.GET.get("community")
+    community_slug = request.GET.get("community")
     # where to redirect after auth flow is done
     redirect_uri = request.GET.get("redirect_uri")
     # state to pass along to final redirect after auth flow is done
@@ -187,20 +187,21 @@ def plugin_authorize(request, plugin_name):
     if type != AuthType.APP_INSTALL and type != AuthType.USER_LOGIN:
         return HttpResponseBadRequest(f"Parameter 'type' must be '{AuthType.APP_INSTALL}' or '{AuthType.USER_LOGIN}'")
 
-    if type == AuthType.APP_INSTALL and not community:
+    if type == AuthType.APP_INSTALL and not community_slug:
         #FIXME make this optional, create new comm if not provided.
         return HttpResponseBadRequest("Missing 'community'")
 
-    if community is not None:
+    community = None
+    if community_slug is not None:
         # validate that community exists
         try:
-            Community.objects.get(slug=community)
+            community = Community.objects.get(slug=community_slug)
         except Community.DoesNotExist:
-            return HttpResponseBadRequest(f"No such community: {community}")
+            return HttpResponseBadRequest(f"No such community: {community_slug}")
 
     # Create the state
     nonce = utils.generate_nonce()
-    state = {nonce: {"community": community, "redirect_uri": redirect_uri, "type": type}}
+    state = {nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type}}
     state_str = json.dumps(state).encode("ascii")
     state_encoded = base64.b64encode(state_str).decode("ascii")
     # Store nonce in the session so we can validate the callback request
@@ -209,10 +210,10 @@ def plugin_authorize(request, plugin_name):
     # FIXME: figure out a better way to register these functions
     plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
 
-    url = plugin_views.get_authorize_url(state_encoded, type)
+    url = plugin_views.get_authorize_url(state_encoded, type, community=community)
 
     if type == AuthType.APP_INSTALL:
-        logger.info(f"Redirecting to authorize '{plugin_name}' for community {community}")
+        logger.info(f"Redirecting to authorize '{plugin_name}' for community {community_slug}")
     elif type == AuthType.USER_LOGIN:
         logger.info(f"Redirecting to authorize user for '{plugin_name}'")
     return HttpResponseRedirect(url)

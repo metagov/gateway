@@ -31,21 +31,35 @@ class NonAdminInstallError(PluginAuthError):
 
 class AlreadyInstalledError(PluginAuthError):
     default_code = "already_installed"
-    default_detail = "Already isntalled to this Slack workspace. Uninstall and try again."
+    default_detail = "This community already has Slack enabled, but for a different workspace. Only one Slack workspace is permitted per community."
 
 
-def get_authorize_url(state, type):
+class WrongCommunityError(PluginAuthError):
+    default_code = "wrong_community"
+    default_detail = "Already isntalled to this Slack workspace for a different community. Uninstall and try again."
+
+
+def get_authorize_url(state, type, community=None):
     try:
         client_id = env("SLACK_CLIENT_ID")
     except ImproperlyConfigured:
         raise PluginAuthError(detail="Client ID not configured")
 
     if type == AuthType.APP_INSTALL:
+        team = None
+        if community:
+            try:
+                plugin = Slack.objects.get(community=community)
+                team = plugin.config.get("team_id")
+                logger.debug(f"Slack is already enabled for {community}, so only allowing re-installation to the same team ({team})")
+            except Slack.DoesNotExist:
+                pass
+
         # TODO: make requested scopes configurable?
         user_scope = (
             "chat:write,channels:write,groups:write,im:write,mpim:write" if REQUIRE_INSTALLER_TO_BE_ADMIN else ""
         )
-        return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope={user_scope}"
+        return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&team={team or ''}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope={user_scope}"
     if type == AuthType.USER_LOGIN:
         return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&user_scope=identity.basic,identity.avatar"
 
@@ -80,19 +94,29 @@ def auth_callback(type, code, redirect_uri, community, state=None):
         team_id = response["team"]["id"]
 
         # Check if there are any existing Slack Plugin instances for this Slack team
-        for inst in Slack.objects.all().exclude(community=community):
+        for inst in Slack.objects.all():
             if inst.config["team_id"] == team_id:
                 if inst.community == community:
+                    # team matches, community matches
+
                     # There is already a Slack Plugin enabled for this Community, so we want to delete and recreate it.
                     # This is to support re-installation, which you might want to do if scopes have changed for example.
                     logger.info(f"Deleting existing Slack plugin found for requested community {inst}")
                     inst.delete()
                 else:
+                    # team matches, community doesnt
+
                     # There is already a Slack Plugin for this team enabled for a DIFFERENT community, so we error.
                     # Slack admin would need to go into the slack workspace and uninstall the app, if they want to create a Slack Pluign for
                     # the same workspace under a different community.
                     logger.error(f"Slack Plugin for team {team_id} already exists for another community: {inst}")
-                    raise AlreadyInstalledError
+                    raise WrongCommunityError
+            elif inst.community == community:
+                # community matches, team doesnt
+                logger.info(
+                    f"Trying to install Slack to community {community} for team_id {team_id}, but community already has a Slack Plugin enabled for team {inst.config['team_id']}"
+                )
+                raise AlreadyInstalledError
 
         # Configuration for the new Slack Plugin to create
         plugin_config = {
