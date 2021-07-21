@@ -25,18 +25,18 @@ REQUIRE_INSTALLER_TO_BE_ADMIN = True
 
 
 class NonAdminInstallError(PluginAuthError):
-    default_code = "user_is_not_admin"
+    default_code = "slack_installer_is_not_admin"
     default_detail = "Non-admin user is not permitted to install"
 
 
 class AlreadyInstalledError(PluginAuthError):
-    default_code = "already_installed"
+    default_code = "slack_already_installed"
     default_detail = "This community already has Slack enabled, but for a different workspace. Only one Slack workspace is permitted per community."
 
 
 class WrongCommunityError(PluginAuthError):
-    default_code = "wrong_community"
-    default_detail = "Already isntalled to this Slack workspace for a different community. Uninstall and try again."
+    default_code = "slack_wrong_community"
+    default_detail = "Already installed to this Slack workspace for a different community. Uninstall and try again."
 
 
 def get_authorize_url(state, type, community=None):
