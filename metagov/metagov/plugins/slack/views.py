@@ -79,7 +79,22 @@ def auth_callback(type, code, redirect_uri, community, state=None):
         installer_user_id = response["authed_user"]["id"]
         team_id = response["team"]["id"]
 
-        # Configuration for the Slack Plugin
+        # Check if there are any existing Slack Plugin instances for this Slack team
+        for inst in Slack.objects.all().exclude(community=community):
+            if inst.config["team_id"] == team_id:
+                if inst.community == community:
+                    # There is already a Slack Plugin enabled for this Community, so we want to delete and recreate it.
+                    # This is to support re-installation, which you might want to do if scopes have changed for example.
+                    logger.info(f"Deleting existing Slack plugin found for requested community {inst}")
+                    inst.delete()
+                else:
+                    # There is already a Slack Plugin for this team enabled for a DIFFERENT community, so we error.
+                    # Slack admin would need to go into the slack workspace and uninstall the app, if they want to create a Slack Pluign for
+                    # the same workspace under a different community.
+                    logger.error(f"Slack Plugin for team {team_id} already exists for another community: {inst}")
+                    raise AlreadyInstalledError
+
+        # Configuration for the new Slack Plugin to create
         plugin_config = {
             "team_id": team_id,
             "team_name": response["team"]["name"],
@@ -112,29 +127,12 @@ def auth_callback(type, code, redirect_uri, community, state=None):
             # store the installer's user token in config, so it can be used by the plugin to make requests later..
             plugin_config["installer_user_token"] = installer_user_token
 
-        try:
-            existing_plugin = Slack.objects.get(community=community)
-            # If there is already a Slack Plugin enabled for this Community, we want to delete and recreate it.
-            # This is to support re-installation, which you might want to do if scopes have changed for example.
-            logger.info(f"Deleting existing Slack plugin found for requested community {existing_plugin}")
-            existing_plugin.delete()
-        except Slack.DoesNotExist:
-            pass
-
-        # Check if there is already a Slack Plugin enabled for this unique Slack "team", possibly for a different Metagov Community
-        for inst in Slack.objects.all():
-            if inst.config["team_id"] == team_id:
-                logger.error(f"Slack Plugin for team {team_id} already exists: {inst}")
-                # Slack admin would need to go into the slack workspace and uninstall the app, if they want to create a Slack Pluign for
-                # the same workspace under a different community.
-                raise AlreadyInstalledError
-
         plugin = Slack.objects.create(name="slack", community=community, config=plugin_config)
         logger.info(f"Created Slack plugin {plugin}")
 
-        # Add some params to redirect
+        # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
         params = {
-            # Metagov community that now has the Slack plugin enabled (may be diff from the community that was requested on initial authorization request)
+            # Metagov community that has the Slack plugin enabled
             "community": community.slug,
             # Slack User ID for installer
             "user_id": installer_user_id if REQUIRE_INSTALLER_TO_BE_ADMIN else None,
