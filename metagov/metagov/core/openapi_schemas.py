@@ -121,7 +121,7 @@ plugin_authorize = {
         openapi.Parameter(
             "community",
             openapi.IN_QUERY,
-            required=True,
+            required=False,
             type=openapi.TYPE_STRING,
             description="Unique slug for an existing community",
         ),
