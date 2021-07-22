@@ -123,7 +123,7 @@ plugin_authorize = {
             openapi.IN_QUERY,
             required=False,
             type=openapi.TYPE_STRING,
-            description="Unique slug for an existing community",
+            description="Slug for an existing community. If not provided, a new community will be created.",
         ),
         openapi.Parameter(
             "redirect_uri",
