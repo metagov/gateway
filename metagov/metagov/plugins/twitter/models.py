@@ -81,6 +81,7 @@ class Twitter(Plugin):
         cursor = tweepy.Cursor(api.user_timeline, since_id=since_id, count=count)
         found_new_tweets = False
         for tweet in cursor.items():
+            found_new_tweets = True
             # logger.debug(tweet._json)
             user = tweet._json.pop("user")
             data = tweet._json
