@@ -7,7 +7,7 @@ import environ
 import requests
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from metagov.core.errors import PluginErrorInternal, PluginAuthError
-from metagov.core.plugin_constants import AuthType
+from metagov.core.plugin_constants import AuthorizationType
 from metagov.plugins.slack.models import Slack, SlackEmojiVote
 from requests.models import PreparedRequest
 from django.core.exceptions import ImproperlyConfigured
@@ -45,7 +45,7 @@ def get_authorize_url(state: str, type: str, community=None):
     except ImproperlyConfigured:
         raise PluginAuthError(detail="Client ID not configured")
 
-    if type == AuthType.APP_INSTALL:
+    if type == AuthorizationType.APP_INSTALL:
         team = None
         if community:
             try:
@@ -62,7 +62,7 @@ def get_authorize_url(state: str, type: str, community=None):
             "chat:write,channels:write,groups:write,im:write,mpim:write" if REQUIRE_INSTALLER_TO_BE_ADMIN else ""
         )
         return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&team={team or ''}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope={user_scope}"
-    if type == AuthType.USER_LOGIN:
+    if type == AuthorizationType.USER_LOGIN:
         return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&user_scope=identity.basic,identity.avatar"
 
 
@@ -74,7 +74,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         2) enables the Slack plugin for the specified community
 
 
-    type : AuthType.APP_INSTALL or AuthType.USER_LOGIN
+    type : AuthorizationType.APP_INSTALL or AuthorizationType.USER_LOGIN
     code : authorization code from the server (Slack)
     redirect_uri : redirect uri from the Driver to redirect to on completion
     community : the Community to enable Slack for
@@ -98,7 +98,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
 
     logger.info(f"---- {response} ----")
 
-    if type == AuthType.APP_INSTALL:
+    if type == AuthorizationType.APP_INSTALL:
         if response["token_type"] != "bot":
             raise PluginAuthError(detail="Incorrect token_type")
 
@@ -184,7 +184,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         url = add_query_parameters(redirect_uri, params)
         return HttpResponseRedirect(url)
 
-    elif type == AuthType.USER_LOGIN:
+    elif type == AuthorizationType.USER_LOGIN:
         user = response["authed_user"]
         if user["token_type"] != "user":
             raise PluginAuthError(detail="Unexpected token_type")

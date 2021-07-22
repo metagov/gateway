@@ -1,6 +1,6 @@
 from drf_yasg import openapi
 from metagov.core.middleware import COMMUNITY_HEADER
-
+from metagov.core.plugin_constants import AuthorizationType
 
 class Tags(object):
     GOVERNANCE_PROCESS = "Governance Processes"
@@ -116,14 +116,7 @@ plugin_authorize = {
             openapi.IN_PATH,
             required=True,
             type=openapi.TYPE_STRING,
-            description="The plugin to authorize",
-        ),
-        openapi.Parameter(
-            "community",
-            openapi.IN_QUERY,
-            required=False,
-            type=openapi.TYPE_STRING,
-            description="Slug for an existing community. If not provided, a new community will be created.",
+            description="The plugin to authorize.",
         ),
         openapi.Parameter(
             "redirect_uri",
@@ -131,6 +124,22 @@ plugin_authorize = {
             required=True,
             type=openapi.TYPE_STRING,
             description="Where to redirect to after the oauth flow has completed",
+        ),
+        openapi.Parameter(
+            "community",
+            openapi.IN_QUERY,
+            required=False,
+            type=openapi.TYPE_STRING,
+            description="Slug for an existing community to install the plugin to. If not provided, a new community will be created. If type is 'user', this parameter is ignored.",
+        ),
+        openapi.Parameter(
+            "type",
+            openapi.IN_QUERY,
+            required=False,
+            type=openapi.TYPE_STRING,
+            enum=[AuthorizationType.APP_INSTALL, AuthorizationType.USER_LOGIN],
+            default=AuthorizationType.APP_INSTALL,
+            description="Whether to authorize an app install (which will enable a plugin), or to authorize a user login. Defaults to app install.",
         ),
     ],
 }
