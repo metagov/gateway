@@ -74,14 +74,14 @@ class Twitter(Plugin):
     def my_task_function(self):
         api = self.tweepy_api()
         since_id = self.state.get("since_id")
-        new_tweets = tweepy.Cursor(api.user_timeline, since_id=since_id, count=200).items()
-        logger.debug(">>>")
-        logger.debug(new_tweets)
-        logger.debug("<<<")
-        # updates last status id -> next mentions timeline won't see already parsed tweets
-        if len(new_tweets) > 0:
-            new_since_id = new_tweets[0].id
-            logger.debug(f"new since id: {new_since_id}")
-            self.state.set("since_id", new_since_id)
+        logger.debug(f"using since id: {since_id}")
+        cursor = tweepy.Cursor(api.user_timeline, since_id=since_id, count=200)
+        for tweet in cursor.items():
+            logger.debug(tweet)
+            if not since_id or tweet.id > since_id:
+                since_id = tweet.id
+
+        logger.debug(f"new since id: {since_id}")
+        self.state.set("since_id", since_id)
 
         # self.send_event_to_driver(...)
