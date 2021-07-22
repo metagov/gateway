@@ -7,7 +7,7 @@ import environ
 import requests
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from metagov.core.errors import PluginErrorInternal, PluginAuthError
-from metagov.core.plugin_constants import AuthType
+from metagov.core.plugin_constants import AuthorizationType
 from metagov.plugins.slack.models import Slack, SlackEmojiVote
 from requests.models import PreparedRequest
 from django.core.exceptions import ImproperlyConfigured
@@ -25,31 +25,62 @@ REQUIRE_INSTALLER_TO_BE_ADMIN = True
 
 
 class NonAdminInstallError(PluginAuthError):
-    default_code = "user_is_not_admin"
+    default_code = "slack_installer_is_not_admin"
     default_detail = "Non-admin user is not permitted to install"
 
 
-def get_authorize_url(state, type):
+class AlreadyInstalledError(PluginAuthError):
+    default_code = "slack_already_installed"
+    default_detail = "This community already has Slack enabled, but for a different workspace. Only one Slack workspace is permitted per community."
+
+
+class WrongCommunityError(PluginAuthError):
+    default_code = "slack_wrong_community"
+    default_detail = "Already installed to this Slack workspace for a different community. Uninstall and try again."
+
+
+def get_authorize_url(state: str, type: str, community=None):
     try:
         client_id = env("SLACK_CLIENT_ID")
     except ImproperlyConfigured:
         raise PluginAuthError(detail="Client ID not configured")
 
-    if type == AuthType.APP_INSTALL:
+    if type == AuthorizationType.APP_INSTALL:
+        team = None
+        if community:
+            try:
+                plugin = Slack.objects.get(community=community)
+                team = plugin.config.get("team_id")
+                logger.debug(
+                    f"Slack is already enabled for {community}, so only allowing re-installation to the same team ({team})"
+                )
+            except Slack.DoesNotExist:
+                pass
+
         # TODO: make requested scopes configurable?
         user_scope = (
             "chat:write,channels:write,groups:write,im:write,mpim:write" if REQUIRE_INSTALLER_TO_BE_ADMIN else ""
         )
-        return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope={user_scope}"
-    if type == AuthType.USER_LOGIN:
+        return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&team={team or ''}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope={user_scope}"
+    if type == AuthorizationType.USER_LOGIN:
         return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&user_scope=identity.basic,identity.avatar"
 
 
-def auth_callback(type, code, redirect_uri, community, state=None):
+def auth_callback(type: str, code: str, redirect_uri: str, community, state=None):
     """
-    Exchange code for access token
+    OAuth2 callback endpoint handler for authorization code grant type.
+    This function does two things:
+        1) completes the authorization flow,
+        2) enables the Slack plugin for the specified community
 
-    https://api.slack.com/authentication/oauth-v2#exchanging
+
+    type : AuthorizationType.APP_INSTALL or AuthorizationType.USER_LOGIN
+    code : authorization code from the server (Slack)
+    redirect_uri : redirect uri from the Driver to redirect to on completion
+    community : the Community to enable Slack for
+    state : optional state to pass along to the redirect_uri
+
+    Slack docs for exchanging code for access token: https://api.slack.com/authentication/oauth-v2#exchanging
     """
     data = {
         "client_id": env("SLACK_CLIENT_ID"),
@@ -67,14 +98,40 @@ def auth_callback(type, code, redirect_uri, community, state=None):
 
     logger.info(f"---- {response} ----")
 
-    if type == AuthType.APP_INSTALL:
+    if type == AuthorizationType.APP_INSTALL:
         if response["token_type"] != "bot":
             raise PluginAuthError(detail="Incorrect token_type")
 
         installer_user_id = response["authed_user"]["id"]
         team_id = response["team"]["id"]
 
-        # Configuration for the Slack Plugin
+        # Check if there are any existing Slack Plugin instances for this Slack team
+        # TODO: pull some of this logic into core. Each plugin has its own version of "team_id" that may need to be unique.
+        existing_plugin_to_reinstall = None
+        for inst in Slack.objects.all():
+            if inst.config["team_id"] == team_id:
+                if inst.community == community:
+                    # team matches, community matches
+
+                    # There is already a Slack Plugin enabled for this Community, so we want to delete and recreate it.
+                    # This is to support re-installation, which you might want to do if scopes have changed for example.
+                    existing_plugin_to_reinstall = inst
+                else:
+                    # team matches, community doesnt
+
+                    # There is already a Slack Plugin for this team enabled for a DIFFERENT community, so we error.
+                    # Slack admin would need to go into the slack workspace and uninstall the app, if they want to create a Slack Pluign for
+                    # the same workspace under a different community.
+                    logger.error(f"Slack Plugin for team {team_id} already exists for another community: {inst}")
+                    raise WrongCommunityError
+            elif inst.community == community:
+                # community matches, team doesnt
+                logger.info(
+                    f"Trying to install Slack to community {community} for team_id {team_id}, but community already has a Slack Plugin enabled for team {inst.config['team_id']}"
+                )
+                raise AlreadyInstalledError
+
+        # Configuration for the new Slack Plugin to create
         plugin_config = {
             "team_id": team_id,
             "team_name": response["team"]["name"],
@@ -107,34 +164,15 @@ def auth_callback(type, code, redirect_uri, community, state=None):
             # store the installer's user token in config, so it can be used by the plugin to make requests later..
             plugin_config["installer_user_token"] = installer_user_token
 
-        # Check if there is already a Slack Plugin enabled for this Community
-        try:
-            existing_plugin = Slack.objects.get(community=community)
-            logger.info(f"Deleting existing Slack plugin found for requested community {existing_plugin}")
-            existing_plugin.delete()
-        except Slack.DoesNotExist:
-            pass
-
-        # Check if there is already a Slack Plugin enabled for this unique Slack "team", possibly for a different Metagov Community
-        for inst in Slack.objects.all():
-            if inst.config["team_id"] == team_id:
-                logger.info(
-                    f"Slack Plugin for team {team_id} already exists: {inst}. Assigning authorized Slack plugin to community '{inst.community}' instead of '{community}'"
-                )
-                # There is an existing Community that has an active Slack Plugin for this team, so, delete and recreate that one instead
-                # This could happen if Slack is being re-installed to a Slack team from PolicyKit (support re-installation to enable updating
-                # bot token, if scopes changed for example)
-                community = inst.community
-                logger.info(f"Deleting existing Slack plugin {inst}")
-                inst.delete()
-                break
-
+        if existing_plugin_to_reinstall:
+            logger.info(f"Deleting existing Slack plugin found for requested community {existing_plugin_to_reinstall}")
+            existing_plugin_to_reinstall.delete()
         plugin = Slack.objects.create(name="slack", community=community, config=plugin_config)
         logger.info(f"Created Slack plugin {plugin}")
 
-        # Add some params to redirect
+        # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
         params = {
-            # Metagov community that now has the Slack plugin enabled (may be diff from the community that was requested on initial authorization request)
+            # Metagov community that has the Slack plugin enabled
             "community": community.slug,
             # Slack User ID for installer
             "user_id": installer_user_id if REQUIRE_INSTALLER_TO_BE_ADMIN else None,
@@ -146,7 +184,7 @@ def auth_callback(type, code, redirect_uri, community, state=None):
         url = add_query_parameters(redirect_uri, params)
         return HttpResponseRedirect(url)
 
-    elif type == AuthType.USER_LOGIN:
+    elif type == AuthorizationType.USER_LOGIN:
         user = response["authed_user"]
         if user["token_type"] != "user":
             raise PluginAuthError(detail="Unexpected token_type")

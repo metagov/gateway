@@ -27,7 +27,7 @@ class Community(models.Model):
     def __str__(self):
         if self.readable_name:
             return f"{self.readable_name} ({self.slug})"
-        return self.slug
+        return str(self.slug)
 
 
 class DataStore(models.Model):

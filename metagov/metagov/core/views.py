@@ -17,7 +17,7 @@ from metagov.core.errors import PluginAuthError
 from metagov.core.middleware import CommunityMiddleware
 from metagov.core.models import Community, Plugin, ProcessStatus
 from metagov.core.openapi_schemas import Tags
-from metagov.core.plugin_constants import AuthType
+from metagov.core.plugin_constants import AuthorizationType
 from metagov.core.plugin_decorators import plugin_registry
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer, PluginSerializer
 from requests.models import PreparedRequest
@@ -175,31 +175,34 @@ def plugin_authorize(request, plugin_name):
         return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
 
     # auth type (user login or app installation)
-    type = request.GET.get("type")
-    # required for "install" type. community to install to.
-    community = request.GET.get("community")
+    type = request.GET.get("type", AuthorizationType.APP_INSTALL)
+    # community to install to (optional for installation, ignored for user login)
+    community_slug = request.GET.get("community")
     # where to redirect after auth flow is done
     redirect_uri = request.GET.get("redirect_uri")
     # state to pass along to final redirect after auth flow is done
     received_state = request.GET.get("state")
     request.session["received_authorize_state"] = received_state
 
-    if type != AuthType.APP_INSTALL and type != AuthType.USER_LOGIN:
-        return HttpResponseBadRequest(f"Parameter 'type' must be '{AuthType.APP_INSTALL}' or '{AuthType.USER_LOGIN}'")
+    if type != AuthorizationType.APP_INSTALL and type != AuthorizationType.USER_LOGIN:
+        return HttpResponseBadRequest(f"Parameter 'type' must be '{AuthorizationType.APP_INSTALL}' or '{AuthorizationType.USER_LOGIN}'")
 
-    if type == AuthType.APP_INSTALL and not community:
-        return HttpResponseBadRequest("Missing 'community'")
-
-    if community is not None:
-        # validate that community exists
-        try:
-            Community.objects.get(slug=community)
-        except Community.DoesNotExist:
-            return HttpResponseBadRequest(f"No such community: {community}")
+    community = None
+    if type == AuthorizationType.APP_INSTALL:
+        if community_slug:
+            try:
+                community = Community.objects.get(slug=community_slug)
+            except Community.DoesNotExist:
+                return HttpResponseBadRequest(f"No such community: {community_slug}")
+        else:
+            community = Community.objects.create()
+            # TODO: delete the community if installation fails.
+            logger.debug(f"Created new community for installing {plugin_name}: {community}")
+        community_slug = str(community.slug)
 
     # Create the state
     nonce = utils.generate_nonce()
-    state = {nonce: {"community": community, "redirect_uri": redirect_uri, "type": type}}
+    state = {nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type}}
     state_str = json.dumps(state).encode("ascii")
     state_encoded = base64.b64encode(state_str).decode("ascii")
     # Store nonce in the session so we can validate the callback request
@@ -208,11 +211,11 @@ def plugin_authorize(request, plugin_name):
     # FIXME: figure out a better way to register these functions
     plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
 
-    url = plugin_views.get_authorize_url(state_encoded, type)
+    url = plugin_views.get_authorize_url(state_encoded, type, community)
 
-    if type == AuthType.APP_INSTALL:
+    if type == AuthorizationType.APP_INSTALL:
         logger.info(f"Redirecting to authorize '{plugin_name}' for community {community}")
-    elif type == AuthType.USER_LOGIN:
+    elif type == AuthorizationType.USER_LOGIN:
         logger.info(f"Redirecting to authorize user for '{plugin_name}'")
     return HttpResponseRedirect(url)
 
@@ -258,7 +261,7 @@ def plugin_auth_callback(request, plugin_name):
         return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": "server_error"})
 
     community = None
-    if type == AuthType.APP_INSTALL:
+    if type == AuthorizationType.APP_INSTALL:
         # For installs, validate the community
         if not community_slug:
             return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": "bad_state"})
