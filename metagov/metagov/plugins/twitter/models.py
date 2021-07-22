@@ -69,3 +69,19 @@ class Twitter(Plugin):
         res = self.tweepy_api().update_status(parameters["text"])
         logger.debug(res)
         return res
+
+    @Registry.event_producer_task()
+    def my_task_function(self):
+        api = self.tweepy_api()
+        since_id = self.state.get("since_id")
+        new_tweets = tweepy.Cursor(api.user_timeline, since_id=since_id, count=200).items()
+        logger.debug(">>>")
+        logger.debug(new_tweets)
+        logger.debug("<<<")
+        # updates last status id -> next mentions timeline won't see already parsed tweets
+        if len(new_tweets) > 0:
+            new_since_id = new_tweets[0].id
+            logger.debug(f"new since id: {new_since_id}")
+            self.state.set("since_id", new_since_id)
+
+        # self.send_event_to_driver(...)
