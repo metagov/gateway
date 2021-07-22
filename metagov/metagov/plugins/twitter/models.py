@@ -67,7 +67,7 @@ class Twitter(Plugin):
             raise PluginErrorInternal
 
         res = self.tweepy_api().update_status(parameters["text"])
-        logger.debug(res)
+        # logger.debug(res._json)
         return res
 
     @Registry.event_producer_task()
