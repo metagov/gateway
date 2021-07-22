@@ -408,3 +408,14 @@ needs to create a new Slack App and store its credentials on the Metagov server:
 
         systemctl reload apache2
 
+Twitter
+"""""""
+
+1. Create a new account for your bot
+2. Apply for a developer account for that account
+3. Go to the developer portal and create a new Project (NOT a standalone app). Follow the prompts.
+4. On completion, you should see the API Key, API Secret Key, and Bearer Token.
+5. On the Metagov server, copy ``metagov/plugins/twitter/.env.example`` to ``metagov/plugins/twitter/.env``.
+6. Fill in ``TWITTER_API_KEY`` and ``TWITTER_API_SECRET_KEY`` with the values from the previous step.
+7. To get the values for ``TWITTER_ACCESS_TOKEN`` and ``TWITTER_ACCESS_TOKEN_SECRET``, you'll need to generate a new access token and secret in the developer portal.
+8. Reload apache2 for the changes to take effect
