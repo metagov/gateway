@@ -74,14 +74,22 @@ class Twitter(Plugin):
     def my_task_function(self):
         api = self.tweepy_api()
         since_id = self.state.get("since_id")
-        logger.debug(f"using since id: {since_id}")
-        cursor = tweepy.Cursor(api.user_timeline, since_id=since_id, count=200)
+
+        # the first time we start up, just fetch the latest to get the since_id, so we dont send a firehose of events
+        count = 200 if since_id else 1
+
+        cursor = tweepy.Cursor(api.user_timeline, since_id=since_id, count=count)
+        found_new_tweets = False
         for tweet in cursor.items():
-            logger.debug(tweet)
+            # logger.debug(tweet._json)
+            user = tweet._json.pop("user")
+            data = tweet._json
+            initiator = {"user_id": user["id"], "provider": "twitter"}
+            self.send_event_to_driver(event_type="timeline_tweet", initiator=initiator, data=data)
+
             if not since_id or tweet.id > since_id:
                 since_id = tweet.id
 
-        logger.debug(f"new since id: {since_id}")
-        self.state.set("since_id", since_id)
-
-        # self.send_event_to_driver(...)
+        if found_new_tweets:
+            logger.debug(f"Retrieved new tweets, updating since_id to {since_id}")
+            self.state.set("since_id", since_id)
