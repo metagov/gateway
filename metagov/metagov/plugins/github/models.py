@@ -4,6 +4,7 @@ from collections import Counter
 import metagov.core.plugin_decorators as Registry
 from metagov.core.models import Plugin, GovernanceProcess, ProcessStatus
 from metagov.core.errors import PluginErrorInternal
+from metagov.core.plugin_constants import AuthType
 import metagov.plugins.github.schemas as Schemas
 from metagov.plugins.github.utils import (get_access_token, create_issue_text, close_comment_vote_text,
     close_react_vote_text)
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 class Github(Plugin):
     name = 'github'
     config_schema = Schemas.github_app_config_schema
+    auth_type = AuthType.OAUTH
 
     class Meta:
         proxy = True
