@@ -78,26 +78,62 @@ class Github(Plugin):
         return None
 
     @Registry.action(
-        slug='get-issues',
-        description='gets all issues in a repository',
-        input_schema=Schemas.get_issues_parameters,
-        output_schema=None
+        slug="method",
+        input_schema={
+            "type": "object",
+            "properties": {"method_name": {"type": "string"}},
+            "required": ["method_name"],
+        },
+        description="Perform any Github method (provided sufficient scopes)",
     )
-    def get_issues(self, parameters):  # TODO: replace with something like the Slack plugin's method method
-        owner, repo = self.config["owner"], parameters["repo_name"]
-        issues = self.github_request(method="get", route=f"/repos/{owner}/{repo}/issues")
-        return {"issue_count": len(issues), "issues": issues}
+    def method(self, parameters):
+        """
+        Action to perform any method in https://docs.github.com/en/rest/overview/endpoints-available-for-github-apps
 
-    @Registry.action(
-        slug='create-issue',
-        description='creates issue in a repository',
-        input_schema=Schemas.create_issue_parameters,
-        output_schema=None
-    )
-    def create_issue(self, parameters):  # TODO: replace with something like the Slack plugin's method method
-        owner, repo = self.config["owner"], parameters["repo_name"]
-        data = {"title": parameters["title"], "body": parameters["body"]}
-        return self.github_request(method="post", route=f"/repos/{owner}/{repo}/issues", data=data)
+        Example usage:
+        curl -iX POST "https://metagov.policykit.org/api/internal/action/github.method" -H  "accept: application/json"
+             -H  "X-Metagov-Community: github-tmq3pkxt9" -d '{"parameters":{
+                 "method": "GET",
+                 "route":"/repos/{owner}/{repo}/issues/comments/{comment_id}",
+                 "comment_id": "123123"}}'
+        """
+        method = parameters.pop("method", "GET")
+        try:
+            route = parameters.pop("route")
+        except PluginErrorInternal as e:
+            logger.warn(f"Route for method {method} not found")
+            return
+        try:
+            interpolated_route = route.format(**parameters, **self.state)
+        except PluginErrorInternal as e:
+            logger.warn(f"Route for method with parameters {parameters} and state {self.state} not found")
+            return
+        try:
+            return self.github_request("POST", interpolated_route, data=parameters)
+        except PluginErrorInternal as e:
+            logger.warn(f"Method {interpolated_route} failed with error {e}")
+
+    # @Registry.action(
+    #     slug='get-issues',
+    #     description='gets all issues in a repository',
+    #     input_schema=Schemas.get_issues_parameters,
+    #     output_schema=None
+    # )
+    # def get_issues(self, parameters):  # TODO: replace with something like the Slack plugin's method method
+    #     owner, repo = self.config["owner"], parameters["repo_name"]
+    #     issues = self.github_request(method="get", route=f"/repos/{owner}/{repo}/issues")
+    #     return {"issue_count": len(issues), "issues": issues}
+
+    # @Registry.action(
+    #     slug='create-issue',
+    #     description='creates issue in a repository',
+    #     input_schema=Schemas.create_issue_parameters,
+    #     output_schema=None
+    # )
+    # def create_issue(self, parameters):  # TODO: replace with something like the Slack plugin's method method
+    #     owner, repo = self.config["owner"], parameters["repo_name"]
+    #     data = {"title": parameters["title"], "body": parameters["body"]}
+    #     return self.github_request(method="post", route=f"/repos/{owner}/{repo}/issues", data=data)
 
 
 """
