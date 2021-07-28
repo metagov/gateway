@@ -246,9 +246,9 @@ See :doc:`Reference Documentation <../autodocs/core>` for the full specification
 Webhook Receiver URLs
 ^^^^^^^^^^^^^^^^^^^^^
 
-If your plugin defines a ``webhook_receiver`` function,
-Metagov core will expose a dedicated endpoint for each plugin instance
-to receive webhook requests.
+The generic webhook receiver endpoint for all instances of a given plugin can be found at ``http://127.0.0.1:8000/api/hooks/tutorial``.
+
+If your plugin defines a ``webhook_receiver`` function, Metagov core will expose a dedicated endpoint for each plugin instance to receive webhook requests.
 
 For the plugin and community we created in this tutorial, the webhook receiver endpoint is either at: ``http://127.0.0.1:8000/api/hooks/community-slug/tutorial`` or ``http://127.0.0.1:8000/api/hooks/community-slug/tutorial/<webhook_slug>``, depending on whether the ``webhook_slug`` config option was set for the community. The community slug is a unique string of letters and numbers generated and returned to you by Metagov when you create your community.
 
