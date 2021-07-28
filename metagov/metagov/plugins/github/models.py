@@ -5,8 +5,8 @@ import metagov.core.plugin_decorators as Registry
 from metagov.core.models import Plugin, GovernanceProcess, ProcessStatus
 from metagov.core.errors import PluginErrorInternal
 import metagov.plugins.github.schemas as Schemas
-from metagov.plugins.github.utils import (create_issue_text, close_comment_vote_text,
-    close_react_vote_text, get_jwt)
+from metagov.plugins.github.utils import (get_access_token, create_issue_text, close_comment_vote_text,
+    close_react_vote_text)
 
 logger = logging.getLogger(__name__)
 
@@ -21,25 +21,10 @@ class Github(Plugin):
 
     def refresh_token(self):
         """Requests a new installation access token from Github using a JWT signed by private key."""
-
-        # for now, we assume user manually installs apps, gets ID, and adds it in plugin schema
         installation_id = self.config["installation_id"]
         self.state.set("installation_id", installation_id)
-
-        # get installation access token using installation_id
-        headers = {
-            "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"Bearer {get_jwt()}"
-        }
-        url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
-        resp = requests.request("POST", url, headers=headers)
-
-        if not resp.ok:
-            logger.error(f"Error refreshing token: status {resp.status_code}, details: {resp.text}")
-            raise PluginErrorInternal(resp.text)
-        if resp.content:
-            token = resp.json()["token"]
-            self.state.set("installation_access_token", token)
+        token = get_access_token(installation_id)
+        self.state.set("installation_access_token", token)
 
     def initialize(self):
         self.refresh_token()

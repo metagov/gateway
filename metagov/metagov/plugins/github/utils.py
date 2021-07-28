@@ -1,7 +1,11 @@
 """ Authentication """
 
-import jwt, datetime, environ
+import jwt, datetime, environ, logging, requests
 
+from metagov.core.errors import PluginErrorInternal
+
+
+logger = logging.getLogger(__name__)
 env = environ.Env()
 environ.Env.read_env()
 
@@ -25,6 +29,23 @@ def get_jwt():
         "exp": int(datetime.datetime.now().timestamp()) + (9 * 60)
     }
     return jwt.encode(payload, get_private_key(), algorithm="RS256")
+
+
+def get_access_token(installation_id):
+    """Get installation access token using installation id"""
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+        "Authorization": f"Bearer {get_jwt()}"
+    }
+    url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
+    resp = requests.request("POST", url, headers=headers)
+
+    if not resp.ok:
+        logger.error(f"Error refreshing token: status {resp.status_code}, details: {resp.text}")
+        raise PluginErrorInternal(resp.text)
+    if resp.content:
+        token = resp.json()["token"]
+        return token
 
 
 """ Text generation """
