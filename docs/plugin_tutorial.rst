@@ -246,8 +246,6 @@ See :doc:`Reference Documentation <../autodocs/core>` for the full specification
 Webhook Receiver URLs
 ^^^^^^^^^^^^^^^^^^^^^
 
-The generic webhook receiver endpoint for all instances of a given plugin can be found at ``http://127.0.0.1:8000/api/hooks/tutorial``.
-
 If your plugin defines a ``webhook_receiver`` function, Metagov core will expose a dedicated endpoint for each plugin instance to receive webhook requests.
 
 For the plugin and community we created in this tutorial, the webhook receiver endpoint is either at: ``http://127.0.0.1:8000/api/hooks/community-slug/tutorial`` or ``http://127.0.0.1:8000/api/hooks/community-slug/tutorial/<webhook_slug>``, depending on whether the ``webhook_slug`` config option was set for the community. The community slug is a unique string of letters and numbers generated and returned to you by Metagov when you create your community.
@@ -263,6 +261,35 @@ Then, go to the external platform (Discourse, Open Collective, etc) and register
     .. code-block:: shell
 
         curl 'http://127.0.0.1:8000/api/internal/community/my-community-1234/hooks'
+
+Generating a Generic Webhook Endpoint
+-------------------------------------
+
+A generic webhook endpoint is one which receives webhooks from the platform for all communities. To implement this endpoint, we must create a function which can direct the request to the specific community it is associated with, based on data in the webhook payload. Create or locate ``views.py`` in your plugin's folder and add a ``process_event`` function that looks something like this:
+
+.. code-block:: python
+
+    from metagov.plugins.tutorial.models import Tutorial, TutorialGovernanceProcess
+
+    def process_event(request):
+
+        json_data = json.loads(request.body)
+
+        if "custom-event-header" in request.headers:
+
+            for plugin in Tutorial.objects.all():
+
+                if plugin.config["community_id"] == json_data["community_id"]:
+
+                    logger.info(f"Passing event to {plugin}")
+                    plugin.receive_event(request)
+
+                    for process in TutorialGovernanceProcess.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value):
+                            process.receive_event(request)
+
+        return HttpResponse()
+
+The generic webhook receiver endpoint for all instances of a given plugin can be found at ``http://127.0.0.1:8000/api/hooks/tutorial``.
 
 
 Validating webhook requests
