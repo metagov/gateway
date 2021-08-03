@@ -274,13 +274,15 @@ def plugin_auth_callback(request, plugin_name):
     plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
 
     try:
-        return plugin_views.auth_callback(
+        response = plugin_views.auth_callback(
             type=type,
             code=code,
             redirect_uri=redirect_uri,
             community=community,
             state=state_to_pass,
+            request=request
         )
+        return response if response else HttpResponseRedirect(redirect_uri)
     except PluginAuthError as e:
         return redirect_with_params(
             redirect_uri, {"state": state_to_pass, "error": e.get_codes(), "error_description": e.detail}
@@ -384,7 +386,8 @@ def receive_webhook_global(request, plugin_name):
         return HttpResponse()
 
     logger.debug(f"Processing incoming event for {plugin_name}")
-    return plugin_views.process_event(request)
+    response = plugin_views.process_event(request)
+    return response if response else HttpResponse()
 
 
 def decorated_create_process_view(plugin_name, slug):
