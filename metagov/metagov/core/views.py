@@ -282,7 +282,7 @@ def plugin_auth_callback(request, plugin_name):
             state=state_to_pass,
             request=request
         )
-        return response if response else HttpResponseRedirect(redirect_uri, {"state": state_to_pass})
+        return response if response else redirect_with_params(redirect_uri, {"state": state_to_pass})
     except PluginAuthError as e:
         return redirect_with_params(
             redirect_uri, {"state": state_to_pass, "error": e.get_codes(), "error_description": e.detail}
