@@ -282,10 +282,10 @@ A generic webhook endpoint is one which receives webhooks from the platform for 
                 if plugin.config["community_id"] == json_data["community_id"]:
 
                     logger.info(f"Passing event to {plugin}")
-                    plugin.receive_event(request)
+                    plugin.tutorial_webhook_receiver(request)
 
                     for process in TutorialGovernanceProcess.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value):
-                            process.receive_event(request)
+                            process.receive_webhook(request)
 
         return HttpResponse()
 
@@ -404,19 +404,18 @@ Some platforms such as Slack and Github allow us to implement a one-click instal
 
 .. code-block:: python
 
-    from metagov.core.plugin_constants import AuthType
+    from metagov.core.plugin_constants import AuthorizationType
 
-    def get_authorize_url(state, type):
+    def get_authorize_url(state_encoded, type, community):
 
-        if type == AuthType.APP_INSTALL:
-
+        if type == AuthorizationType.APP_INSTALL:
             return "https://example.com/oauth/v2/authorize?custom_data"
 
 When a driver navigates to ``http://127.0.0.1:8000/auth/<plugin_name>/authorize?communty=123&redirect_uri=xyz``, they are requesting to enable the plugin for the specified community. Metagov core will redirect them to the URL that you defined via ``get_authorize_url``.
 
 Once the user approves installation of the app, the platform should redirect them to whatever URL has been provided as the callback URL in the app setup. In order to work correctly, this url should have the format ``http://127.0.0.1:8000/auth/<plugin_name>/callback``.
 
-The final step is writing the ``auth_callback`` function to process the request from the platform and create a new plugin instance for that installation. The ``auth_callback`` function should ultimately return the ``redirect_uri`` provided in the original request to authorize the plugin. The function should end up looking something like this:
+The final step is writing the ``auth_callback`` function to process the request from the platform and create a new plugin instance for that installation. If you do not return any value, Metagov will redirect to `HttpResponseRedirect(redirect_uri)`; you can overwrite this behavior by supplying a custom URI within an `HttpResponseRedirect`. The function should end up looking something like this:
 
 .. code-block:: python
 
@@ -433,5 +432,3 @@ The final step is writing the ``auth_callback`` function to process the request 
         plugin_config = {"A": "A", "B":"B"}
         plugin = Tutorial.objects.create(name="tutorial", community=community, config=plugin_config)
         logger.info(f"Created Tutorial plugin {plugin}")
-
-        return HttpResponseRedirect(redirect_uri)

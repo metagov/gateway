@@ -2,9 +2,8 @@ import requests, json, logging
 from collections import Counter
 
 import metagov.core.plugin_decorators as Registry
-from metagov.core.models import Plugin, GovernanceProcess, ProcessStatus
+from metagov.core.models import Plugin, GovernanceProcess, ProcessStatus, AuthType
 from metagov.core.errors import PluginErrorInternal
-from metagov.core.plugin_constants import AuthType
 import metagov.plugins.github.schemas as Schemas
 from metagov.plugins.github.utils import (get_access_token, create_issue_text, close_comment_vote_text,
     close_react_vote_text)
@@ -29,6 +28,7 @@ class Github(Plugin):
         self.state.set("installation_access_token", token)
 
     def initialize(self):
+        self.state.set("owner", self.config["owner"])
         self.refresh_token()
         logger.info(f"Initialized Slack Plugin for community with installation ID {self.config['installation_id']}")
 
@@ -81,8 +81,8 @@ class Github(Plugin):
         slug="method",
         input_schema={
             "type": "object",
-            "properties": {"method_name": {"type": "string"}},
-            "required": ["method_name"],
+            "properties": {"method": {"type": "string"}, "route": {"type": "string"}},
+            "required": ["method", "route"],
         },
         description="Perform any Github method (provided sufficient scopes)",
     )
@@ -104,7 +104,7 @@ class Github(Plugin):
             logger.warn(f"Route for method {method} not found")
             return
         try:
-            interpolated_route = route.format(**parameters, **self.state)
+            interpolated_route = route.format(owner=self.state.get("owner"), **parameters)
         except PluginErrorInternal as e:
             logger.warn(f"Route for method with parameters {parameters} and state {self.state} not found")
             return
@@ -112,28 +112,6 @@ class Github(Plugin):
             return self.github_request("POST", interpolated_route, data=parameters)
         except PluginErrorInternal as e:
             logger.warn(f"Method {interpolated_route} failed with error {e}")
-
-    # @Registry.action(
-    #     slug='get-issues',
-    #     description='gets all issues in a repository',
-    #     input_schema=Schemas.get_issues_parameters,
-    #     output_schema=None
-    # )
-    # def get_issues(self, parameters):  # TODO: replace with something like the Slack plugin's method method
-    #     owner, repo = self.config["owner"], parameters["repo_name"]
-    #     issues = self.github_request(method="get", route=f"/repos/{owner}/{repo}/issues")
-    #     return {"issue_count": len(issues), "issues": issues}
-
-    # @Registry.action(
-    #     slug='create-issue',
-    #     description='creates issue in a repository',
-    #     input_schema=Schemas.create_issue_parameters,
-    #     output_schema=None
-    # )
-    # def create_issue(self, parameters):  # TODO: replace with something like the Slack plugin's method method
-    #     owner, repo = self.config["owner"], parameters["repo_name"]
-    #     data = {"title": parameters["title"], "body": parameters["body"]}
-    #     return self.github_request(method="post", route=f"/repos/{owner}/{repo}/issues", data=data)
 
 
 """
