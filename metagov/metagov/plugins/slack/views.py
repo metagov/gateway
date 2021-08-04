@@ -66,7 +66,7 @@ def get_authorize_url(state: str, type: str, community=None):
         return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&user_scope=identity.basic,identity.avatar"
 
 
-def auth_callback(type: str, code: str, redirect_uri: str, community, state=None):
+def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, *args, **kwargs):
     """
     OAuth2 callback endpoint handler for authorization code grant type.
     This function does two things:
