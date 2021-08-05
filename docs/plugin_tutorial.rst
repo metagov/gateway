@@ -246,14 +246,9 @@ See :doc:`Reference Documentation <../autodocs/core>` for the full specification
 Webhook Receiver URLs
 ^^^^^^^^^^^^^^^^^^^^^
 
-If your plugin defines a ``webhook_receiver`` function,
-Metagov core will expose a dedicated endpoint for each plugin instance
-to receive webhook requests.
+If your plugin defines a ``webhook_receiver`` function, Metagov core will expose a dedicated endpoint for each plugin instance to receive webhook requests.
 
-For the plugin and community we created in this tutorial, the webhook receiver endpoint is either at:
-``http://127.0.0.1:8000/api/hooks/my-community-1234/tutorial`` or
-``http://127.0.0.1:8000/api/hooks/my-community-1234/tutorial/<webhook_slug>``, depending on whether the
-``webhook_slug`` config option was set for the ``my-community-1234`` community.
+For the plugin and community we created in this tutorial, the webhook receiver endpoint is either at: ``http://127.0.0.1:8000/api/hooks/community-slug/tutorial`` or ``http://127.0.0.1:8000/api/hooks/community-slug/tutorial/<webhook_slug>``, depending on whether the ``webhook_slug`` config option was set for the community. The community slug is a unique string of letters and numbers generated and returned to you by Metagov when you create your community.
 
 Incoming POST requests to this endpoint will be routed to the method that is decorated with the ``webhook_receiver`` decorator.
 
@@ -267,6 +262,35 @@ Then, go to the external platform (Discourse, Open Collective, etc) and register
 
         curl 'http://127.0.0.1:8000/api/internal/community/my-community-1234/hooks'
 
+Generating a Generic Webhook Endpoint
+-------------------------------------
+
+A generic webhook endpoint is one which receives webhooks from the platform for all communities. To implement this endpoint, we must create a function which can direct the request to the specific community it is associated with, based on data in the webhook payload. Create or locate ``views.py`` in your plugin's folder and add a ``process_event`` function that looks something like this:
+
+.. code-block:: python
+
+    from metagov.plugins.tutorial.models import Tutorial, TutorialGovernanceProcess
+
+    def process_event(request):
+
+        json_data = json.loads(request.body)
+
+        if "custom-event-header" in request.headers:
+
+            for plugin in Tutorial.objects.all():
+
+                if plugin.config["community_id"] == json_data["community_id"]:
+
+                    logger.info(f"Passing event to {plugin}")
+                    plugin.tutorial_webhook_receiver(request)
+
+                    for process in TutorialGovernanceProcess.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value):
+                            process.receive_webhook(request)
+
+        return HttpResponse()
+
+The generic webhook receiver endpoint for all instances of a given plugin can be found at ``http://127.0.0.1:8000/api/hooks/tutorial``.
+
 
 Validating webhook requests
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -276,7 +300,6 @@ Anyone on the internet can post requests to the metagov webhook receiver endpoin
 1. Ideally, the request can be verified using an event signature. This is not supported by all platforms. See the Discourse plugin for an example.
 2. Use a hard-to-guess URL. The community slug should already be hard-to-guess, but we can make it even more difficult by setting the ``webhook_slug`` config property to a random string. The URL ends up looking like ``/api/hooks/<community_slug>/<plugin_name>/<webhook_slug>`` which is pretty hard to guess, so you can be reasonably sure that it's coming from the right place.
 3. Don't rely on data in the webhook body. Always get data from the platform API instead of relying on what is in the webhook body. That way, even if the request is spoofed, we can find out from the platform API. See OpenCollective plugin for an example.
-
 
 Governance Processes
 ********************
@@ -367,8 +390,45 @@ To support (3), the governance process needs to implement the ``close`` function
 
 .. seealso:: Once you've implemented a governance process, you can invoke it through the Metagov API. See the `Example Driver Repo <https://github.com/metagov/example-driver>`_ for an example of kicking off a governance process and waiting for the result at a ``callback_url``.
 
-
 Re-opening a governance process
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Not currently supported. Once a process moves into ``ProcessStatus.COMPLETED`` state, it cannot be re-opened.
+
+Oauth Installation
+******************
+
+Some platforms such as Slack and Github allow us to implement a one-click installation workflow via oauth. In order to support oauth installation, your plugin needs to have a ``views.py`` file implementing ``get_authorize_url`` and ``auth_callback``.
+
+``views.get_authorize_url`` should return the authorization url provided by the platform. For example, `Github <https://docs.github.com/en/developers/apps/managing-github-apps/installing-github-apps#allowing-people-to-install-your-public-app-on-their-repository>`_ specifies a url with the format ``https://github.com/apps/<app name>/installations/new?state={state}``.
+
+.. code-block:: python
+
+    from metagov.core.plugin_constants import AuthorizationType
+
+    def get_authorize_url(state_encoded, type, community):
+
+        if type == AuthorizationType.APP_INSTALL:
+            return "https://example.com/oauth/v2/authorize?custom_data"
+
+When a driver navigates to ``http://127.0.0.1:8000/auth/<plugin_name>/authorize?communty=123&redirect_uri=xyz``, they are requesting to enable the plugin for the specified community. Metagov core will redirect them to the URL that you defined via ``get_authorize_url``.
+
+Once the user approves installation of the app, the platform should redirect them to whatever URL has been provided as the callback URL in the app setup. In order to work correctly, this url should have the format ``http://127.0.0.1:8000/auth/<plugin_name>/callback``.
+
+The final step is writing the ``auth_callback`` function to process the request from the platform and create a new plugin instance for that installation. If you do not return any value, Metagov will redirect to `HttpResponseRedirect(redirect_uri)`; you can overwrite this behavior by supplying a custom URI within an `HttpResponseRedirect`. The function should end up looking something like this:
+
+.. code-block:: python
+
+    def auth_callback(type, code, redirect_uri, community, state=None):
+
+        # do some work, likely exchanging an identifier for an access code
+
+        # check if plugin already created for this community and delete it if it exists
+        existing_plugin = Tutorial.objects.filter(community=community)
+        for instance in existing_plugin:  # should only be one instance
+            logger.info(f"Deleting existing Tutorial plugin found for requested community     {existing_plugin}")
+
+        # create new plugin
+        plugin_config = {"A": "A", "B":"B"}
+        plugin = Tutorial.objects.create(name="tutorial", community=community, config=plugin_config)
+        logger.info(f"Created Tutorial plugin {plugin}")
