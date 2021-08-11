@@ -19,11 +19,14 @@ def process_event(request):
 
     json_data = json.loads(request.body)
 
+    installation = json_data.get("installation")
+    if not installation:
+        return
+
     if "X-GitHub-Event" in request.headers:
 
         for plugin in Github.objects.all():
-
-            if int(plugin.config["installation_id"]) == int(json_data["installation"]["id"]):
+            if int(plugin.config["installation_id"]) == int(installation["id"]):
 
                 logger.info(f"Passing event to {plugin}")
                 plugin.github_webhook_receiver(request)
