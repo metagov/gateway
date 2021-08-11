@@ -165,7 +165,7 @@ class GovernanceProcess(models.Model):
             self.state = DataStore.objects.create()
         super(GovernanceProcess, self).save(*args, **kwargs)
 
-    def start(self, parameters: Parameters):
+    def start(self, parameters):
         """(REQUIRED) Start the governance process.
 
         Most implementations of this function will:
