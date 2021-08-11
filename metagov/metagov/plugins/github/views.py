@@ -1,6 +1,7 @@
 import json
 import logging
 import requests
+import environ
 
 from metagov.core.models import ProcessStatus
 from metagov.core.plugin_constants import AuthorizationType
@@ -9,6 +10,10 @@ from metagov.plugins.github.utils import get_jwt
 
 logger = logging.getLogger(__name__)
 
+env = environ.Env()
+environ.Env.read_env()
+
+GITHUB_APP_NAME = env("GITHUB_APP_NAME")
 
 def process_event(request):
 
@@ -31,7 +36,7 @@ def process_event(request):
 
 def get_authorize_url(state, type, community):
     if type == AuthorizationType.APP_INSTALL:
-        return f"https://github.com/apps/metagovapp/installations/new/?state={state}"
+        return f"https://github.com/apps/{GITHUB_APP_NAME}/installations/new/?state={state}"
 
 
 def auth_callback(type, code, redirect_uri, community, state, request):
