@@ -557,7 +557,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
         if response is None:
             return HttpResponse()
         try:
-            return JsonResponse(response)
+            return JsonResponse(response, safe=False)
         except TypeError:
             logger.error(f"Failed to serialize '{response}'")
             raise
