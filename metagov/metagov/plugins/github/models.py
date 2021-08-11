@@ -45,7 +45,6 @@ class Github(Plugin):
 
         return action_type, action_target_type, initiator, body
 
-    @Registry.webhook_receiver()
     def github_webhook_receiver(self, request):
         action_type, action_target_type, initiator, body = self.parse_github_webhook(request)
         logger.info(f"Received webhook event '{action_type} {action_target_type}' by user {initiator['user_id']}")
