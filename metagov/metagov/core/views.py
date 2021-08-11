@@ -407,14 +407,7 @@ def decorated_create_process_view(plugin_name, slug):
         payload = JSONParser().parse(request)
         callback_url = payload.pop("callback_url", None)  # pop to remove it
 
-        # Validate payload
-        if cls.input_schema:
-            try:
-                jsonschema.validate(payload, cls.input_schema)
-            except jsonschema.exceptions.ValidationError as err:
-                raise ValidationError(err.message)
-
-        # Convert payload to Parameters
+        # Convert payload to Parameters (includes schema validation, so we do this first)
         from metagov.core.plugin_constants import Parameters
         params = Parameters(values=payload, schema=cls.input_schema)
 

@@ -5,6 +5,11 @@ class AuthorizationType:
 
 class Parameters:
     def __init__(self, values={}, schema=None):
+        if schema:
+            from metagov.core.utils import validate_and_fill_defaults
+
+            validate_and_fill_defaults(values, schema)
+
         for k, v in values.items():
             setattr(self, k, v)
 
@@ -12,7 +17,7 @@ class Parameters:
 
         if schema:
             for field in schema.get("properties").keys():
-                if not hasattr(self, field):
+                if not values.get(field):
                     setattr(self, field, None)
 
 
