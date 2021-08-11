@@ -82,7 +82,7 @@ class Github(Plugin):
         input_schema={
             "type": "object",
             "properties": {"method": {"type": "string"}, "route": {"type": "string"}},
-            "required": ["method", "route"],
+            "required": ["route"],
         },
         description="Perform any Github method (provided sufficient scopes)",
     )
@@ -95,7 +95,8 @@ class Github(Plugin):
              -H  "X-Metagov-Community: github-tmq3pkxt9" -d '{"parameters":{
                  "method": "GET",
                  "route":"/repos/{owner}/{repo}/issues/comments/{comment_id}",
-                 "comment_id": "123123"}}'
+                 "comment_id": "123123",
+                 "repo": "my_repo"}}'
         """
         method = parameters.pop("method", "GET")
         try:
@@ -109,7 +110,7 @@ class Github(Plugin):
             logger.warn(f"Route for method with parameters {parameters} and state {self.state} not found")
             return
         try:
-            return self.github_request("POST", interpolated_route, data=parameters)
+            return self.github_request(method, interpolated_route, data=parameters)
         except PluginErrorInternal as e:
             logger.warn(f"Method {interpolated_route} failed with error {e}")
 
