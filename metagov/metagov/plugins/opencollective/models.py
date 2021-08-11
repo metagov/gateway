@@ -1,8 +1,7 @@
 import json
 import logging
 
-import metagov.core.plugin_decorators as Registry
-from metagov.core.plugin_constants import Parameters
+from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 import metagov.plugins.opencollective.queries as Queries
 import metagov.plugins.opencollective.schemas as Schemas
 import requests

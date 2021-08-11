@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 def execute_plugin_tasks():
-    from metagov.core.plugin_decorators import plugin_registry
+    from metagov.core.plugin_manager import plugin_registry
 
     # invoke all the plugin tasks (listeners)
     for (plugin_name, cls) in plugin_registry.items():

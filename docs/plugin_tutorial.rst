@@ -25,7 +25,7 @@ This new model goes in the ``models.py`` file. Decorate the class with the ``@Re
 
 .. code-block:: python
 
-    import metagov.core.plugin_decorators as Registry
+    from metagov.core.plugin_manager import Registry
     from metagov.core.models import Plugin
 
     @Registry.plugin
@@ -404,7 +404,7 @@ Some platforms such as Slack and Github allow us to implement a one-click instal
 
 .. code-block:: python
 
-    from metagov.core.plugin_constants import AuthorizationType
+    from metagov.core.plugin_manager import AuthorizationType
 
     def get_authorize_url(state_encoded, type, community):
 

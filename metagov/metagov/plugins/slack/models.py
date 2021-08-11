@@ -3,8 +3,7 @@ import logging
 import random
 
 from rest_framework.exceptions import ValidationError
-import metagov.core.plugin_decorators as Registry
-from metagov.core.plugin_constants import Parameters
+from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 import requests
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType

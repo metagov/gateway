@@ -13,7 +13,7 @@ WEBHOOK_SLUG_CONFIG_KEY = "webhook_slug"
 
 
 def construct_webhook_url(plugin_instance):
-    from metagov.core.plugin_decorators import plugin_registry
+    from metagov.core.plugin_manager import plugin_registry
 
     if not plugin_uses_webhooks(plugin_registry[plugin_instance.name]):
         return None
@@ -122,7 +122,7 @@ def validate_and_fill_defaults(values, schema):
 
 
 def create_or_update_plugin(plugin_name, plugin_config, community):
-    from metagov.core.plugin_decorators import plugin_registry
+    from metagov.core.plugin_manager import plugin_registry
     from rest_framework.exceptions import ValidationError
 
     cls = plugin_registry.get(plugin_name)

@@ -1,6 +1,6 @@
 from drf_yasg import openapi
 from metagov.core.middleware import COMMUNITY_HEADER
-from metagov.core.plugin_constants import AuthorizationType
+from metagov.core.plugin_manager import AuthorizationType
 
 class Tags(object):
     GOVERNANCE_PROCESS = "Governance Processes"

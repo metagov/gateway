@@ -39,9 +39,6 @@ class ApiTests(PluginTestCase):
         plugin = Discourse.objects.first()
         self.assertIsNotNone(plugin)
         self.assertEqual(plugin.state.get("users").get("1").get("username"), "alice")
-        # from metagov.core.plugin_constants import Parameters
-        # p = Parameters({"topic_id": 1, "raw":"hi", "target_usernames": ["what"]})
-        # plugin.create_message(p)
 
     def start_discourse_poll(self):
         self.assertEqual(DiscoursePoll.objects.all().count(), 0)

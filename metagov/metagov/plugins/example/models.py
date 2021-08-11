@@ -1,5 +1,4 @@
-import metagov.core.plugin_decorators as Registry
-from metagov.core.plugin_constants import Parameters
+from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 from datetime import datetime, timezone, timedelta
 

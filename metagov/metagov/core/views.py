@@ -17,8 +17,7 @@ from metagov.core.errors import PluginAuthError
 from metagov.core.middleware import CommunityMiddleware
 from metagov.core.models import Community, Plugin, ProcessStatus
 from metagov.core.openapi_schemas import Tags
-from metagov.core.plugin_constants import AuthorizationType
-from metagov.core.plugin_decorators import plugin_registry
+from metagov.core.plugin_manager import plugin_registry, AuthorizationType, Parameters
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer, PluginSerializer
 from requests.models import PreparedRequest
 from rest_framework import status
@@ -408,7 +407,6 @@ def decorated_create_process_view(plugin_name, slug):
         callback_url = payload.pop("callback_url", None)  # pop to remove it
 
         # Convert payload to Parameters (includes schema validation, so we do this first)
-        from metagov.core.plugin_constants import Parameters
         params = Parameters(values=payload, schema=cls.input_schema)
 
         # Create new process instance

@@ -1,6 +1,6 @@
 import logging
 
-import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_manager import AuthorizationType, Registry, Parameters, VotingStandard
 import metagov.plugins.near.schemas as Schemas
 import near_api
 from metagov.core.errors import PluginErrorInternal

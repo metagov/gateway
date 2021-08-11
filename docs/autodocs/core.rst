@@ -31,12 +31,12 @@ Add decorators to register classes and functions with metagov core.
 Class Decorators
 ****************
 
-.. autofunction:: metagov.core.plugin_decorators.plugin
-.. autofunction:: metagov.core.plugin_decorators.governance_process
+.. autofunction:: metagov.core.plugin_manager.Registry.plugin
+.. autofunction:: metagov.core.plugin_manager.Registry.governance_process
 
 Function Decorators
 *******************
 
-.. autofunction:: metagov.core.plugin_decorators.action
-.. autofunction:: metagov.core.plugin_decorators.event_producer_task
-.. autofunction:: metagov.core.plugin_decorators.webhook_receiver
+.. autofunction:: metagov.core.plugin_manager.Registry.action
+.. autofunction:: metagov.core.plugin_manager.Registry.event_producer_task
+.. autofunction:: metagov.core.plugin_manager.Registry.webhook_receiver

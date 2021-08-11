@@ -1,7 +1,7 @@
 import logging
 import random
 
-import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_manager import AuthorizationType, Registry, Parameters, VotingStandard
 import metagov.plugins.revshare.schemas as Schemas
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import Plugin

@@ -3,8 +3,7 @@ import hmac
 import json
 import logging
 
-import metagov.core.plugin_decorators as Registry
-from metagov.core.plugin_constants import Parameters, VotingStandard
+from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 import metagov.plugins.discourse.schemas as Schemas
 import requests
 from metagov.core.errors import PluginErrorInternal

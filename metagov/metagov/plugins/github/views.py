@@ -4,7 +4,7 @@ import requests
 import environ
 
 from metagov.core.models import ProcessStatus
-from metagov.core.plugin_constants import AuthorizationType
+from metagov.core.plugin_manager import AuthorizationType
 from metagov.plugins.github.models import Github, GithubIssueReactVote, GithubIssueCommentVote
 from metagov.plugins.github.utils import get_jwt
 
