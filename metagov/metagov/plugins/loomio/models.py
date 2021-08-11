@@ -3,6 +3,7 @@ import logging
 
 import metagov.core.plugin_decorators as Registry
 import metagov.plugins.loomio.schemas as Schemas
+from metagov.core.plugin_constants import Parameters
 import requests
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
@@ -62,16 +63,12 @@ class LoomioPoll(GovernanceProcess):
     class Meta:
         proxy = True
 
-    def start(self, parameters):
+    def start(self, parameters: Parameters):
         url = "https://www.loomio.org/api/b1/polls"
-
-        options = parameters.pop("options")
-        payload = {
-            **parameters,
-            "options[]": options,
-            "api_key": self.plugin_inst.config["api_key"],
-        }
-
+        payload = parameters._json
+        payload.pop("options")
+        payload["options[]"] = parameters.options
+        payload["api_key"] = self.plugin_inst.config["api_key"],
         resp = requests.post(url, payload)
         if not resp.ok:
             logger.error(f"Error: {resp.status_code} {resp.text}")

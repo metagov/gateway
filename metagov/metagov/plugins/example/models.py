@@ -1,4 +1,5 @@
 import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_constants import Parameters
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus
 from datetime import datetime, timezone, timedelta
 
@@ -79,19 +80,19 @@ class StochasticVote(GovernanceProcess):
     class Meta:
         proxy = True
 
-    def start(self, parameters):
+    def start(self, parameters: Parameters):
         # can safely access parameters, they have already been validated
-        print(f'Starting process with options {parameters["options"]}')
+        print(f'Starting process with options {parameters.options}')
 
         # can safely access plugin state and config
         print(self.plugin_inst.config["default_high"])
         print(self.plugin_inst.state.get("lucky_number"))
 
         # save options to internal state
-        self.state.set("options", parameters["options"])
+        self.state.set("options", parameters.options)
 
         # save closing time to internal state
-        delay = timedelta(minutes=parameters["delay"])
+        delay = timedelta(minutes=parameters.delay)
         self.state.set("closing_at", datetime.now(timezone.utc) + delay)
 
         # mark as PENDING

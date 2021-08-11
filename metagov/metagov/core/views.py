@@ -414,13 +414,17 @@ def decorated_create_process_view(plugin_name, slug):
             except jsonschema.exceptions.ValidationError as err:
                 raise ValidationError(err.message)
 
+        # Convert payload to Parameters
+        from metagov.core.plugin_constants import Parameters
+        params = Parameters(values=payload, schema=cls.input_schema)
+
         # Create new process instance
         new_process = cls.objects.create(name=slug, callback_url=callback_url, plugin=plugin)
         logger.info(f"Created process: {new_process}")
 
         # Start process
         try:
-            new_process.start(payload)
+            new_process.start(params)
         except APIException as e:
             new_process.delete()
             raise e

@@ -4,6 +4,7 @@ import random
 
 from rest_framework.exceptions import ValidationError
 import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_constants import Parameters
 import requests
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
@@ -209,6 +210,7 @@ class SlackEmojiVote(GovernanceProcess):
                 "type": "string",
                 "enum": ["hearts", "flowers", "numbers"],
                 "description": "emoji family to use for choice selection. ignored for 'boolean' poll type",
+                "default": "numbers"
             },
         },
         "required": ["title", "poll_type"],
@@ -217,23 +219,23 @@ class SlackEmojiVote(GovernanceProcess):
     class Meta:
         proxy = True
 
-    def start(self, parameters) -> None:
-        text = construct_message_header(parameters["title"], parameters.get("details"))
+    def start(self, parameters: Parameters) -> None:
+        text = construct_message_header(parameters.title, parameters.details)
         self.state.set("message_header", text)
-        poll_type = parameters["poll_type"]
-        options = [Bool.YES, Bool.NO] if poll_type == "boolean" else parameters["options"]
+        poll_type = parameters.poll_type
+        options = [Bool.YES, Bool.NO] if poll_type == "boolean" else parameters.options
         if options is None:
             raise ValidationError("Options are required for non-boolean votes")
 
-        maybe_channel = parameters.get("channel")
-        maybe_users = parameters.get("users")
+        maybe_channel = parameters.channel
+        maybe_users = parameters.users
         if maybe_channel is None and (maybe_users is None or len(maybe_users) == 0):
             raise ValidationError("users or channel are required")
 
         if poll_type == "boolean":
             option_emoji_map = {"+1": Bool.YES, "-1": Bool.NO}
         else:
-            family = parameters.get("emoji_family", "numbers")
+            family = parameters.emoji_family
             emojis = EMOJI_MAP[family]
             if len(emojis) < len(options):
                 raise PluginErrorInternal("There are more voting options than possible emojis")
@@ -264,7 +266,7 @@ class SlackEmojiVote(GovernanceProcess):
                 {"method_name": "reactions.add", "channel": channel, "timestamp": ts, "name": emoji}
             )
 
-        self.state.set("poll_type", parameters["poll_type"])
+        self.state.set("poll_type", parameters.poll_type)
 
         self.outcome = {
             "url": permalink_resp["permalink"],
