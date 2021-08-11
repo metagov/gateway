@@ -87,7 +87,7 @@ class Twitter(Plugin):
         text = parameters['text']
         
         res = self.tweepy_api().send_direct_message(user_id, text)
-        return res
+        return res._json
 
     @Registry.event_producer_task()
     def my_task_function(self):
