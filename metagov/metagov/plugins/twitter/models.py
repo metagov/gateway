@@ -69,6 +69,25 @@ class Twitter(Plugin):
         res = self.tweepy_api().update_status(parameters["text"])
         return res._json
 
+    @Registry.action(
+        slug="send-dm",
+        description="Send a direct message",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "string"},
+                "text": {"type": "string"}
+            },
+            "required": ["user_id", "text"]
+        }
+    )
+    def send_direct_message(self, parameters):
+        user_id = int(parameters['user_id'])
+        text = parameters['text']
+        
+        res = self.tweepy_api().send_direct_message(user_id, text)
+        return res._json
+
     @Registry.event_producer_task()
     def my_task_function(self):
         api = self.tweepy_api()
