@@ -88,6 +88,24 @@ class Twitter(Plugin):
         res = self.tweepy_api().send_direct_message(user_id, text)
         return res._json
 
+    @Registry.action(
+        slug="get-user-id",
+        description="Gets user id of a Twitter user",
+        input_schema={
+            "type": "object", 
+            "properties": {"screen_name": {"type": "string"}},
+            "required": ["screen_name"]
+        }
+    )
+    def get_user_id(self, parameters):
+        try:
+            user = self.tweepy_api().get_user(parameters["screen_name"])
+            return user.id
+
+        except tweepy.error.TweepError as e:
+            if e.api_code == 50:
+                return False
+
     @Registry.event_producer_task()
     def my_task_function(self):
         api = self.tweepy_api()
