@@ -319,7 +319,7 @@ class DiscoursePoll(GovernanceProcess):
         if parameters.chart_type:
             optional_params.append(f"chartType={parameters.chart_type}")
         for p in ["min", "max", "step", "results"]:
-            if hasattr(parameters, p):
+            if getattr(parameters, p):
                 optional_params.append(f"{p}={getattr(parameters, p)}")
 
         options = "".join([f"* {opt}\n" for opt in parameters.options]) if poll_type != "number" else ""
@@ -331,9 +331,9 @@ class DiscoursePoll(GovernanceProcess):
 [/poll]
         """
         payload = {"raw": raw, "title": parameters.title}
-        if parameters.category:
+        if parameters.category is not None:
             payload["category"] = parameters.category
-        if parameters.topic_id:
+        if parameters.topic_id is not None:
             payload["topic_id"] = parameters.topic_id
 
         logger.info(payload)
@@ -343,9 +343,11 @@ class DiscoursePoll(GovernanceProcess):
         if response.get("errors"):
             errors = response["errors"]
             raise PluginErrorInternal(str(errors))
+        logger.debug(response)
 
         poll_url = self.plugin_inst.construct_post_url(response)
         logger.info(f"Poll created at {poll_url}")
+
         self.state.set("post_id", response.get("id"))
         self.state.set("topic_id", response.get("topic_id"))
         self.state.set("topic_slug", response.get("topic_slug"))
@@ -361,6 +363,10 @@ class DiscoursePoll(GovernanceProcess):
         check if `closing_at` has happened yet (if set) and call close() if it has.
         """
         post_id = self.state.get("post_id")
+        if post_id is None:
+            logger.debug(self.outcome)
+            logger.debug(self.state.get("topic_slug"))
+            raise PluginErrorInternal(f"Missing post ID, can't update {self}")
         response = self.plugin_inst.discourse_request("GET", f"posts/{post_id}.json")
         poll = response["polls"][0]
         self.update_outcome_from_discourse_poll(poll)
