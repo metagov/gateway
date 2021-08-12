@@ -343,10 +343,10 @@ class DiscoursePoll(GovernanceProcess):
         if response.get("errors"):
             errors = response["errors"]
             raise PluginErrorInternal(str(errors))
-        logger.debug(response)
 
         poll_url = self.plugin_inst.construct_post_url(response)
         logger.info(f"Poll created at {poll_url}")
+        logger.debug(response)
 
         self.state.set("post_id", response.get("id"))
         self.state.set("topic_id", response.get("topic_id"))
@@ -364,8 +364,6 @@ class DiscoursePoll(GovernanceProcess):
         """
         post_id = self.state.get("post_id")
         if post_id is None:
-            logger.debug(self.outcome)
-            logger.debug(self.state.get("topic_slug"))
             raise PluginErrorInternal(f"Missing post ID, can't update {self}")
         response = self.plugin_inst.discourse_request("GET", f"posts/{post_id}.json")
         poll = response["polls"][0]
