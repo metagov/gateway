@@ -53,6 +53,7 @@ class Loomio(Plugin):
     def loomio_webhook(self, request):
         pass
 
+
 @Registry.governance_process
 class LoomioPoll(GovernanceProcess):
     name = "poll"
@@ -67,7 +68,7 @@ class LoomioPoll(GovernanceProcess):
         payload = parameters._json
         payload.pop("options")
         payload["options[]"] = parameters.options
-        payload["api_key"] = self.plugin_inst.config["api_key"],
+        payload["api_key"] = self.plugin_inst.config["api_key"]
         resp = requests.post(url, payload)
         if not resp.ok:
             logger.error(f"Error: {resp.status_code} {resp.text}")
@@ -112,17 +113,21 @@ class LoomioPoll(GovernanceProcess):
             logger.error(f"Error fetching poll: {resp.status_code} {resp.text}")
             raise PluginErrorInternal(resp.text)
 
+        logger.debug(resp.text)
         response = resp.json()
         if response.get("errors"):
             logger.error(f"Error fetching poll outcome: {response['errors']}")
             self.errors = response["errors"]
 
-        poll = response.get("polls")[0]
-
-        self.outcome["votes"] = poll.get("stance_data")
-
+        # Update status
+        poll = response["polls"][0]
         if poll.get("closed_at") is not None:
             self.status = ProcessStatus.COMPLETED.value
 
-        logger.info(f"{self}: {self.outcome}")
+        # Update vote counts
+        options = poll["poll_option_names"]  # list of strings
+        counts = poll["stance_counts"]  # list of integers
+        self.outcome["votes"] = dict(zip(options, counts))
+
+        logger.info(f"Updated outcome: {self.outcome}")
         self.save()
