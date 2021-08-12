@@ -5,6 +5,36 @@ from metagov.plugins.example.models import Randomness, StochasticVote
 from django.test import Client
 
 
+class UnitTests(TestCase):
+    def test_voting_input_params(self):
+        """Test Voting input parameter schema construction, and Parameters"""
+        from metagov.core.plugin_manager import Parameters, VotingStandard
+
+        extra_properties = {
+            "foobar": {"type": "string", "enum": ["foo", "bar"], "default": "bar"},
+            "numeric": {"type": "number"},
+        }
+
+        schema = VotingStandard.create_input_schema(
+            include=["title", "closing_at"],
+            extra_properties=extra_properties,
+            required=["field_without_default", "title"],
+        )
+        values = {"title": "my vote", "numeric": 8}
+        params = Parameters(values=values, schema=schema)
+        self.assertEqual(params.foobar, "bar")
+        self.assertEqual(params.title, "my vote")
+        self.assertEqual(params.numeric, 8)
+        self.assertEqual(params.closing_at, None)
+        self.assertIsNotNone(params._json)
+
+        # Create Parameters with no schema
+        params = Parameters(values=values)
+        self.assertEqual(params.title, "my vote")
+        self.assertEqual(params.numeric, 8)
+        self.assertDictEqual(params._json, values)
+
+
 class ApiTests(TestCase):
     def setUp(self):
         self.client = Client()
@@ -85,7 +115,7 @@ class ApiTests(TestCase):
         )
         self.assertContains(response, '"value":')
 
-        # Doesn't work if neither a username nor an id is sent 
+        # Doesn't work if neither a username nor an id is sent
         sourcecred_request_url = "/api/internal/action/sourcecred.user-cred"
         response = client.post(
             sourcecred_request_url,
@@ -93,9 +123,7 @@ class ApiTests(TestCase):
             content_type="application/json",
             **headers,
         )
-        self.assertContains(
-            response, "Either a username or an id argument is required", status_code=500
-        )
+        self.assertContains(response, "Either a username or an id argument is required", status_code=500)
 
         # works on an existing id
         sourcecred_request_url = "/api/internal/action/sourcecred.user-cred"
@@ -106,7 +134,6 @@ class ApiTests(TestCase):
             **headers,
         )
         self.assertContains(response, '"value":')
-
 
         # activate randomness plugin
         data["plugins"].append({"name": "randomness", "config": {"default_low": 2, "default_high": 200}})
