@@ -125,9 +125,9 @@ class LoomioPoll(GovernanceProcess):
             self.status = ProcessStatus.COMPLETED.value
 
         # Update vote counts
-        opts = poll["poll_option_names"]  # list of strings
+        options = poll["poll_option_names"]  # list of strings
         counts = poll["stance_counts"]  # list of integers
-        self.outcome["votes"] = zip(opts, counts)
+        self.outcome["votes"] = dict(zip(options, counts))
 
         logger.info(f"Updated outcome: {self.outcome}")
         self.save()
