@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Optional
 
-import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_manager import AuthorizationType, Registry, Parameters, VotingStandard
 import requests
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import Plugin

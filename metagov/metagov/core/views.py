@@ -17,8 +17,7 @@ from metagov.core.errors import PluginAuthError
 from metagov.core.middleware import CommunityMiddleware
 from metagov.core.models import Community, Plugin, ProcessStatus
 from metagov.core.openapi_schemas import Tags
-from metagov.core.plugin_constants import AuthorizationType
-from metagov.core.plugin_decorators import plugin_registry
+from metagov.core.plugin_manager import plugin_registry, AuthorizationType, Parameters
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer, PluginSerializer
 from requests.models import PreparedRequest
 from rest_framework import status
@@ -407,12 +406,8 @@ def decorated_create_process_view(plugin_name, slug):
         payload = JSONParser().parse(request)
         callback_url = payload.pop("callback_url", None)  # pop to remove it
 
-        # Validate payload
-        if cls.input_schema:
-            try:
-                jsonschema.validate(payload, cls.input_schema)
-            except jsonschema.exceptions.ValidationError as err:
-                raise ValidationError(err.message)
+        # Convert payload to Parameters (includes schema validation, so we do this first)
+        params = Parameters(values=payload, schema=cls.input_schema)
 
         # Create new process instance
         new_process = cls.objects.create(name=slug, callback_url=callback_url, plugin=plugin)
@@ -420,7 +415,7 @@ def decorated_create_process_view(plugin_name, slug):
 
         # Start process
         try:
-            new_process.start(payload)
+            new_process.start(params)
         except APIException as e:
             new_process.delete()
             raise e

@@ -23,7 +23,7 @@ class PluginSerializer(serializers.ModelSerializer):
         return utils.construct_webhook_url(inst)
 
     def get_auth_type(self, inst):
-        from metagov.core.plugin_decorators import plugin_registry
+        from metagov.core.plugin_manager import plugin_registry
 
         cls = plugin_registry[inst.name]
         return cls.auth_type

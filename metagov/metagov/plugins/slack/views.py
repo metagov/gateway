@@ -7,7 +7,7 @@ import environ
 import requests
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from metagov.core.errors import PluginErrorInternal, PluginAuthError
-from metagov.core.plugin_constants import AuthorizationType
+from metagov.core.plugin_manager import AuthorizationType
 from metagov.plugins.slack.models import Slack, SlackEmojiVote
 from requests.models import PreparedRequest
 from django.core.exceptions import ImproperlyConfigured

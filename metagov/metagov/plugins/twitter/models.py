@@ -1,7 +1,7 @@
 import logging
 
 import environ
-import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_manager import AuthorizationType, Registry, Parameters, VotingStandard
 import tweepy
 from metagov.core.models import AuthType, Plugin
 from metagov.core.errors import PluginErrorInternal

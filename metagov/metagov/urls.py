@@ -10,7 +10,7 @@ from rest_framework import permissions
 
 from metagov.core import utils, views
 from metagov.core.openapi_schemas import Tags
-from metagov.core.plugin_decorators import plugin_registry
+from metagov.core.plugin_manager import plugin_registry
 
 # from schema_graph.views import Schema
 

@@ -1,7 +1,7 @@
 import requests, json, logging
 from collections import Counter
 
-import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 from metagov.core.models import Plugin, GovernanceProcess, ProcessStatus, AuthType
 from metagov.core.errors import PluginErrorInternal
 import metagov.plugins.github.schemas as Schemas
@@ -127,16 +127,17 @@ class GithubIssueReactVote(GovernanceProcess):
     class Meta:
         proxy = True
 
-    def start(self, parameters):
+    def start(self, parameters: Parameters):
 
         # copy owner & repo to state
         self.state.set("owner", self.plugin_inst.config["owner"])
-        self.state.set("repo", parameters["repo_name"])
-        self.state.set("max_votes", parameters["max_votes"])
+        self.state.set("repo", parameters.repo_name)
+        self.state.set("max_votes", parameters.max_votes)
 
         # create an issue to use as a vote:
-        parameters["title"], parameters["body"] = create_issue_text("react", parameters)
-        issue = self.plugin_inst.create_issue(parameters=parameters)
+        action_params = parameters._json
+        action_params["title"], action_params["body"] = create_issue_text("react", action_params)
+        issue = self.plugin_inst.create_issue(parameters=action_params)
 
         self.state.set("issue_number", issue["number"])
         self.state.set("bot_id", issue["user"]["id"])
@@ -210,16 +211,17 @@ class GithubIssueCommentVote(GovernanceProcess):
     class Meta:
         proxy = True
 
-    def start(self, parameters):
+    def start(self, parameters: Parameters):
 
         # copy owner & repo to state
         self.state.set("owner", self.plugin_inst.config["owner"])
-        self.state.set("repo", parameters["repo_name"])
-        self.state.set("max_votes", parameters["max_votes"])
+        self.state.set("repo", parameters.repo_name)
+        self.state.set("max_votes", parameters.max_votes)
 
         # create an issue to use as a vote:
-        parameters["title"], parameters["body"] = create_issue_text("comment", parameters)
-        issue = self.plugin_inst.create_issue(parameters=parameters)
+        action_params = parameters._json
+        action_params["title"], action_params["body"] = create_issue_text("comment", action_params)
+        issue = self.plugin_inst.create_issue(parameters=action_params)
 
         # save
         self.state.set("issue_number", issue["number"])

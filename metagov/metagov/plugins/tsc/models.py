@@ -1,4 +1,4 @@
-import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_manager import AuthorizationType, Registry, Parameters, VotingStandard
 from metagov.core.models import Plugin
 
 import requests

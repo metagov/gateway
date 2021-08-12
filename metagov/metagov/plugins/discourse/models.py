@@ -3,7 +3,7 @@ import hmac
 import json
 import logging
 
-import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 import metagov.plugins.discourse.schemas as Schemas
 import requests
 from metagov.core.errors import PluginErrorInternal
@@ -265,20 +265,15 @@ GOVERNANCE PROCESSES
 class DiscoursePoll(GovernanceProcess):
     name = "poll"
     plugin_name = "discourse"
-
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string"},
-            "options": {"type": "array", "items": {"type": "string"}},
-            "details": {"type": "string"},
+    input_schema = VotingStandard.create_input_schema(
+        include=["title", "options", "details", "closing_at"],
+        extra_properties={
             "topic_id": {"type": "integer", "description": "required if creating the poll as a new post."},
             "category": {
                 "type": "integer",
                 "description": "optional if creating the poll as a new topic, and ignored if creating it as a new post.",
             },
-            "closing_at": {"type": "string", "format": "date"},
-            "poll_type": {"type": "string", "enum": ["regular", "multiple", "number"]},
+            "poll_type": {"type": "string", "enum": ["regular", "multiple", "number"], "default": "regular"},
             "public": {"type": "boolean", "description": "whether votes are public"},
             "results": {
                 "type": "string",
@@ -300,47 +295,46 @@ class DiscoursePoll(GovernanceProcess):
             "chart_type": {"type": "string", "enum": ["pie", "bar"]},
             "groups": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["title"],
-    }
-    # TODO: define outcome schema
+        required=["title"],
+    )
 
     class Meta:
         proxy = True
 
-    def start(self, parameters) -> None:
+    def start(self, parameters: Parameters) -> None:
         discourse_server_url = self.plugin_inst.config["server_url"]
         url = f"{discourse_server_url}/posts.json"
 
-        poll_type = parameters.get("poll_type", "regular")
-        if poll_type != "number" and not len(parameters.get("options", [])):
+        poll_type = parameters.poll_type
+        if poll_type != "number" and not parameters.options:
             raise PluginErrorInternal(f"Options are required for poll type {poll_type}")
 
         optional_params = []
-        if parameters.get("closing_at"):
-            optional_params.append(f"close={parameters['closing_at']}")
-        if parameters.get("groups"):
-            optional_params.append(f"groups={','.join(parameters['groups'])}")
-        if parameters.get("public") is True:
+        if parameters.closing_at:
+            optional_params.append(f"close={parameters.closing_at}")
+        if parameters.groups:
+            optional_params.append(f"groups={','.join(parameters.groups)}")
+        if parameters.public is True:
             optional_params.append("public=true")
-        if parameters.get("chart_type"):
-            optional_params.append(f"chartType={parameters['chart_type']}")
+        if parameters.chart_type:
+            optional_params.append(f"chartType={parameters.chart_type}")
         for p in ["min", "max", "step", "results"]:
-            if parameters.get(p) is not None:
-                optional_params.append(f"{p}={parameters[p]}")
+            if getattr(parameters, p):
+                optional_params.append(f"{p}={getattr(parameters, p)}")
 
-        options = "".join([f"* {opt}\n" for opt in parameters["options"]]) if poll_type != "number" else ""
+        options = "".join([f"* {opt}\n" for opt in parameters.options]) if poll_type != "number" else ""
         raw = f"""
-{parameters.get("details") or ""}
+{parameters.details or ""}
 [poll type={poll_type} {' '.join(optional_params)}]
-# {parameters["title"]}
+# {parameters.title}
 {options}
 [/poll]
         """
-        payload = {"raw": raw, "title": parameters["title"]}
-        if parameters.get("category"):
-            payload["category"] = parameters["category"]
-        if parameters.get("topic_id"):
-            payload["topic_id"] = parameters["topic_id"]
+        payload = {"raw": raw, "title": parameters.title}
+        if parameters.category is not None:
+            payload["category"] = parameters.category
+        if parameters.topic_id is not None:
+            payload["topic_id"] = parameters.topic_id
 
         logger.info(payload)
         logger.info(url)
@@ -352,6 +346,8 @@ class DiscoursePoll(GovernanceProcess):
 
         poll_url = self.plugin_inst.construct_post_url(response)
         logger.info(f"Poll created at {poll_url}")
+        logger.debug(response)
+
         self.state.set("post_id", response.get("id"))
         self.state.set("topic_id", response.get("topic_id"))
         self.state.set("topic_slug", response.get("topic_slug"))
@@ -367,6 +363,8 @@ class DiscoursePoll(GovernanceProcess):
         check if `closing_at` has happened yet (if set) and call close() if it has.
         """
         post_id = self.state.get("post_id")
+        if post_id is None:
+            raise PluginErrorInternal(f"Missing post ID, can't update {self}")
         response = self.plugin_inst.discourse_request("GET", f"posts/{post_id}.json")
         poll = response["polls"][0]
         self.update_outcome_from_discourse_poll(poll)

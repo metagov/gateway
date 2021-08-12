@@ -1,7 +1,7 @@
 import json
 import logging
 
-import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 import metagov.plugins.opencollective.queries as Queries
 import metagov.plugins.opencollective.schemas as Schemas
 import requests
@@ -182,9 +182,9 @@ class OpenCollectiveVote(GovernanceProcess):
     class Meta:
         proxy = True
 
-    def start(self, parameters) -> None:
+    def start(self, parameters: Parameters) -> None:
         result = self.plugin_inst.create_conversation(
-            {"raw": parameters["details"], "title": parameters["title"], "tags": ["metagov-vote"]}
+            {"raw": parameters.details, "title": parameters.title, "tags": ["metagov-vote"]}
         )
         logger.info(f"Poll created at {result['url']}")
 
