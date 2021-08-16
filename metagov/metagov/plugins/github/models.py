@@ -113,6 +113,16 @@ class Github(Plugin):
         except PluginErrorInternal as e:
             logger.warn(f"Method {interpolated_route} failed with error {e}")
 
+    @Registry.action(
+        slug='create-issue',
+        description='creates issue in a repository',
+        input_schema=Schemas.create_issue_parameters
+    )
+    def create_issue(self, parameters):
+        owner, repo = self.state.get("owner"), parameters["repo_name"]
+        data = {"title": parameters["title"], "body": parameters["body"]}
+        return self.github_request(method="post", route=f"/repos/{owner}/{repo}/issues", data=data)
+
 
 """
 GOVERNANCE PROCESSES
@@ -120,9 +130,11 @@ GOVERNANCE PROCESSES
 
 @Registry.governance_process
 class GithubIssueReactVote(GovernanceProcess):
-    name = 'github-issue-react-vote'
+    name = 'issue-react-vote'
     plugin_name = 'github'
     input_schema = Schemas.issue_react_vote_parameters
+    YES = "yes"
+    NO = "no"
 
     class Meta:
         proxy = True
@@ -142,6 +154,11 @@ class GithubIssueReactVote(GovernanceProcess):
         self.state.set("issue_number", issue["number"])
         self.state.set("bot_id", issue["user"]["id"])
         self.status = ProcessStatus.PENDING.value
+        self.outcome = {
+            "vote_url": f"https://github.com/{self.plugin_inst.config['owner']}/{parameters.repo_name}/issues/{issue['number']}",
+            "issue_number": issue["number"],
+            "votes": {self.YES: 0, self.NO: 0}
+        }
         self.save()
         logger.info(f"Starting IssueReactVote with issue # {issue['number']}")
 
@@ -188,23 +205,30 @@ class GithubIssueReactVote(GovernanceProcess):
     def close(self):
         upvotes, downvotes, result = self.get_vote_data()
         self.close_vote(upvotes, downvotes, result)
+        self.outcome["votes"] = {self.YES: upvotes, self.NO: downvotes}
+        self.outcome["result"] = result
         self.status = ProcessStatus.COMPLETED.value
         self.save()
         owner, repo, issue_number = self.get_basic_info()
         logger.info(f"Closing IssueReactVote {owner}/{repo} - issue # {issue_number}")
 
     def update(self):
-        upvotes, downvotes, result = self.get_vote_data()
+        upvotes, downvotes,result = self.get_vote_data()
+        self.outcome["votes"] = {self.YES: upvotes, self.NO: downvotes}
         max_votes = self.state.get("max_votes")
         if max_votes and (upvotes + downvotes >= max_votes):
-            self.close()
+            self.outcome["result"] = result
+            self.status = ProcessStatus.COMPLETED.value
+            self.close_vote()
+
+        self.save()
         owner, repo, issue_number = self.get_basic_info()
         logger.info(f"Updating IssueReactVote {owner}/{repo} - issue # {issue_number}")
 
 
 @Registry.governance_process
 class GithubIssueCommentVote(GovernanceProcess):
-    name = 'github-issue-comment-vote'
+    name = 'issue-comment-vote'
     plugin_name = 'github'
     input_schema = Schemas.issue_comment_vote_parameters
 
