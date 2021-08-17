@@ -258,21 +258,21 @@ def plugin_auth_callback(request, plugin_name):
     redirect_params = {"state": state_to_pass, "community": community_slug}
 
     if request.GET.get("error"):
-        return redirect_with_params(redirect_uri, *redirect_params, error=request.GET.get("error"))
+        return redirect_with_params(redirect_uri, **redirect_params, error=request.GET.get("error"))
 
     code = request.GET.get("code")
     if not code:
-        return redirect_with_params(redirect_uri, *redirect_params, error="server_error")
+        return redirect_with_params(redirect_uri, **redirect_params, error="server_error")
 
     community = None
     if type == AuthorizationType.APP_INSTALL:
         # For installs, validate the community
         if not community_slug:
-            return redirect_with_params(redirect_uri, *redirect_params, error="bad_state")
+            return redirect_with_params(redirect_uri, **redirect_params, error="bad_state")
         try:
             community = Community.objects.get(slug=community_slug)
         except Community.DoesNotExist:
-            return redirect_with_params(redirect_uri, *redirect_params, error="community_not_found")
+            return redirect_with_params(redirect_uri, **redirect_params, error="community_not_found")
 
     # FIXME: figure out a better way to register these functions
     plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
@@ -282,9 +282,9 @@ def plugin_auth_callback(request, plugin_name):
             type=type, code=code, redirect_uri=redirect_uri, community=community, state=state_to_pass, request=request
         )
 
-        return response if response else redirect_with_params(redirect_uri, *redirect_params)
+        return response if response else redirect_with_params(redirect_uri, **redirect_params)
     except PluginAuthError as e:
-        return redirect_with_params(redirect_uri, *redirect_params, error=e.get_codes(), error_description=e.detail)
+        return redirect_with_params(redirect_uri, **redirect_params, error=e.get_codes(), error_description=e.detail)
 
 
 @swagger_auto_schema(**MetagovSchemas.plugin_metadata)
