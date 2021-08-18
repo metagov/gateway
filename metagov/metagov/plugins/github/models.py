@@ -6,7 +6,7 @@ from metagov.core.models import Plugin, GovernanceProcess, ProcessStatus, AuthTy
 from metagov.core.errors import PluginErrorInternal
 import metagov.plugins.github.schemas as Schemas
 from metagov.plugins.github.utils import (get_access_token, create_issue_text, close_comment_vote_text,
-    close_react_vote_text)
+    close_react_vote_text, get_jwt)
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +50,13 @@ class Github(Plugin):
         logger.info(f"Received webhook event '{action_type} {action_target_type}' by user {initiator['user_id']}")
         self.send_event_to_driver(event_type=f"{action_type} {action_target_type}", data=body, initiator=initiator)
 
-    def github_request(self, method, route, data=None, add_headers=None, refresh=False):
+    def github_request(self, method, route, data=None, add_headers=None, refresh=False, use_jwt=False):
         """Makes request to Github. If status code returned is 401 (bad credentials), refreshes the
         access token and tries again. Refresh parameter is used to make sure we only try once."""
 
+        authorization = f"Bearer {get_jwt()}" if use_jwt else f"token {self.state.get('installation_access_token')}"
         headers = {
-            "Authorization": f"token {self.state.get('installation_access_token')}",
+            "Authorization": authorization,
             "Accept": "application/vnd.github.v3+json"
         }
         if add_headers:
@@ -65,7 +66,7 @@ class Github(Plugin):
         logger.info(f"Making request {method} to {route}")
         resp = requests.request(method, url, headers=headers, json=data)
 
-        if resp.status_code == 401 and refresh == False:
+        if resp.status_code == 401 and refresh == False and use_jwt == False:
             logger.info(f"Bad credentials, refreshing token and retrying")
             self.refresh_token()
             return self.github_request(method=method, route=route, data=data, add_headers=add_headers, refresh=True)
@@ -126,6 +127,13 @@ class Github(Plugin):
         owner, repo = self.state.get("owner"), parameters["repo_name"]
         data = {"title": parameters["title"], "body": parameters["body"]}
         return self.github_request(method="post", route=f"/repos/{owner}/{repo}/issues", data=data)
+
+    @Registry.action(
+        slug='get-installation',
+        description='get information about this github installation'
+    )
+    def get_installation(self, parameters):
+        return self.github_request(method="get", route=f"/app/installations/{self.config['installation_id']}", use_jwt=True)
 
 
 """
