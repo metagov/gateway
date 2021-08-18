@@ -184,7 +184,9 @@ def plugin_authorize(request, plugin_name):
     request.session["received_authorize_state"] = received_state
 
     if type != AuthorizationType.APP_INSTALL and type != AuthorizationType.USER_LOGIN:
-        return HttpResponseBadRequest(f"Parameter 'type' must be '{AuthorizationType.APP_INSTALL}' or '{AuthorizationType.USER_LOGIN}'")
+        return HttpResponseBadRequest(
+            f"Parameter 'type' must be '{AuthorizationType.APP_INSTALL}' or '{AuthorizationType.USER_LOGIN}'"
+        )
 
     community = None
     if type == AuthorizationType.APP_INSTALL:
@@ -219,9 +221,9 @@ def plugin_authorize(request, plugin_name):
     return HttpResponseRedirect(url)
 
 
-def redirect_with_params(url, params):
+def redirect_with_params(url, **kwargs):
     req = PreparedRequest()
-    req.prepare_url(url, params)
+    req.prepare_url(url, kwargs)
     return HttpResponseRedirect(req.url)
 
 
@@ -252,41 +254,37 @@ def plugin_auth_callback(request, plugin_name):
     if not redirect_uri:
         return HttpResponseBadRequest("bad state: redirect_uri is missing")
 
+    # params to include on the redirect
+    redirect_params = {"state": state_to_pass, "community": community_slug}
+
     if request.GET.get("error"):
-        return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": request.GET.get("error")})
+        return redirect_with_params(redirect_uri, **redirect_params, error=request.GET.get("error"))
 
     code = request.GET.get("code")
     if not code:
-        return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": "server_error"})
+        return redirect_with_params(redirect_uri, **redirect_params, error="server_error")
 
     community = None
     if type == AuthorizationType.APP_INSTALL:
         # For installs, validate the community
         if not community_slug:
-            return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": "bad_state"})
+            return redirect_with_params(redirect_uri, **redirect_params, error="bad_state")
         try:
             community = Community.objects.get(slug=community_slug)
         except Community.DoesNotExist:
-            return redirect_with_params(redirect_uri, {"state": state_to_pass, "error": "community_not_found"})
+            return redirect_with_params(redirect_uri, **redirect_params, error="community_not_found")
 
     # FIXME: figure out a better way to register these functions
     plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
 
     try:
         response = plugin_views.auth_callback(
-            type=type,
-            code=code,
-            redirect_uri=redirect_uri,
-            community=community,
-            state=state_to_pass,
-            request=request
+            type=type, code=code, redirect_uri=redirect_uri, community=community, state=state_to_pass, request=request
         )
-        default_params = {"state": state_to_pass, "community": community_slug}
-        return response if response else redirect_with_params(redirect_uri, default_params)
+
+        return response if response else redirect_with_params(redirect_uri, **redirect_params)
     except PluginAuthError as e:
-        return redirect_with_params(
-            redirect_uri, {"state": state_to_pass, "error": e.get_codes(), "error_description": e.detail}
-        )
+        return redirect_with_params(redirect_uri, **redirect_params, error=e.get_codes(), error_description=e.detail)
 
 
 @swagger_auto_schema(**MetagovSchemas.plugin_metadata)
