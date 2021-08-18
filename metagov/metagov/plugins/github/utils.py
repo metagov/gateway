@@ -94,9 +94,9 @@ def create_issue_text(vote_type, parameters):
     return title, body
 
 
-def close_react_vote_text(result, upvotes, downvotes):
+def close_react_vote_text(upvotes, downvotes, result):
     return (
-        f"This vote is now closed. The result was {result} with {upvotes} votes for "
+        f"This vote is now closed. The result was '{result}' with {upvotes} votes for "
         f"and {downvotes} votes against. You may continue commenting and reacting, but it will "
         "have no impact on the result."
     )
