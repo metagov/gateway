@@ -174,21 +174,20 @@ class GithubIssueReactVote(GovernanceProcess):
         reactions = self.plugin_inst.github_request(
             method="get", route=f"/repos/{owner}/{repo}/issues/{issue_number}/reactions", add_headers=headers)
 
-        upvotes, downvotes = 0, 0
-        for reaction in reactions:
-            if reaction["content"] == "+1":
-                upvotes += 1
-            if reaction["content"] == "-1":
-                downvotes += 1
-
-        if upvotes > downvotes:
+        upvotes, downvotes = reactions_to_user_lists(reactions)
+        upvotes_num, downvotes_num = len(upvotes), len(downvotes)
+        if upvotes_num > downvotes_num:
             result = "pass"
-        elif downvotes > upvotes:
+        elif downvotes_num > upvotes_num:
             result = "fail"
         else:
             result = "tie"
 
-        return upvotes, downvotes, result
+        vote_count_dict = {
+            self.YES: {"users": upvotes, "count": upvotes_num},
+            self.NO: {"users": downvotes, "count": downvotes_num}
+        }
+        return upvotes_num, downvotes_num, result, vote_count_dict
 
     def close_vote(self, upvotes, downvotes, result):
 
@@ -203,9 +202,9 @@ class GithubIssueReactVote(GovernanceProcess):
             method="post", route=f"/repos/{owner}/{repo}/issues/{issue_number}", data={"state": "closed"})
 
     def close(self):
-        upvotes, downvotes, result = self.get_vote_data()
+        upvotes, downvotes, result, vote_count_dict = self.get_vote_data()
         self.close_vote(upvotes, downvotes, result)
-        self.outcome["votes"] = {self.YES: upvotes, self.NO: downvotes}
+        self.outcome["votes"] = vote_count_dict
         self.outcome["result"] = result
         self.status = ProcessStatus.COMPLETED.value
         self.save()
@@ -213,8 +212,8 @@ class GithubIssueReactVote(GovernanceProcess):
         logger.info(f"Closing IssueReactVote {owner}/{repo} - issue # {issue_number}")
 
     def update(self):
-        upvotes, downvotes,result = self.get_vote_data()
-        self.outcome["votes"] = {self.YES: upvotes, self.NO: downvotes}
+        upvotes,downvotes,result,vote_count_dict = self.get_vote_data()
+        self.outcome["votes"] = vote_count_dict
         max_votes = self.state.get("max_votes")
         if max_votes and (upvotes + downvotes >= max_votes):
             self.outcome["result"] = result
@@ -224,6 +223,23 @@ class GithubIssueReactVote(GovernanceProcess):
         self.save()
         owner, repo, issue_number = self.get_basic_info()
         logger.info(f"Updating IssueReactVote {owner}/{repo} - issue # {issue_number}")
+
+def reactions_to_user_lists(reaction_list):
+    """Convert list of reactions from GitHub API into list of usernames for upvote and downvote"""
+    upvotes = []
+    downvotes = []
+    for r in reaction_list:
+        if r["content"] not in ["+1", "-1"] or r["user"]["type"] != "User":
+            continue
+
+        username = r["user"]["login"]
+        if r["content"] == "+1":
+            upvotes.append(username)
+        elif r["content"] == "-1":
+            downvotes.append(username)
+    upvotes.sort()
+    downvotes.sort()
+    return upvotes, downvotes
 
 
 @Registry.governance_process

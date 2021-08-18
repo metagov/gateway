@@ -4,6 +4,9 @@ import jwt, datetime, environ, logging, requests
 
 from metagov.core.errors import PluginErrorInternal
 
+import sys
+
+TEST = 'test' in sys.argv
 
 logger = logging.getLogger(__name__)
 env = environ.Env()
@@ -20,6 +23,8 @@ def get_private_key():
 
 
 def get_jwt():
+    if TEST: return ""
+
     payload = {
         # GitHub App's identifier
         "iss": env("GITHUB_APP_ID"),
