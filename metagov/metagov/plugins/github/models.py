@@ -104,7 +104,11 @@ class Github(Plugin):
             logger.warn(f"Route for method {method} not found")
             return
         try:
-            interpolated_route = route.format(owner=self.state.get("owner"), **parameters)
+            interpolated_route = route.format(
+                owner=self.state.get("owner"),
+                installation_id=self.config["installation_id"],
+                **parameters
+            )
         except PluginErrorInternal as e:
             logger.warn(f"Route for method with parameters {parameters} and state {self.state} not found")
             return
