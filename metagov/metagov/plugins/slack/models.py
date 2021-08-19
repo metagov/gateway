@@ -1,6 +1,7 @@
 import json
 import logging
 import random
+import requests
 
 from django.db.models.fields import TextField
 

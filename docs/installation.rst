@@ -398,6 +398,31 @@ needs to create a new Slack App and store its credentials on the server where Me
 5. In your Django app's ``settings.py`` file, fill in the Slack values in ``METAGOV_SETTINGS`` with the App ID, Client ID, Client Secret, and Signing Secret.
 6. In the Slack app management page, verify the URLs for the OAuth callback, the Events Subscription Request URL, and the Interactivity Request URL.
 
+Discord
+"""""""
+1. Go to https://discord.com/developers/applications
+2. Click "New Application" to create your PolicyKit application
+3. Under OAuth2, add the redirect URL ``[METAGOV_URL]/auth/discord/callback``
+4. Add a new Bot and enable these options:
+
+    - Public Bot
+    - Requires OAuth2 Code Grant
+    - Presence Intent
+    - Server Members Intent
+
+5. On the Metagov server, create the Discord ``.env`` file and fill in the Client ID, Client Secret, and Bot Token.
+
+    .. code-block:: shell
+
+        cd metagov/plugins/discord/
+        cp .env.example .env
+
+6. Reload apache2:
+
+    .. code-block:: shell
+
+        systemctl reload apache2
+
 Twitter
 """""""
 
