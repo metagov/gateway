@@ -151,7 +151,7 @@ class Discord(Plugin):
         slug="kick-user",
         input_schema={
             "type": "object",
-            "properties": {"user", {"type": "number"}},
+            "properties": {"user": {"type": "number"}},
             "required": ["user"],
         },
         description="Kick a user from the guild.",
@@ -164,7 +164,7 @@ class Discord(Plugin):
         slug="ban-user",
         input_schema={
             "type": "object",
-            "properties": {"user", {"type": "number"}},
+            "properties": {"user": {"type": "number"}},
             "required": ["user"],
         },
         description="Ban a user from the guild.",
@@ -177,7 +177,7 @@ class Discord(Plugin):
         slug="unban-user",
         input_schema={
             "type": "object",
-            "properties": {"user", {"type": "number"}},
+            "properties": {"user": {"type": "number"}},
             "required": ["user"],
         },
         description="Unban a user from the guild.",
