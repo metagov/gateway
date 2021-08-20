@@ -5,7 +5,7 @@ import logging
 import requests
 
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
-import metagov.core.plugin_decorators as Registry
+from metagov.core.plugin_manager import Registry
 from rest_framework.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
