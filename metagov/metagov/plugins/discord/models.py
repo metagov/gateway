@@ -24,7 +24,7 @@ class Discord(Plugin):
         "type": "object",
         "properties": {
             # these are set automatically if using the oauth flow
-            "guild_id": {"description": "Discord Guild ID", "type": "int"},
+            "guild_id": {"description": "Discord Guild ID", "type": "number"},
             "guild_name": {"description": "Discord Guild Name", "type": "string"},
         },
     }
@@ -77,7 +77,7 @@ class Discord(Plugin):
         slug="post-message",
         input_schema={
             "type": "object",
-            "properties": {"text": {"type": "string"}, "channel": {"type": "int"}, "user": {"type": "int"}},
+            "properties": {"text": {"type": "string"}, "channel": {"type": "number"}, "user": {"type": "number"}},
             "required": ["text"],
         },
         description="Post message either in a channel or direct message.",
@@ -98,7 +98,7 @@ class Discord(Plugin):
         slug="post-reply",
         input_schema={
             "type": "object",
-            "properties": {"text": {"type": "string"}, "channel": {"type": "int"}, "message": {"type": "int"}},
+            "properties": {"text": {"type": "string"}, "channel": {"type": "number"}, "message": {"type": "number"}},
             "required": ["text", "channel", "message"],
         },
         description="Post reply to a message.",
@@ -151,7 +151,7 @@ class Discord(Plugin):
         slug="kick-user",
         input_schema={
             "type": "object",
-            "properties": {"user", {"type": "int"}},
+            "properties": {"user", {"type": "number"}},
             "required": ["user"],
         },
         description="Kick a user from the guild.",
@@ -164,7 +164,7 @@ class Discord(Plugin):
         slug="ban-user",
         input_schema={
             "type": "object",
-            "properties": {"user", {"type": "int"}},
+            "properties": {"user", {"type": "number"}},
             "required": ["user"],
         },
         description="Ban a user from the guild.",
@@ -177,7 +177,7 @@ class Discord(Plugin):
         slug="unban-user",
         input_schema={
             "type": "object",
-            "properties": {"user", {"type": "int"}},
+            "properties": {"user", {"type": "number"}},
             "required": ["user"],
         },
         description="Unban a user from the guild.",
