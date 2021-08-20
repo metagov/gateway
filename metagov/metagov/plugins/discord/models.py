@@ -1,3 +1,4 @@
+import asyncio
 import discord
 import environ
 import json
@@ -7,6 +8,7 @@ import requests
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
 from metagov.core.plugin_manager import Registry
 from rest_framework.exceptions import ValidationError
+from threading import Thread
 
 logger = logging.getLogger(__name__)
 
@@ -186,4 +188,6 @@ class Discord(Plugin):
         user = self.get_user(parameters.get("user"))
         user.unban()
 
-client.run(env("DISCORD_BOT_TOKEN"))
+loop = asyncio.get_event_loop()
+loop.create_task(client.start(env("DISCORD_BOT_TOKEN")))
+Thread(target=loop.run_forever).start()
