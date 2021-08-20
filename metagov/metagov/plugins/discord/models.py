@@ -89,10 +89,10 @@ class Discord(Plugin):
             channel = client.get_channel(parameters.get("channel"))
             if channel.type != discord.ChannelType.text:
                 raise ValidationError("channel passed in must be a TextChannel")
-            await channel.send(parameters.get("text"))
+            channel.send(parameters.get("text"))
         else: # Post message to direct message
             user = client.get_user(parameters.get("user"))
-            await user.send(parameters.get("text"))
+            user.send(parameters.get("text"))
 
     @Registry.action(
         slug="post-reply",
@@ -108,7 +108,7 @@ class Discord(Plugin):
         if channel.type != discord.ChannelType.text:
             raise ValidationError("channel passed in must be a TextChannel")
         message = channel.get_partial_message(parameters.get("text"))
-        await message.reply(content=parameters.get("reply"))
+        message.reply(content=parameters.get("reply"))
 
     @Registry.action(
         slug="create-channel",
@@ -122,11 +122,11 @@ class Discord(Plugin):
     def create_channel(self, parameters):
         guild = client.get_guild(self.config["guild_id"])
         if type == "text":
-            await guild.create_text_channel(parameters.get("name"), reason=parameters.get("reason"))
+            guild.create_text_channel(parameters.get("name"), reason=parameters.get("reason"))
         elif type == "voice":
-            await guild.create_voice_channel(parameters.get("name"), reason=parameters.get("reason"))
+            guild.create_voice_channel(parameters.get("name"), reason=parameters.get("reason"))
         elif type == "stage":
-            await guild.create_stage_channel(parameters.get("name"), reason=parameters.get("reason"))
+            guild.create_stage_channel(parameters.get("name"), reason=parameters.get("reason"))
         else:
             raise ValidationError("type passed in must be 'text', 'voice' or 'stage'")
 
@@ -158,7 +158,7 @@ class Discord(Plugin):
     )
     def kick_user(self, parameters):
         user = self.get_user(parameters.get("user"))
-        await user.kick()
+        user.kick()
 
     @Registry.action(
         slug="ban-user",
@@ -171,7 +171,7 @@ class Discord(Plugin):
     )
     def ban_user(self, parameters):
         user = self.get_user(parameters.get("user"))
-        await user.ban()
+        user.ban()
 
     @Registry.action(
         slug="unban-user",
@@ -184,6 +184,6 @@ class Discord(Plugin):
     )
     def unban_user(self, parameters):
         user = self.get_user(parameters.get("user"))
-        await user.unban()
+        user.unban()
 
 client.run(env("DISCORD_BOT_TOKEN"))
