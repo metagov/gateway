@@ -141,7 +141,7 @@ class Discord(Plugin):
     )
     def delete_channel(self, parameters):
         channel = client.get_channel(parameters.get("channel"))
-        await channel.delete(reason=parameters.get("reason"))
+        channel.delete(reason=parameters.get("reason"))
 
     def get_user(self, user_id):
         guild = client.get_guild(self.config["guild_id"])
