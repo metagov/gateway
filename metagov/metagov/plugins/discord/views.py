@@ -47,7 +47,7 @@ def get_authorize_url(state: str, type: str, community=None):
         if community:
             try:
                 plugin = Discord.objects.get(community=community)
-                team = plugin.config.get("team_id")
+                team = plugin.config.get("guild_id")
                 logger.debug(
                     f"Discord is already enabled for {community}, so only allowing re-installation to the same team ({team})"
                 )
