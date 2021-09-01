@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 env = environ.Env()
 environ.Env.read_env()
 
-client = discord.Client()
-
 
 @Registry.plugin
 class Discord(Plugin):
@@ -34,6 +32,9 @@ class Discord(Plugin):
     class Meta:
         proxy = True
 
-loop = asyncio.get_event_loop()
-loop.create_task(client.start(env("DISCORD_BOT_TOKEN")))
-Thread(target=loop.run_forever).start()
+    def initialize(self):
+        client = discord.Client()
+
+        loop = asyncio.get_event_loop()
+        loop.create_task(client.start(env("DISCORD_BOT_TOKEN")))
+        Thread(target=loop.run_forever).start()
