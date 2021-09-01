@@ -90,7 +90,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
 
     logger.info(f"---- {response} ----")
 
-    team_id = response["guild"]["id"]
+    guild_id = response["guild"]["id"]
 
     # Get user info
     req = urllib.request.Request('https://www.discordapp.com/api/users/@me')
@@ -107,7 +107,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         # TODO: pull some of this logic into core. Each plugin has its own version of "team_id" that may need to be unique.
         existing_plugin_to_reinstall = None
         for inst in Discord.objects.all():
-            if inst.config["team_id"] == team_id:
+            if inst.config["guild_id"] == guild_id:
                 if inst.community == community:
                     # team matches, community matches
 
@@ -117,22 +117,22 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
                 else:
                     # team matches, community doesnt
 
-                    # There is already a Discord Plugin for this team enabled for a DIFFERENT community, so we error.
+                    # There is already a Discord Plugin for this guild enabled for a DIFFERENT community, so we error.
                     # Discord admin would need to go into the Discord guild and uninstall the app, if they want to create a Discord Plugin for
                     # the same guild under a different community.
-                    logger.error(f"Discord Plugin for team {team_id} already exists for another community: {inst}")
+                    logger.error(f"Discord Plugin for guild {guild_id} already exists for another community: {inst}")
                     raise WrongCommunityError
             elif inst.community == community:
                 # community matches, team doesnt
                 logger.info(
-                    f"Trying to install Discord to community {community} for team_id {team_id}, but community already has a Discord Plugin enabled for team {inst.config['team_id']}"
+                    f"Trying to install Discord to community {community} for guild_id {guild_id}, but community already has a Discord Plugin enabled for guild {inst.config['guild_id']}"
                 )
                 raise AlreadyInstalledError
 
         # Configuration for the new Discord Plugin to create
         plugin_config = {
-            "team_id": team_id,
-            "team_name": response["guild"]["name"]
+            "guild_id": guild_id,
+            "guild_name": response["guild"]["name"]
         }
 
         if REQUIRE_INSTALLER_TO_BE_ADMIN:
@@ -171,8 +171,8 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
             "user_id": current_user["id"],
             # Discord User Token for logged-in user
             "user_token": response["access_token"],
-            # Team that the user logged into
-            "team_id": team_id,
+            # Guild that the user logged into
+            "guild_id": guild_id,
             # (Optional) State that was originally passed from Driver, so it can validate it
             "state": state,
         }
