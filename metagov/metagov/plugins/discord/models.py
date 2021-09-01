@@ -28,13 +28,18 @@ class Discord(Plugin):
             "guild_name": {"description": "Discord Guild Name", "type": "string"},
         },
     }
+    client = None
 
     class Meta:
         proxy = True
 
     def initialize(self):
-        client = discord.Client()
+        self.client = discord.Client()
 
         loop = asyncio.get_event_loop()
-        loop.create_task(client.start(env("DISCORD_BOT_TOKEN")))
+        loop.create_task(self.client.start(env("DISCORD_BOT_TOKEN")))
         Thread(target=loop.run_forever).start()
+
+    @client.event
+    async def on_ready():
+        logger.debug(f"Bot is logged in as {self.client.user}")
