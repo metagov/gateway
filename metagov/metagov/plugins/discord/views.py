@@ -157,6 +157,8 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
             "user_token": response["access_token"] if REQUIRE_INSTALLER_TO_BE_ADMIN else None,
             # (Optional) State that was originally passed from Driver, so it can validate it
             "state": state,
+            # Guild that the user installed PolicyKit to
+            "guild_id": guild_id,
         }
         url = add_query_parameters(redirect_uri, params)
         return HttpResponseRedirect(url)
