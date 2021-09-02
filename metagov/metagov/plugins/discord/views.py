@@ -3,6 +3,7 @@ import json
 import logging
 import requests
 
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from metagov.core.errors import PluginErrorInternal, PluginAuthError
@@ -54,9 +55,9 @@ def get_authorize_url(state: str, type: str, community=None):
             except Discord.DoesNotExist:
                 pass
 
-        return f"https://discordapp.com/api/oauth2/authorize?client_id={client_id}&state={state}&team={team or ''}&permissions=8589934591&scope=bot%20identify%20guilds"
+        return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&redirect_uri={settings.SERVER_URL}%2Fauth%2Fdiscord%2Fcallback&team={team or ''}&permissions=8589934591&scope=bot%20identify%20guilds"
     if type == AuthorizationType.USER_LOGIN:
-        return f"https://discordapp.com/api/oauth2/authorize?client_id={client_id}&state={state}&scope=identify%20guilds"
+        return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&redirect_uri={settings.SERVER_URL}%2Fauth%2Fdiscord%2Fcallback&scope=identify%20guilds"
 
 
 def auth_callback(type: str, code: str, redirect_uri: str, community, state=None):
