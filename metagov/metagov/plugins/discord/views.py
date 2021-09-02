@@ -60,7 +60,7 @@ def get_authorize_url(state: str, type: str, community=None):
         return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&redirect_uri={settings.SERVER_URL}%2Fauth%2Fdiscord%2Fcallback&scope=identify%20guilds"
 
 
-def auth_callback(type: str, code: str, redirect_uri: str, community, state=None):
+def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, *args, **kwargs):
     """
     OAuth2 callback endpoint handler for authorization code grant type.
     This function does two things:
