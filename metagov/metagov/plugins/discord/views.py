@@ -11,6 +11,7 @@ from metagov.core.errors import PluginErrorInternal, PluginAuthError
 from metagov.core.plugin_manager import AuthorizationType
 from metagov.plugins.discord.models import Discord
 from requests.models import PreparedRequest
+from urllib import parse
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +76,13 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
     community : the Community to enable Discord for
     state : optional state to pass along to the redirect_uri
     """
-    data = {
+    data = parse.urlencode({
         "client_id": env("DISCORD_CLIENT_ID"),
         "client_secret": env("DISCORD_CLIENT_SECRET"),
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": settings.SERVER_URL + "/auth/discord/callback"
-    }
+    }).encode()
     req = urllib.request.Request('https://discordapp.com/api/oauth2/token', data=data)
     req.add_header("Content-Type", "application/x-www-form-urlencoded")
     req.add_header("User-Agent", "Mozilla/5.0")
@@ -91,9 +92,6 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         raise PluginAuthError
 
     response = json.loads(resp.read().decode('utf-8'))
-    if not response["ok"]:
-        raise PluginAuthError(code=response["error"])
-
     logger.info(f"---- {response} ----")
 
     guild_id = response["guild"]["id"]
