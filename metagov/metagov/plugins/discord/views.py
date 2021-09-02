@@ -2,6 +2,7 @@ import environ
 import json
 import logging
 import requests
+import urllib.request
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -81,12 +82,15 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         "code": code,
         "redirect_uri": settings.SERVER_URL + "/auth/discord/callback"
     }
-    resp = requests.post("https://discordapp.com/api/oauth2/token", data=data)
-    if not resp.ok:
-        logger.error(f"Discord auth failed: {resp.status_code} {resp.reason}")
+    req = urllib.request.Request('https://discordapp.com/api/oauth2/token', data=data)
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    req.add_header("User-Agent", "Mozilla/5.0")
+    resp = urllib.request.urlopen(req)
+    if resp.status != 200:
+        logger.error(f"Discord auth failed: {resp.status}")
         raise PluginAuthError
 
-    response = resp.json()
+    response = json.loads(resp.read().decode('utf-8'))
     if not response["ok"]:
         raise PluginAuthError(code=response["error"])
 
