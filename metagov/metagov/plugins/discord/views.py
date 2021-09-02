@@ -78,7 +78,8 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         "client_id": env("DISCORD_CLIENT_ID"),
         "client_secret": env("DISCORD_CLIENT_SECRET"),
         "grant_type": "authorization_code",
-        "code": code
+        "code": code,
+        "redirect_uri": settings.SERVER_URL + "/auth/discord/callback"
     }
     resp = requests.post("https://discordapp.com/api/oauth2/token", data=data)
     if not resp.ok:
