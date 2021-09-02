@@ -34,7 +34,8 @@ class Discord(Plugin):
         proxy = True
 
     def initialize(self):
-        loop = asyncio.get_or_create_event_loop()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         loop.create_task(client.start(env("DISCORD_BOT_TOKEN")))
         Thread(target=loop.run_forever).start()
 
