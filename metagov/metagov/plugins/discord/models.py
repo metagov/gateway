@@ -36,7 +36,7 @@ class Discord(Plugin):
     def initialize(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.create_task(client.start(env("DISCORD_BOT_TOKEN")))
+        loop.create_task(self.client.start(env("DISCORD_BOT_TOKEN")))
         Thread(target=loop.run_forever).start()
 
     @client.event
