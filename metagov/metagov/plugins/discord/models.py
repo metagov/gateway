@@ -40,10 +40,6 @@ class Discord(Plugin):
         Thread(target=loop.run_forever).start()
 
     @client.event
-    async def on_ready():
-        logger.debug(f"Bot is logged in as {client.user}")
-
-    @client.event
     async def on_message(self, message):
         event_type = "MESSAGE_CREATE"
 
@@ -66,7 +62,8 @@ class Discord(Plugin):
         description="Returns a user with the given ID or None if not found.",
     )
     def get_user(self, parameters):
-        return client.get_user(parameters.get("user_id"))
+        user_id = parameters.pop("user_id")
+        return self.client.get_user(user_id)
 
     @Registry.action(
         slug="get-guild",
@@ -78,7 +75,8 @@ class Discord(Plugin):
         description="Returns a guild with the given ID or None if not found.",
     )
     def get_guild(self, parameters):
-        return client.get_guild(parameters.get("guild_id"))
+        guild_id = parameters.pop("guild_id")
+        return self.client.get_guild(guild_id)
 
     @Registry.action(
         slug="post-message",
@@ -93,12 +91,12 @@ class Discord(Plugin):
         if not parameters.get("channel") and not parameters.get("user"):
             raise ValidationError("channel or user is required")
         if parameters.get("channel"): # Post message to channel
-            channel = client.get_channel(parameters.get("channel"))
+            channel = self.client.get_channel(parameters.get("channel"))
             if channel.type != discord.ChannelType.text:
                 raise ValidationError("channel passed in must be a TextChannel")
             channel.send(parameters.get("text"))
         else: # Post message to direct message
-            user = client.get_user(parameters.get("user"))
+            user = self.client.get_user(parameters.get("user"))
             user.send(parameters.get("text"))
 
     @Registry.action(
@@ -111,7 +109,7 @@ class Discord(Plugin):
         description="Post reply to a message.",
     )
     def post_reply(self, parameters):
-        channel = client.get_channel(parameters.get("channel"))
+        channel = self.client.get_channel(parameters.get("channel"))
         if channel.type != discord.ChannelType.text:
             raise ValidationError("channel passed in must be a TextChannel")
         message = channel.get_partial_message(parameters.get("text"))
@@ -127,7 +125,7 @@ class Discord(Plugin):
         description="Create a text, voice or stage channel.",
     )
     def create_channel(self, parameters):
-        guild = client.get_guild(self.config["guild_id"])
+        guild = self.client.get_guild(self.config["guild_id"])
         if type == "text":
             guild.create_text_channel(parameters.get("name"), reason=parameters.get("reason"))
         elif type == "voice":
@@ -147,11 +145,11 @@ class Discord(Plugin):
         description="Delete a channnel.",
     )
     def delete_channel(self, parameters):
-        channel = client.get_channel(parameters.get("channel"))
+        channel = self.client.get_channel(parameters.get("channel"))
         channel.delete(reason=parameters.get("reason"))
 
     def get_user(self, user_id):
-        guild = client.get_guild(self.config["guild_id"])
+        guild = self.client.get_guild(self.config["guild_id"])
         return guild.get_member(user_id)
 
     @Registry.action(
