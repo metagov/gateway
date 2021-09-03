@@ -4,6 +4,7 @@ import logging
 import requests
 import urllib.request
 
+from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
@@ -60,6 +61,10 @@ def get_authorize_url(state: str, type: str, community=None):
         return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&redirect_uri={settings.SERVER_URL}%2Fauth%2Fdiscord%2Fcallback&team={team or ''}&permissions=8589934591&scope=bot%20identify%20guilds"
     if type == AuthorizationType.USER_LOGIN:
         return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&redirect_uri={settings.SERVER_URL}%2Fauth%2Fdiscord%2Fcallback&scope=identify%20guilds"
+
+
+def _create_discord(community, plugin_config):
+    return Discord.objects.create(name="discord", community=community, config=plugin_config)
 
 
 def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, *args, **kwargs):
@@ -148,7 +153,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         if existing_plugin_to_reinstall:
             logger.info(f"Deleting existing Discord plugin found for requested community {existing_plugin_to_reinstall}")
             existing_plugin_to_reinstall.delete()
-        plugin = Discord.objects.create(name="discord", community=community, config=plugin_config)
+        plugin = sync_to_async(_create_discord, thread_sensitive=True)
         logger.info(f"Created Discord plugin {plugin}")
 
         # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
