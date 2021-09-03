@@ -53,7 +53,7 @@ class Discord(Plugin):
         self.send_event_to_driver(event_type=event_type, initiator=initiator, data=message)
 
     @Registry.action(
-        slug="get-user",
+        slug="getuser",
         input_schema={
             "type": "object",
             "properties": {"user_id": {"type": "string"}},
@@ -61,12 +61,12 @@ class Discord(Plugin):
         },
         description="Returns a user with the given ID or None if not found.",
     )
-    def get_user(self, parameters):
+    def getuser(self, parameters):
         user_id = parameters.pop("user_id")
         return self.client.get_user(user_id)
 
     @Registry.action(
-        slug="get-guild",
+        slug="getguild",
         input_schema={
             "type": "object",
             "properties": {"guild_id": {"type": "string"}},
@@ -74,7 +74,7 @@ class Discord(Plugin):
         },
         description="Returns a guild with the given ID or None if not found.",
     )
-    def get_guild(self, parameters):
+    def getguild(self, parameters):
         guild_id = parameters.pop("guild_id")
         return self.client.get_guild(guild_id)
 
