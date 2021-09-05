@@ -56,7 +56,7 @@ class Discord(Plugin):
         slug="getuser",
         input_schema={
             "type": "object",
-            "properties": {"user_id": {"type": "number"}},
+            "properties": {"user_id": {"type": "string"}},
             "required": ["user_id"],
         },
         description="Returns a user with the given ID or None if not found.",
@@ -69,14 +69,14 @@ class Discord(Plugin):
         slug="getguild",
         input_schema={
             "type": "object",
-            "properties": {"guild_id": {"type": "number"}},
+            "properties": {"guild_id": {"type": "string"}},
             "required": ["guild_id"],
         },
         description="Returns a guild with the given ID or None if not found.",
     )
     def getguild(self, parameters):
         guild_id = parameters.pop("guild_id")
-        guild = self.client.get_guild(guild_id)
+        guild = self.client.get_guild(int(guild_id))
         if guild is None:
             logger.warn(f"Failed to find a guild with the given ID {guild_id}")
         return guild
