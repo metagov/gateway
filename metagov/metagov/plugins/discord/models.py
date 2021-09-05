@@ -6,7 +6,7 @@ import logging
 import requests
 
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
-from metagov.core.plugin_manager import Registry
+from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 from rest_framework.exceptions import ValidationError
 from threading import Thread
 
@@ -76,7 +76,10 @@ class Discord(Plugin):
     )
     def getguild(self, parameters):
         guild_id = parameters.pop("guild_id")
-        return self.client.get_guild(guild_id)
+        guild = self.client.get_guild(int(guild_id))
+        if guild is None:
+            logger.warn(f"Failed to find a guild with the given ID {guild_id}")
+        return guild
 
     @Registry.action(
         slug="post-message",
