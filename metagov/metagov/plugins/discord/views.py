@@ -67,7 +67,7 @@ def _create_discord(community, plugin_config):
     return Discord.objects.create(name="discord", community=community, config=plugin_config)
 
 
-def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, *args, **kwargs):
+async def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, *args, **kwargs):
     """
     OAuth2 callback endpoint handler for authorization code grant type.
     This function does two things:
@@ -154,7 +154,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
             logger.info(f"Deleting existing Discord plugin found for requested community {existing_plugin_to_reinstall}")
             existing_plugin_to_reinstall.delete()
         create_discord = sync_to_async(_create_discord, thread_sensitive=True)
-        plugin = create_discord(community, plugin_config)
+        plugin = await create_discord(community, plugin_config)
         logger.info(f"Created Discord plugin {plugin}")
 
         # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
