@@ -1,3 +1,4 @@
+import asyncio
 import environ
 import json
 import logging
@@ -153,8 +154,10 @@ async def auth_callback(type: str, code: str, redirect_uri: str, community, stat
         if existing_plugin_to_reinstall:
             logger.info(f"Deleting existing Discord plugin found for requested community {existing_plugin_to_reinstall}")
             existing_plugin_to_reinstall.delete()
-        create_discord = sync_to_async(_create_discord, thread_sensitive=True)
-        plugin = await create_discord(community, plugin_config)
+
+        loop = asyncio.get_event_loop()
+        create_discord = sync_to_async(_create_discord)
+        loop.create_task(create_discord(community, plugin_config))
         logger.info(f"Created Discord plugin {plugin}")
 
         # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
