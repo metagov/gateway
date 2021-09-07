@@ -11,7 +11,7 @@ Metagov is a unified API gateway for digital governance services. It's designed 
 
 Metagov is a prototype under active development, so please help us out by sending us feedback at hello@metagov.org or by opening an issue on our GitHub.
 
-[!][Metagov demo](https://img.youtube.com/vi/ekGVje3qb98/0.jpg)](https://www.youtube.com/watch?v=ekGVje3qb98)
+[![Metagov demo](https://img.youtube.com/vi/ekGVje3qb98/0.jpg)](https://www.youtube.com/watch?v=ekGVje3qb98)
 
 
 .. toctree::
