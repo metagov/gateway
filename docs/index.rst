@@ -11,10 +11,10 @@ Metagov is a unified API gateway for digital governance services. It's designed 
 
 Metagov is a prototype under active development, so please help us out by sending us feedback at hello@metagov.org or by opening an issue on our GitHub.
 
-!(https://img.youtube.com/vi/ekGVje3qb98/0.jpg)
-
-[??](https://www.youtube.com/watch?v=ekGVje3qb98)
-
+.. image:: https://img.youtube.com/vi/ekGVje3qb98/0.jpg
+  :width: 400
+  :alt: Metagov demo
+  :target: https://www.youtube.com/watch?v=ekGVje3qb98
 
 .. toctree::
    :maxdepth: 2
