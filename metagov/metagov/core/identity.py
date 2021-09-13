@@ -15,28 +15,32 @@ class MetagovID(models.Model):
 
     community: foreign key - metagov community the user is part of
     internal_id: integer - unique, secret ID
-    public_ids: list of integers - public IDs shared with Driver, callers, etc. must have at least one item
-    primary_id: integer - used to resolve conflicts if there are multiple public_ids associated with a user
-
-    FIXME: I don't like that linked_accounts links to this model as metagov_id but it's actually
-    linking to one of the public_ids (which, admittedly should resolve to a single metagov_id)"""
+    external_id: integer - unique, public ID
+    linked_ids: many2many - metagovIDs that a given ID has been merged with
+    primary: boolean - used to resolve conflicts between linked MetagovIDs."""
 
     community = models.ForeignKey(Community)
     internal_id = models.PositiveIntegerField(unique=True)
-    public_ids = models.JSONField(default=list)
-    primary_id = models.PositiveIntegerField(unique=True)
+    external_id = models.PositiveIntegerField(unique=True)
+    linked_ids = models.ManyToManyField('self')
+    primary = models.BooleanField(default=True)
 
-    # Internal logic
+    def save(self, *args, **kwargs):
+        """Performs extra validation such that if there are linked IDs, only one should have primary set as True."""
+        if self.linked_ids:
+            true_count = sum(self.primary + [linked_id.primary for linked_id in self.linked_ids])
+            if true_count == 0:
+                raise IntegrityError("At least one linked ID must have 'primary' attribute set to True.")
+            if true_count > 1:
+                raise IntegrityError("More than one linked ID has 'primary' attribute set to True.")
+        super(MetagovID, self).save(*args, **kwargs)
 
-    def add_id(self, new_id):
-        if not self.public_ids:
-            self.primary_id = new_id
-        self.public_ids.append(new_id)
-
-    def change_primary_id(self, new_primary_id):
-        if new_primary_id not in self.public_ids:
-            raise ValueError(f"New primary_id {new_primary_id} not in public IDs")
-        self.primary_id = new_primary_id
+    def is_primary(self):
+        """Helper method to determine if a MetagovID is primary. Accounts for the fact that a MetagovID
+        with no linked IDs is primary, even if its primary attribute is set to False."""
+        if self.primary or not self.linked_ids:
+            return True
+        return False
 
 
 class LinkType(Enum):
@@ -53,12 +57,12 @@ class LinkQuality(Enum):
     UNKNOWN = "unknown"
 
 
-class LinkedAccounts(models.Model):
+class LinkedAccount(models.Model):
     """Contains information about specific platform account linked to user
 
     Fields:
 
-    metagov_id: integer - must match ID in public_ids col of a row in metagov_IDs table
+    metagov_id: foreign key to MetagovID
     community: foreign key - metagov community the user is part of
     community_platform_id: string (optional) - distinguishes between ie two Slacks in the same community
     platform_type: string - ie Github, Slack
@@ -68,7 +72,7 @@ class LinkedAccounts(models.Model):
     link_quality: string (choice) - metagov's assessment of the quality of the link (depends on method)
    """
 
-    metagov_id = models.PositiveBigIntegerField()
+    metagov_id = models.ForeignKey(MetagovID, related_name="linked_accounts")
     community = models.ForeignKey(Community)
     community_platform_id = models.CharField(max_length=100, blank=True, null=True)
     platform_type = models.CharField(max_length=50)
@@ -88,7 +92,7 @@ class LinkedAccounts(models.Model):
         ]
 
     def serialize(self):
-        return {"metagov_id": self.metagov_id, "community": self.community.slug,
+        return {"external_id": self.metagov_id.external_id, "community": self.community.slug,
             "community_platform_id": self.community_platform_id, "platform_type": self.platform_type,
             "platform_identifier": self.platform_identifier, "custom_data": self.custom_data,
             "link_type": self.link_type, "link_quality": self.link_quality}
@@ -98,18 +102,20 @@ class IdentityAPI(object):
 
     # Account Management
 
-    def create(self, count=1):
-        """Creates new MetagovID instances and returns their associated primary_IDs in a list.
+    def create(self, community, count=1):
+        """Creates new MetagovID instances and returns their associated external_IDs in a list.
         Creates one instance by default but can create any number at once through count parameter."""
 
         ids_created = []
 
         while len(ids_created) < count:
-            internal_id = random.random(0, 2147483647)
-            public_id = random.random(0, 2147483647)
             try:
-                MetagovID.objects.create(internal_id=internal_id, public_ids=[public_id], primary_id=public_id)
-                ids_created.append(public_id)
+                obj = MetagovID.objects.create(
+                    community=community,
+                    internal_id=random.random(0, 2147483647),
+                    external_id=random.random(0, 2147483647)
+                )
+                ids_created.append(obj.external_id)
             except IntegrityError as error:
                 # if uniqueness error, ignore and try again, otherwise re-raise the error
                 if 'UNIQUE constraint' not in str(e.args):
@@ -118,27 +124,23 @@ class IdentityAPI(object):
         return ids_created
 
     def merge(self, primary_instance_id, secondary_instance_id):
-        """Merges two MetagovID objects given their associated primary_ids. Saves secondary_instance_id
-        to public_ids of primary_instance and deletes secondary_instance."""
+        """Merges two MetagovID objects given their associated primary_ids. Adds IDs to each other's
+        linked_IDs and turns the boolean of the secondary instance to False."""
         primary_instance = MetagovID.objects.get(primary_id=primary_instance_id)
         secondary_instance = MetagovID.objects.get(primary_id=secondary_instance_id)
-        primary_instance.add_id(secondary_instance_id)
+        primary_instance.linked_ids.add(secondary_instance)
+        secondary_instance.linked_ids.add(primary_instance)
         primary_instance.save()
-        secondary_instance.delete()
+        secondary_instance.primary = False
+        secondary_instance.save()
 
-    def validate_metagov_id(self, metagov_id):
-        """Helper method which confirms that a metagov_id is contained in the public_ids of a MetagovID
-        instance."""
-        return bool(MetagovID.objects.filter(public_ids__contains=[metagov_id]))
-
-    def link(self, metagov_id, community, platform_type, platform_identifier, community_platform_id=None,
+    def link(self, external_id, community, platform_type, platform_identifier, community_platform_id=None,
         custom_data=None, link_type=None, link_quality=None):
-        """Links a new platform account to an existing user, as specified by their metagov_id."""
+        """Links a new platform account to an existing user, as specified by their external metagov id."""
 
-        if not self.validate_metagov_id(metagov_id):
-            raise ValidationError(f"metagov_id {metagov_id} was not found in database.")
+        metagovID = MetagovID.objects.get(external_id=external_id)
 
-        account = LinkedAccounts(metagov_id=metagov_id, community=community,
+        account = LinkedAccount(metagov_id=metagovID, community=community,
             platform_type=platform_type, platform_identifier=platform_identifier)
         if community_platform_id:
             account.community_platform_id = community_platform_id
@@ -153,15 +155,19 @@ class IdentityAPI(object):
         return account
 
     def unlink(self, community, platform_type, platform_identifier, community_platform_id=None):
-        """Unlinks a platform account from a metagov user."""
+        """Unlinks a platform account from a metagov user. Uses community & platform information
+        which should be, together, unique to a metagovID."""
 
-        result = MetagovID.objects.filter(community=community, platform_type=platform_type,
+        result = LinkedAccount.objects.filter(community=community, platform_type=platform_type,
             platform_identifier=platform_identifier)
         if community_platform_id:
             result = result.filter(community_platform_id=community_platform_id)
         if not result:
-            return False  # FIXME: should we raise an error here instead?
-        result.delete()
+            raise IntegrityError(
+                f"No LinkedAccount found in community {community} with platform {platform_type} "
+                f"and identifier {platform_identifier} (community_platform_id: {community_platform_id})"
+            )
+        result[0].delete()
         return True
 
     # Data Retrieval
@@ -172,22 +178,25 @@ class IdentityAPI(object):
             "link_type": link_type, "link_quality": link_quality}
         return {key: val for key, val in filters.items() if val is not None}
 
-    def get_identity_data_object(self, metagov_id_instance):
+    def get_identity_data_object(self, metagovID):
         """Helper function, takes a MetagovID object instance and creates a json dictionary for its
         data plus all linked LinkedAccount objects."""
         linked_accounts = []
-        for public_id in metagov_id_instance.public_ids:
-            for account in LinkedAccounts.objects.filter(metagov_id=public_id, community=community):
+        primary_ID = None
+        for mID in metagovID + metagovID.linked_IDs:
+            for account in LinkedAccount.objects.filter(metagov_id=mID):
                 linked_accounts.append(account.serialize())
+                if mID.primary = True:
+                    primary = mID.external_id
         return {
-            "primary_id": metagov_id_instance.primary_id,
-            "public_ids": [metagov_id_instance.public_ids],
+            "source_ID": metagovID.external_id,
+            "primary_ID": primary_ID,
             "linked_accounts": linked_accounts
         }
 
-    def get_user(self, metagov_id):
-        """Get a user given metagov_id, returned as Identity Data Object."""
-        instance = MetagovID.objects.filter(public_ids__contains=[metagov_id])[0]
+    def get_user(self, external_id):
+        """Get a user given external_id, returned as Identity Data Object."""
+        instance = MetagovID.objects.filter(external_id=external_id)
         return self.get_identity_data_object(instance)
 
     def get_users(self, community, platform_type=None, community_platform_id=None,
@@ -195,31 +204,26 @@ class IdentityAPI(object):
         """Gets all users in a given community. Supply platform type and/or ID, link_type and/or
         link_quality for further filtering."""
 
-        users = []
-
         # get linked accounts, filter further if needed
-        results = LinkedAccounts.objects.filter(community=community)
+        results = LinkedAccount.objects.filter(community=community)
         filters = self.get_filters(platform_type, community_platform_id, link_type, link_quality)
         results = results.filter(filters) if filters else results
 
         # get metagov_ids associated with linked accounts and use them to generate identity data objects
+        users = set([])
         for result in results:
-            id_instances = MetagovID.objects.filter(public_ids__contains=[result.metagov_id])
-            users.append(id_instances[0])  # should always be exactly one match, so [0] should work
+            users.add(result.metagov_id)
         return [self.get_identity_data_object(user) for user in users]
 
-    def filter_users_by_account(self, metagov_id_list, platform_type=None, community_platform_id=None,
+    def filter_users_by_account(self, external_id_list, platform_type=None, community_platform_id=None,
         link_type=None, link_quality=None):
-        """Given a list of users specified via metagov_id, filters to only those containing at least
-        one linked account matching the given criteria.
-
-        FIXME: don't we want to highlight the matching linked account somehow?
-        """
+        """Given a list of users specified via external_id, filters to only those containing at least
+        one linked account matching the given criteria."""
 
         # get user id objects
         users = []
-        for metagov_id in metagov_id_list:
-            users.append(MetagovID.objects.filter(public_ids__contains=[result.metagov_id])[0])
+        for external_id in external_id_list:
+            users.append(MetagovID.objects.get(external_id=external_id)
 
         # filter
         filtered_users = []
@@ -229,9 +233,9 @@ class IdentityAPI(object):
                 filtered_users.append(self.get_identity_data_object(user))
         return filtered_users
 
-    def get_linked_account(self, metagov_id, platform_type, community_platform_id=None):
+    def get_linked_account(self, external_id, platform_type, community_platform_id=None):
         """Given a metagov_id and platform_type, get a linked account if it exists."""
-        id_instance = MetagovID.objects.filter(public_ids__contains=[metagov_id])[0]
+        id_instance = MetagovID.objects.get(external_id=external_id)
         for account in id_instance.linked_accounts:
             if account.platform_type == platform_type:
                 if not community_platform_id or account.community_platform_id == community_platform_id:
