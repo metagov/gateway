@@ -8,7 +8,6 @@ import uuid
 from django.conf import settings
 from django.db import models, IntegrityError
 from django.db.models.signals import pre_save
-from django.db.models.constraints import UniqueConstraint
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
@@ -367,13 +366,6 @@ class LinkedAccount(models.Model):
                     f"community_platform_id: {self.community_platform_id}"
                 )
         super(LinkedAccount, self).save(*args, **kwargs)
-
-    class Meta:
-        constraints = [
-            UniqueConstraint(
-                fields=['community', 'community_platform_id', 'platform_type', 'platform_identifier'],
-                name='unique_identifer_on_community_platform')
-        ]
 
     def serialize(self):
         return {"external_id": self.metagov_id.external_id, "community": self.community.slug,
