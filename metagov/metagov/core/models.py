@@ -286,9 +286,10 @@ class MetagovID(models.Model):
     primary = models.BooleanField(default=True)
 
     def save(self, *args, **kwargs):
-        """Performs extra validation such that if there are linked IDs, only one should have primary set as True."""
-        if self.linked_ids:
-            true_count = sum(self.primary + [linked_id.primary for linked_id in self.linked_ids])
+        """Performs extra validation on save such that if there are linked IDs, only one should have primary
+        set as True. Only runs on existing instance."""
+        if self.pk and self.linked_ids.all():
+            true_count = sum([self.primary] + [linked_id.primary for linked_id in self.linked_ids.all()])
             if true_count == 0:
                 raise IntegrityError("At least one linked ID must have 'primary' attribute set to True.")
             if true_count > 1:
@@ -298,9 +299,19 @@ class MetagovID(models.Model):
     def is_primary(self):
         """Helper method to determine if a MetagovID is primary. Accounts for the fact that a MetagovID
         with no linked IDs is primary, even if its primary attribute is set to False."""
-        if self.primary or not self.linked_ids:
+        if self.primary or len(self.linked_ids.all()) == 0:
             return True
         return False
+
+    def get_primary_id(self):
+        """Helper method to restore the primary MetagovID for this user, whether it's the called
+        instance of a linked_instance."""
+        if self.is_primary():
+            return self
+        for linked_id in self.linked_ids.all():
+            if linked_id.is_primary():
+                return linked_id
+        raise ValueError(f"No primary ID associated with {self.external_id}")
 
 
 class LinkType(Enum):
@@ -343,6 +354,19 @@ class LinkedAccount(models.Model):
         default=LinkType.UNKNOWN.value)
     link_quality = models.CharField(max_length=30, choices=[(q.value, q.name) for q in LinkQuality],
         default=LinkQuality.UNKNOWN.value)
+
+    def save(self, *args, **kwargs):
+        """Performs extra validation on save such that if there are linked IDs, only one should have primary
+        set as True. Only runs on existing instance."""
+        result = LinkedAccount.objects.filter(community=self.community, platform_type=self.platform_type,
+            platform_identifier=self.platform_identifier, community_platform_id=self.community_platform_id)
+        if result:
+                raise IntegrityError(
+                    f"LinkedAccount with the following already exists: community {self.community};"
+                    f"platform_type: {self.platform_type}; platform_identifier: {self.platform_identifier}"
+                    f"community_platform_id: {self.community_platform_id}"
+                )
+        super(LinkedAccount, self).save(*args, **kwargs)
 
     class Meta:
         constraints = [
