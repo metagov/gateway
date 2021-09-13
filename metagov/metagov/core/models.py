@@ -6,8 +6,9 @@ import jsonpickle
 import requests
 import uuid
 from django.conf import settings
-from django.db import models
+from django.db import models, IntegrityError
 from django.db.models.signals import pre_save
+from django.db.models.constraints import UniqueConstraint
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
@@ -264,3 +265,94 @@ def notify_callback_url(process: GovernanceProcess):
     resp = requests.post(process.callback_url, json=serializer.data)
     if not resp.ok:
         logger.error(f"Error posting outcome to callback url: {resp.status_code} {resp.text}")
+
+
+class MetagovID(models.Model):
+    """Metagov ID table links all public_ids to a single internal representation of a user. When data
+    associated with public_ids conflicts, primary_ID is used.
+
+    Fields:
+
+    community: foreign key - metagov community the user is part of
+    internal_id: integer - unique, secret ID
+    external_id: integer - unique, public ID
+    linked_ids: many2many - metagovIDs that a given ID has been merged with
+    primary: boolean - used to resolve conflicts between linked MetagovIDs."""
+
+    community = models.ForeignKey(Community, on_delete=models.CASCADE)
+    internal_id = models.PositiveIntegerField(unique=True)
+    external_id = models.PositiveIntegerField(unique=True)
+    linked_ids = models.ManyToManyField('self')
+    primary = models.BooleanField(default=True)
+
+    def save(self, *args, **kwargs):
+        """Performs extra validation such that if there are linked IDs, only one should have primary set as True."""
+        if self.linked_ids:
+            true_count = sum(self.primary + [linked_id.primary for linked_id in self.linked_ids])
+            if true_count == 0:
+                raise IntegrityError("At least one linked ID must have 'primary' attribute set to True.")
+            if true_count > 1:
+                raise IntegrityError("More than one linked ID has 'primary' attribute set to True.")
+        super(MetagovID, self).save(*args, **kwargs)
+
+    def is_primary(self):
+        """Helper method to determine if a MetagovID is primary. Accounts for the fact that a MetagovID
+        with no linked IDs is primary, even if its primary attribute is set to False."""
+        if self.primary or not self.linked_ids:
+            return True
+        return False
+
+
+class LinkType(Enum):
+    OAUTH = "oauth"
+    MANUAL_ADMIN = "manual admin"
+    EMAIL_MATCHING = "email matching"
+    UNKNOWN = "unknown"
+
+
+class LinkQuality(Enum):
+    STRONG_CONFIRM = "confirmed (strong)"
+    WEAK_CONFIRM = "confirmed (weak)"
+    UNCONFIRMED = "unconfirmed"
+    UNKNOWN = "unknown"
+
+
+class LinkedAccount(models.Model):
+    """Contains information about specific platform account linked to user
+
+    Fields:
+
+    metagov_id: foreign key to MetagovID
+    community: foreign key - metagov community the user is part of
+    community_platform_id: string (optional) - distinguishes between ie two Slacks in the same community
+    platform_type: string - ie Github, Slack
+    platform_identifier: string - ID, username, etc, unique to the platform (or unique to community_platform_id)
+    custom_data: dict- optional additional data for linked platform account
+    link_type: string (choice) - method through which account was linked
+    link_quality: string (choice) - metagov's assessment of the quality of the link (depends on method)
+   """
+
+    metagov_id = models.ForeignKey(MetagovID, on_delete=models.CASCADE, related_name="linked_accounts")
+    community = models.ForeignKey(Community, on_delete=models.CASCADE)
+    community_platform_id = models.CharField(max_length=100, blank=True, null=True)
+    platform_type = models.CharField(max_length=50)
+    platform_identifier = models.CharField(max_length=200)
+
+    custom_data = models.JSONField(default=dict)
+    link_type = models.CharField(max_length=30, choices=[(t.value, t.name) for t in LinkType],
+        default=LinkType.UNKNOWN.value)
+    link_quality = models.CharField(max_length=30, choices=[(q.value, q.name) for q in LinkQuality],
+        default=LinkQuality.UNKNOWN.value)
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=['community', 'community_platform_id', 'platform_type', 'platform_identifier'],
+                name='unique_identifer_on_community_platform')
+        ]
+
+    def serialize(self):
+        return {"external_id": self.metagov_id.external_id, "community": self.community.slug,
+            "community_platform_id": self.community_platform_id, "platform_type": self.platform_type,
+            "platform_identifier": self.platform_identifier, "custom_data": self.custom_data,
+            "link_type": self.link_type, "link_quality": self.link_quality}
