@@ -147,4 +147,4 @@ class DataRetrievalTestCase(TestCase):
         self.assertEquals(result["platform_type"], "OpenCollective")
         self.assertEquals(result["platform_identifier"], "tobin_heath")
         result = identity.get_linked_account(new_id.external_id, "Slack")
-        self.assertEquals(result, None)
+        self.assertEquals(result, {})

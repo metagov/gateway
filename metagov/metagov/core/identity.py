@@ -61,7 +61,9 @@ def link_account(external_id, community, platform_type, platform_identifier, com
 
 def unlink_account(community, platform_type, platform_identifier, community_platform_id=None):
     """Unlinks a platform account from a metagov user. Uses community & platform information
-    which should be, together, unique to a metagovID."""
+    which should be, together, unique to a metagovID.
+
+    FIXME: return something else here - the metagov identity data object without the linked account??"""
 
     result = LinkedAccount.objects.filter(community=community, platform_type=platform_type,
         platform_identifier=platform_identifier)
@@ -77,11 +79,14 @@ def unlink_account(community, platform_type, platform_identifier, community_plat
 
 # Data Retrieval
 
+def strip_null_values_from_dict(dictionary):
+    return {key: val for key, val in dictionary.items() if val is not None}
+
 def get_filters(platform_type, community_platform_id, link_type, link_quality):
     """Helper function to filter by keys only when value is not None."""
     filters = {"platform_type": platform_type, "community_platform_id": community_platform_id,
         "link_type": link_type, "link_quality": link_quality}
-    return {key: val for key, val in filters.items() if val is not None}
+    return strip_null_values_from_dict(filters)
 
 def get_identity_data_object(metagovID):
     """Helper function, takes a MetagovID object instance and creates a json dictionary for its
@@ -163,4 +168,4 @@ def get_linked_account(external_id, platform_type, community_platform_id=None):
         if account.platform_type == platform_type:
             if not community_platform_id or account.community_platform_id == community_platform_id:
                 return account.serialize()
-    return None
+    return {}
