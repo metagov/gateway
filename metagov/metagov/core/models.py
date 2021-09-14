@@ -113,6 +113,24 @@ class Plugin(models.Model):
                 f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}"
             )
 
+    def add_linked_account(self, external_id, platform_identifier, community_platform_id=None,
+            custom_data=None, link_type=None, link_quality=None):
+        # NOTE: the community platform id is currently stored as a customized variable in each plugin,
+        # if we asked plugins to use a consistent naming schema (maybe not as verbose as 'community_platform_id'
+        # we could just get it here instead of asking the plugin author to pass it in)
+        from metagov.core import identity
+
+        # check for existing account
+        result = identity.get_linked_account(external_id, self.name, community_platform_id)
+        if result and result["platform_identifier"] == platform_identifier:
+            return "Already created"
+
+        # create new account
+        optional_params = {"community_platform_id": community_platform_id, "custom_data": custom_data,
+            "link_type": link_type, "link_quality": link_quality}
+        optional_params = identity.strip_null_values_from_dict(optional_params)
+        return identity.link_account(external_id, self.community, self.name, platform_identifier, **optional_params)
+
 
 class ProcessStatus(Enum):
     CREATED = "created"

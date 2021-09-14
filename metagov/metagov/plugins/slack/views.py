@@ -11,7 +11,7 @@ from metagov.core.plugin_manager import AuthorizationType
 from metagov.plugins.slack.models import Slack, SlackEmojiVote
 from requests.models import PreparedRequest
 from django.core.exceptions import ImproperlyConfigured
-from metagov.core.models import ProcessStatus
+from metagov.core.models import ProcessStatus, LinkType, LinkQuality
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +188,14 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         user = response["authed_user"]
         if user["token_type"] != "user":
             raise PluginAuthError(detail="Unexpected token_type")
+
+        # Get or create linked account using this data
+        # FIXME: we don't actually have a plugin obj at this point. or external_id for that matter
+        result = plugin.add_linked_account(external_id, platform_identifier=user["id"],
+            community_platform_id=response["team"]["id"], link_type=LinkType.OAUTH,
+            link_quality=LinkQuality.STRONG_CONFIRM)
+        # NOTE: do we want to do anything with the result here?
+        # NOTE: not going to copy this into the other branch of the if-else, but we should have the same data there if not more
 
         # Add some params to redirect
         params = {
