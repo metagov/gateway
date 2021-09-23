@@ -66,7 +66,7 @@ def get_authorize_url(state: str, type: str, community=None):
         return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&user_scope=identity.basic,identity.avatar"
 
 
-def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, *args, **kwargs):
+def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, external_id=None, *args, **kwargs):
     """
     OAuth2 callback endpoint handler for authorization code grant type.
     This function does two things:
@@ -170,6 +170,10 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         plugin = Slack.objects.create(name="slack", community=community, config=plugin_config)
         logger.info(f"Created Slack plugin {plugin}")
 
+        # Get or create linked account using this data
+        result = plugin.add_linked_account(platform_identifier=installer_user_id, external_id,
+            community_platform_id=team_id, link_type=LinkType.OAUTH, link_quality=LinkQuality.STRONG_CONFIRM)
+
         # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
         params = {
             # Metagov community that has the Slack plugin enabled
@@ -190,12 +194,12 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
             raise PluginAuthError(detail="Unexpected token_type")
 
         # Get or create linked account using this data
-        # FIXME: we don't actually have a plugin obj at this point. or external_id for that matter
-        result = plugin.add_linked_account(external_id, platform_identifier=user["id"],
+        result = plugin.add_linked_account(platform_identifier=user["id"], external_id,
             community_platform_id=response["team"]["id"], link_type=LinkType.OAUTH,
             link_quality=LinkQuality.STRONG_CONFIRM)
-        # NOTE: do we want to do anything with the result here?
-        # NOTE: not going to copy this into the other branch of the if-else, but we should have the same data there if not more
+        # FIXME: we don't actually have a plugin obj at this point. ok, question: can a user ever
+        # login without a plugin enabled? if yes, need to rethink, otherwise can copy lookup info
+        # from other branch
 
         # Add some params to redirect
         params = {
