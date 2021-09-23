@@ -179,6 +179,8 @@ def plugin_authorize(request, plugin_name):
     community_slug = request.GET.get("community")
     # where to redirect after auth flow is done
     redirect_uri = request.GET.get("redirect_uri")
+    # metagov_id of logged in user, if exists
+    metagov_id = request.GET.get("metagov_id")
     # state to pass along to final redirect after auth flow is done
     received_state = request.GET.get("state")
     request.session["received_authorize_state"] = received_state
@@ -203,7 +205,7 @@ def plugin_authorize(request, plugin_name):
 
     # Create the state
     nonce = utils.generate_nonce()
-    state = {nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type}}
+    state = {nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type, "metagov_id": metagov_id}}
     state_str = json.dumps(state).encode("ascii")
     state_encoded = base64.b64encode(state_str).decode("ascii")
     # Store nonce in the session so we can validate the callback request
@@ -249,6 +251,7 @@ def plugin_auth_callback(request, plugin_name):
     type = state.get("type")
     community_slug = state.get("community")
     redirect_uri = state.get("redirect_uri")
+    metagov_id = state.get("metagov_id")
     state_to_pass = request.session.get("received_authorize_state")
 
     if not redirect_uri:
@@ -279,7 +282,8 @@ def plugin_auth_callback(request, plugin_name):
 
     try:
         response = plugin_views.auth_callback(
-            type=type, code=code, redirect_uri=redirect_uri, community=community, state=state_to_pass, request=request
+            type=type, code=code, redirect_uri=redirect_uri, community=community, state=state_to_pass,
+            request=request, metagov_id=metagov_id
         )
 
         return response if response else redirect_with_params(redirect_uri, **redirect_params)

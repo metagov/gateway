@@ -42,7 +42,7 @@ def get_authorize_url(state, type, community):
         return f"https://github.com/apps/{GITHUB_APP_NAME}/installations/new/?state={state}"
 
 
-def auth_callback(type, code, redirect_uri, community, state, request):
+def auth_callback(type, code, redirect_uri, community, state, request, *args, **kwargs):
 
     # check if plugin already created for this community and delete it if it exists
     existing_plugin = Github.objects.filter(community=community)
