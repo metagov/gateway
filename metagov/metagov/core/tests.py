@@ -72,6 +72,17 @@ class LinkedAccountManagementTestCase(TestCase):
             identity.unlink_account(self.community, "OpenCollective", "megan_rapinoe")
         self.assertTrue('No LinkedAccount found' in str(context.exception))
 
+    def test_update_link(self):
+
+        account = identity.link_account(self.external_id, self.community, "OpenCollective", "crystal_dunn")
+        self.assertEquals(account.link_quality, "unknown")
+        self.assertEquals(account.link_type, "unknown")
+
+        account = identity.update_linked_account(self.community, "OpenCollective", "crystal_dunn",
+            link_quality=LinkQuality.STRONG_CONFIRM, link_type=LinkType.OAUTH)
+        self.assertEquals(account.link_quality, LinkQuality.STRONG_CONFIRM)
+        self.assertEquals(account.link_type, LinkType.OAUTH)
+
 
 class DataRetrievalTestCase(TestCase):
     """Test functionality related to retrieving data via the internal API."""

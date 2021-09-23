@@ -60,6 +60,21 @@ class PluginManager(models.Manager):
             return qs.filter(name=self.model.name)
         return qs
 
+class LinkType(Enum):
+    OAUTH = "oauth"
+    MANUAL_ADMIN = "manual admin"
+    EMAIL_MATCHING = "email matching"
+    UNKNOWN = "unknown"
+
+class LinkQuality(Enum):
+    STRONG_CONFIRM = "confirmed (strong)"
+    WEAK_CONFIRM = "confirmed (weak)"
+    UNCONFIRMED = "unconfirmed"
+    UNKNOWN = "unknown"
+
+    def is_greater(self, a, b):
+        order = [self.STRONG_CONFIRM, self.WEAK_CONFIRM, self.UNCONFIRMED, self.UNKNOWN]
+        return order.index(a) > order.index(b)
 
 class Plugin(models.Model):
     """Represents an instance of an activated plugin."""
@@ -113,24 +128,33 @@ class Plugin(models.Model):
                 f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}"
             )
 
-    def add_linked_account(self, external_id, platform_identifier, community_platform_id=None,
+    def add_linked_account(self, platform_identifier, external_id=None, community_platform_id=None,
             custom_data=None, link_type=None, link_quality=None):
-        # NOTE: the community platform id is currently stored as a customized variable in each plugin,
-        # if we asked plugins to use a consistent naming schema (maybe not as verbose as 'community_platform_id'
-        # we could just get it here instead of asking the plugin author to pass it in)
+        """Given a platform identifier, creates or updates a linked account. Also creates a metagov
+        id for the user if no external_id is passed in.
+        # NOTE: once we've standardized community_platform_id or similar we can get value from self
+        """
         from metagov.core import identity
 
-        # check for existing account
-        result = identity.get_linked_account(external_id, self.name, community_platform_id)
-        if result and result["platform_identifier"] == platform_identifier:
-            return "Already created"
-
-        # create new account
         optional_params = {"community_platform_id": community_platform_id, "custom_data": custom_data,
             "link_type": link_type, "link_quality": link_quality}
         optional_params = identity.strip_null_values_from_dict(optional_params)
-        return identity.link_account(external_id, self.community, self.name, platform_identifier, **optional_params)
+        result = identity.get_linked_account(self.community, self.name, platform_identifier, community_platform_id)
 
+        if result:  # if linked account exists, update if new data is higher quality
+
+            if link_quality and LinkQuality.is_greater(link_quality, result["link_quality"]):
+                result = identity.update_linked_account(self.community, self.name,
+                    platform_identifier, community_platform_id, **optional_params)
+
+        else:  # otherwise create new account
+
+            if not external_id:
+                external_id = identity.create_id(self.community)[0]
+            result = identity.link_account(external_id, self.community, self.name,
+                platform_identifier, **optional_params)
+
+        return result
 
 class ProcessStatus(Enum):
     CREATED = "created"
@@ -331,20 +355,6 @@ class MetagovID(models.Model):
         raise ValueError(f"No primary ID associated with {self.external_id}")
 
 
-class LinkType(Enum):
-    OAUTH = "oauth"
-    MANUAL_ADMIN = "manual admin"
-    EMAIL_MATCHING = "email matching"
-    UNKNOWN = "unknown"
-
-
-class LinkQuality(Enum):
-    STRONG_CONFIRM = "confirmed (strong)"
-    WEAK_CONFIRM = "confirmed (weak)"
-    UNCONFIRMED = "unconfirmed"
-    UNKNOWN = "unknown"
-
-
 class LinkedAccount(models.Model):
     """Contains information about specific platform account linked to user
 
@@ -373,16 +383,16 @@ class LinkedAccount(models.Model):
         default=LinkQuality.UNKNOWN.value)
 
     def save(self, *args, **kwargs):
-        """Performs extra validation on save such that if there are linked IDs, only one should have primary
-        set as True. Only runs on existing instance."""
+        """Performs extra validation on save such that community, platform type, identifier, and community_platform_id
+        are unique together."""
         result = LinkedAccount.objects.filter(community=self.community, platform_type=self.platform_type,
             platform_identifier=self.platform_identifier, community_platform_id=self.community_platform_id)
-        if result:
-                raise IntegrityError(
-                    f"LinkedAccount with the following already exists: community {self.community};"
-                    f"platform_type: {self.platform_type}; platform_identifier: {self.platform_identifier}"
-                    f"community_platform_id: {self.community_platform_id}"
-                )
+        if (not self.pk and result) or (self.pk and result and result[0].pk != self.pk):
+            raise IntegrityError(
+                f"LinkedAccount with the following already exists: community {self.community};"
+                f"platform_type: {self.platform_type}; platform_identifier: {self.platform_identifier}"
+                f"community_platform_id: {self.community_platform_id}"
+            )
         super(LinkedAccount, self).save(*args, **kwargs)
 
     def serialize(self):

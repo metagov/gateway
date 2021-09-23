@@ -59,12 +59,8 @@ def link_account(external_id, community, platform_type, platform_identifier, com
 
     return account
 
-def unlink_account(community, platform_type, platform_identifier, community_platform_id=None):
-    """Unlinks a platform account from a metagov user. Uses community & platform information
-    which should be, together, unique to a metagovID.
-
-    FIXME: return something else here - the metagov identity data object without the linked account??"""
-
+def retrieve_account(community, platform_type, platform_identifier, blah, community_platform_id=None):
+    """Helper method to get a specific linked account."""
     result = LinkedAccount.objects.filter(community=community, platform_type=platform_type,
         platform_identifier=platform_identifier)
     if community_platform_id:
@@ -74,7 +70,32 @@ def unlink_account(community, platform_type, platform_identifier, community_plat
             f"No LinkedAccount found in community {community} with platform {platform_type} "
             f"and identifier {platform_identifier} (community_platform_id: {community_platform_id})"
         )
-    result[0].delete()
+    return result[0]
+
+def update_linked_account(community, platform_type, platform_identifier, community_platform_id=None,
+    custom_data=None, link_type=None, link_quality=None):
+    """Links a new platform account to an existing user, as specified by their external metagov id."""
+
+    account = retrieve_account(community, platform_type, platform_identifier, community_platform_id)
+
+    if custom_data:
+        account.custom_data = custom_data
+    if link_type:
+        account.link_type = link_type
+    if link_quality:
+        account.link_quality = link_quality
+    account.save()
+
+    return account
+
+def unlink_account(community, platform_type, platform_identifier, community_platform_id=None):
+    """Unlinks a platform account from a metagov user. Uses community & platform information
+    which should be, together, unique to a metagovID.
+
+    FIXME: return something else here - the metagov identity data object without the linked account??"""
+
+    result = retrieve_account(community, platform_type, platform_identifier, community_platform_id)
+    result.delete()
     return True
 
 # Data Retrieval
