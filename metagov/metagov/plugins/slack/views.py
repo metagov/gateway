@@ -125,7 +125,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
                 # if community doesn't match, there is a Slack Plugin for this team enabled for a
                 # DIFFERENT community, so we error. Slack admin would need to go into the slack workspace and uninstall the app, if they want to create a Slack Pluign for
                 # the same workspace under a different community.
-                logger.error(f"Slack Plugin for team {team_id} already exists for another community: {inst}")
+                logger.error(f"Slack Plugin for team {team_id} already exists for another community: {existing_plugin_to_reinstall}")
                 raise WrongCommunityError
 
         for inst in Slack.objects.all():
