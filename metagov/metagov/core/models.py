@@ -143,7 +143,7 @@ class Plugin(models.Model):
         try:
             # if linked account exists, update if new data is higher quality
             result = identity.retrieve_account(self.community, self.name, platform_identifier, community_platform_id)
-            if link_quality and LinkQuality.is_greater(link_quality, result.link_quality):
+            if link_quality and LinkQuality().is_greater(link_quality, result.link_quality):
                 result = identity.update_linked_account(self.community, self.name,
                     platform_identifier, community_platform_id, **optional_params)
 
