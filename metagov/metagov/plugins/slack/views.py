@@ -176,7 +176,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         logger.info(f"Created Slack plugin {plugin}")
 
         # Get or create linked account using this data
-        result = plugin.add_linked_account(platform_identifier=installer_user_id, external_id,
+        result = plugin.add_linked_account(platform_identifier=installer_user_id, external_id=external_id,
             community_platform_id=team_id, link_type=LinkType.OAUTH, link_quality=LinkQuality.STRONG_CONFIRM)
 
         # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
@@ -205,7 +205,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         if not plugin:
             raise PluginNotInstalledError
 
-        result = plugin.add_linked_account(platform_identifier=user["id"], external_id,
+        result = plugin.add_linked_account(platform_identifier=user["id"], external_id=external_id,
             community_platform_id=team_id, link_type=LinkType.OAUTH, link_quality=LinkQuality.STRONG_CONFIRM)
 
         # Add some params to redirect

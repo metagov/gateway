@@ -128,7 +128,7 @@ class Plugin(models.Model):
                 f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}"
             )
 
-    def add_linked_account(self, platform_identifier, external_id=None, community_platform_id=None,
+    def add_linked_account(self, *, platform_identifier, external_id=None, community_platform_id=None,
             custom_data=None, link_type=None, link_quality=None):
         """Given a platform identifier, creates or updates a linked account. Also creates a metagov
         id for the user if no external_id is passed in.
