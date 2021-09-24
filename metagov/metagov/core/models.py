@@ -139,16 +139,16 @@ class Plugin(models.Model):
         optional_params = {"community_platform_id": community_platform_id, "custom_data": custom_data,
             "link_type": link_type, "link_quality": link_quality}
         optional_params = identity.strip_null_values_from_dict(optional_params)
-        result = identity.retrieve_account(self.community, self.name, platform_identifier, community_platform_id)
 
-        if result:  # if linked account exists, update if new data is higher quality
-
+        try:
+            # if linked account exists, update if new data is higher quality
+            result = identity.retrieve_account(self.community, self.name, platform_identifier, community_platform_id)
             if link_quality and LinkQuality.is_greater(link_quality, result["link_quality"]):
                 result = identity.update_linked_account(self.community, self.name,
                     platform_identifier, community_platform_id, **optional_params)
 
-        else:  # otherwise create new account
-
+        except ValueError as error:
+            # otherwise create linked account
             if not external_id:
                 external_id = identity.create_id(self.community)[0]
             result = identity.link_account(external_id, self.community, self.name,
