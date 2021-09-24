@@ -177,7 +177,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
 
         # Get or create linked account using this data
         result = plugin.add_linked_account(platform_identifier=installer_user_id, external_id=external_id,
-            community_platform_id=team_id, link_type=LinkType.OAUTH, link_quality=LinkQuality.STRONG_CONFIRM)
+            community_platform_id=team_id, link_type=LinkType.OAUTH.value, link_quality=LinkQuality.STRONG_CONFIRM.value)
 
         # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
         params = {
@@ -206,7 +206,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
             raise PluginNotInstalledError
 
         result = plugin.add_linked_account(platform_identifier=user["id"], external_id=external_id,
-            community_platform_id=team_id, link_type=LinkType.OAUTH, link_quality=LinkQuality.STRONG_CONFIRM)
+            community_platform_id=team_id, link_type=LinkType.OAUTH.value, link_quality=LinkQuality.STRONG_CONFIRM.value)
 
         # Add some params to redirect
         params = {

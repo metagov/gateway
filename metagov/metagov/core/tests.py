@@ -79,9 +79,9 @@ class LinkedAccountManagementTestCase(TestCase):
         self.assertEquals(account.link_type, "unknown")
 
         account = identity.update_linked_account(self.community, "OpenCollective", "crystal_dunn",
-            link_quality=LinkQuality.STRONG_CONFIRM, link_type=LinkType.OAUTH)
-        self.assertEquals(account.link_quality, LinkQuality.STRONG_CONFIRM)
-        self.assertEquals(account.link_type, LinkType.OAUTH)
+            link_quality=LinkQuality.STRONG_CONFIRM.value, link_type=LinkType.OAUTH.value)
+        self.assertEquals(account.link_quality, LinkQuality.STRONG_CONFIRM.value)
+        self.assertEquals(account.link_type, LinkType.OAUTH.value)
 
 
 class DataRetrievalTestCase(TestCase):
@@ -126,8 +126,8 @@ class DataRetrievalTestCase(TestCase):
     def test_get_users_with_filters(self):
 
         account = identity.link_account(MetagovID.objects.last().external_id, self.community, "OpenCollective",
-            "tobin_heath", link_type=LinkType.OAUTH)
-        result = identity.get_users(self.community, link_type=LinkType.OAUTH, platform_type="OpenCollective")
+            "tobin_heath", link_type=LinkType.OAUTH.value)
+        result = identity.get_users(self.community, link_type=LinkType.OAUTH.value, platform_type="OpenCollective")
         self.assertEquals(len(result), 1)
         result = identity.get_users(self.community, platform_type="OpenCollective")
         self.assertEquals(len(result), 2)
@@ -139,21 +139,21 @@ class DataRetrievalTestCase(TestCase):
 
         matched_id_to_link = MetagovID.objects.all()[0]
         account = identity.link_account(matched_id_to_link.external_id, self.community, "OpenCollective",
-            "tobin_heath", link_type=LinkType.OAUTH)
-        result = identity.filter_users_by_account(id_list, link_type=LinkType.OAUTH, platform_type="OpenCollective")
+            "tobin_heath", link_type=LinkType.OAUTH.value)
+        result = identity.filter_users_by_account(id_list, link_type=LinkType.OAUTH.value, platform_type="OpenCollective")
         self.assertEquals(len(result), 1)
 
         unmatched_id_to_link = MetagovID.objects.all()[4]
         account = identity.link_account(unmatched_id_to_link.external_id, self.community, "OpenCollective",
-            "midge_purce", link_type=LinkType.OAUTH)
-        result = identity.filter_users_by_account(id_list, link_type=LinkType.OAUTH, platform_type="OpenCollective")
+            "midge_purce", link_type=LinkType.OAUTH.value)
+        result = identity.filter_users_by_account(id_list, link_type=LinkType.OAUTH.value, platform_type="OpenCollective")
         self.assertEquals(len(result), 1)  # note that we still only have one because this user isn't in our ID list
 
     def test_get_linked_account(self):
 
         new_id = MetagovID.objects.all()[4]
         account = identity.link_account(new_id.external_id, self.community, "OpenCollective",
-            "tobin_heath", link_type=LinkType.OAUTH)
+            "tobin_heath", link_type=LinkType.OAUTH.value)
         result = identity.get_linked_account(new_id.external_id, "OpenCollective")
         self.assertEquals(result["platform_type"], "OpenCollective")
         self.assertEquals(result["platform_identifier"], "tobin_heath")
