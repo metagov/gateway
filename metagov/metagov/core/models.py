@@ -139,7 +139,7 @@ class Plugin(models.Model):
         optional_params = {"community_platform_id": community_platform_id, "custom_data": custom_data,
             "link_type": link_type, "link_quality": link_quality}
         optional_params = identity.strip_null_values_from_dict(optional_params)
-        result = identity.get_linked_account(self.community, self.name, platform_identifier, community_platform_id)
+        result = identity.retrieve_account(self.community, self.name, platform_identifier, community_platform_id)
 
         if result:  # if linked account exists, update if new data is higher quality
 
