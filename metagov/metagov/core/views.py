@@ -179,6 +179,8 @@ def plugin_authorize(request, plugin_name):
     community_slug = request.GET.get("community")
     # where to redirect after auth flow is done
     redirect_uri = request.GET.get("redirect_uri")
+    # metagov_id of logged in user, if exists
+    metagov_id = request.GET.get("metagov_id")
     # state to pass along to final redirect after auth flow is done
     received_state = request.GET.get("state")
     request.session["received_authorize_state"] = received_state
@@ -203,7 +205,7 @@ def plugin_authorize(request, plugin_name):
 
     # Create the state
     nonce = utils.generate_nonce()
-    state = {nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type}}
+    state = {nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type, "metagov_id": metagov_id}}
     state_str = json.dumps(state).encode("ascii")
     state_encoded = base64.b64encode(state_str).decode("ascii")
     # Store nonce in the session so we can validate the callback request
@@ -249,6 +251,7 @@ def plugin_auth_callback(request, plugin_name):
     type = state.get("type")
     community_slug = state.get("community")
     redirect_uri = state.get("redirect_uri")
+    metagov_id = state.get("metagov_id")
     state_to_pass = request.session.get("received_authorize_state")
 
     if not redirect_uri:
@@ -279,7 +282,8 @@ def plugin_auth_callback(request, plugin_name):
 
     try:
         response = plugin_views.auth_callback(
-            type=type, code=code, redirect_uri=redirect_uri, community=community, state=state_to_pass, request=request
+            type=type, code=code, redirect_uri=redirect_uri, community=community, state=state_to_pass,
+            request=request, metagov_id=metagov_id
         )
 
         return response if response else redirect_with_params(redirect_uri, **redirect_params)
@@ -586,3 +590,118 @@ def get_plugin_instance(plugin_name, community):
     if not plugin:
         raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community}'")
     return plugin
+
+
+# Identity Views
+from metagov.core import identity
+
+@api_view(["POST"])
+def create_id(request):
+    data = JSONParser().parse(request)
+    try:
+        params = {
+            "community": Community.objects.get(slug=data["community_slug"]),
+            "count": data.get("count", None)
+        }
+        new_id = identity.create_id(**identity.strip_null_values_from_dict(params))
+        return JsonResponse(new_id, status=status.HTTP_201_CREATED)
+    except Exception as error:
+        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["POST"])
+def merge_ids(request):
+    data = JSONParser().parse(request)
+    try:
+        identity.merge_ids(data["primary_instance_id"], data["secondary_instance_id"])
+        return JsonResponse(status=status.HTTP_200_OK)
+    except Exception as error:
+        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["POST"])
+def link_account(request):
+    data = JSONParser().parse(request)
+    try:
+        params = {
+            "external_id": data["external_id"],
+            "community": Community.objects.get(slug=data["community_slug"]),
+            "platform_type": data["platform_type"],
+            "platform_identifier": data["platform_identifier"],
+            "community_platform_id": data.get("community_platform_id", None),
+            "custom_data": data.get("custom_data", None),
+            "link_type": data.get("link_type", None),
+            "link_quality": data.get("link_quality", None),
+        }
+        account = identity.link_account(**identity.strip_null_values_from_dict(params))
+        return JsonResponse(account.serialize(), status=status.HTTP_200_OK)
+    except Exception as error:
+        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["POST"])
+def unlink_account(request):
+    data = JSONParser().parse(request)
+    try:
+        params = {
+            "community": Community.objects.get(slug=data["community_slug"]),
+            "platform_type": data["platform_type"],
+            "platform_identifier": data["platform_identifier"],
+            "community_platform_id": data.get("community_platform_id", None)
+        }
+        account_deleted = identity.link_account(**identity.strip_null_values_from_dict(params))
+        return JsonResponse(account_deleted, status=status.HTTP_200_OK)
+    except Exception as error:
+        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["GET"])
+def get_user(request):
+    data = JSONParser().parse(request)
+    try:
+        return JsonResponse(identity.get_user(data["external_id"]), status=status.HTTP_200_OK)
+    except Exception as error:
+        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["GET"])
+def get_users(request):
+    data = JSONParser().parse(request)
+    try:
+        params = {
+            "community": Community.objects.get(slug=data["community_slug"]),
+            "platform_type": data.get("platform_type", None),
+            "community_platform_id": data.get("community_platform_id", None),
+            "link_type": data.get("link_type", None),
+            "link_quality": data.get("link_quality", None),
+        }
+        user_data = identity.get_users(**identity.strip_null_values_from_dict(params))
+        return JsonResponse(user_data, status=status.HTTP_200_OK)
+    except Exception as error:
+        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["GET"])
+def filter_users_by_account(request):
+    data = JSONParser().parse(request)
+    try:
+        params = {
+            "external_id_list": data["external_id_list"],
+            "community": Community.objects.get(slug=data["community_slug"]),
+            "platform_type": data.get("platform_type", None),
+            "community_platform_id": data.get("community_platform_id", None),
+            "link_type": data.get("link_type", None),
+            "link_quality": data.get("link_quality", None),
+        }
+        user_data = identity.filter_users_by_account(**identity.strip_null_values_from_dict(params))
+        return JsonResponse(user_data, status=status.HTTP_200_OK)
+    except Exception as error:
+        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["GET"])
+def get_linked_account(request):
+    data = JSONParser().parse(request)
+    try:
+        params = {
+            "external_id": data["external_id"],
+            "platform_type": data["platform_type"],
+            "community_platform_id": data.get("community_platform_id", None)
+        }
+        user_data = identity.get_linked_account(**identity.strip_null_values_from_dict(params))
+        return JsonResponse(user_data, status=status.HTTP_200_OK)
+    except Exception as error:
+        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)

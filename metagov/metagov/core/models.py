@@ -6,7 +6,7 @@ import jsonpickle
 import requests
 import uuid
 from django.conf import settings
-from django.db import models
+from django.db import models, IntegrityError
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
@@ -60,6 +60,22 @@ class PluginManager(models.Manager):
             return qs.filter(name=self.model.name)
         return qs
 
+class LinkType(Enum):
+    OAUTH = "oauth"
+    MANUAL_ADMIN = "manual admin"
+    EMAIL_MATCHING = "email matching"
+    UNKNOWN = "unknown"
+
+class LinkQuality(Enum):
+    STRONG_CONFIRM = "confirmed (strong)"
+    WEAK_CONFIRM = "confirmed (weak)"
+    UNCONFIRMED = "unconfirmed"
+    UNKNOWN = "unknown"
+
+def quality_is_greater(a, b):
+    order = [LinkQuality.UNKNOWN.value, LinkQuality.UNCONFIRMED.value, LinkQuality.WEAK_CONFIRM.value,
+        LinkQuality.STRONG_CONFIRM.value]
+    return order.index(a) > order.index(b)
 
 class Plugin(models.Model):
     """Represents an instance of an activated plugin."""
@@ -113,6 +129,33 @@ class Plugin(models.Model):
                 f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}"
             )
 
+    def add_linked_account(self, *, platform_identifier, external_id=None, community_platform_id=None,
+            custom_data=None, link_type=None, link_quality=None):
+        """Given a platform identifier, creates or updates a linked account. Also creates a metagov
+        id for the user if no external_id is passed in.
+        # NOTE: once we've standardized community_platform_id or similar we can get value from self
+        """
+        from metagov.core import identity
+
+        optional_params = {"community_platform_id": community_platform_id, "custom_data": custom_data,
+            "link_type": link_type, "link_quality": link_quality}
+        optional_params = identity.strip_null_values_from_dict(optional_params)
+
+        try:
+            # if linked account exists, update if new data is higher quality
+            result = identity.retrieve_account(self.community, self.name, platform_identifier, community_platform_id)
+            if link_quality and quality_is_greater(link_quality, result.link_quality):
+                result = identity.update_linked_account(self.community, self.name,
+                    platform_identifier, community_platform_id, **optional_params)
+
+        except ValueError as error:
+            # otherwise create linked account
+            if not external_id:
+                external_id = identity.create_id(self.community)[0]
+            result = identity.link_account(external_id, self.community, self.name,
+                platform_identifier, **optional_params)
+
+        return result
 
 class ProcessStatus(Enum):
     CREATED = "created"
@@ -264,3 +307,97 @@ def notify_callback_url(process: GovernanceProcess):
     resp = requests.post(process.callback_url, json=serializer.data)
     if not resp.ok:
         logger.error(f"Error posting outcome to callback url: {resp.status_code} {resp.text}")
+
+
+class MetagovID(models.Model):
+    """Metagov ID table links all public_ids to a single internal representation of a user. When data
+    associated with public_ids conflicts, primary_ID is used.
+
+    Fields:
+
+    community: foreign key - metagov community the user is part of
+    internal_id: integer - unique, secret ID
+    external_id: integer - unique, public ID
+    linked_ids: many2many - metagovIDs that a given ID has been merged with
+    primary: boolean - used to resolve conflicts between linked MetagovIDs."""
+
+    community = models.ForeignKey(Community, on_delete=models.CASCADE)
+    internal_id = models.PositiveIntegerField(unique=True)
+    external_id = models.PositiveIntegerField(unique=True)
+    linked_ids = models.ManyToManyField('self')
+    primary = models.BooleanField(default=True)
+
+    def save(self, *args, **kwargs):
+        """Performs extra validation on save such that if there are linked IDs, only one should have primary
+        set as True. Only runs on existing instance."""
+        if self.pk and self.linked_ids.all():
+            true_count = sum([self.primary] + [linked_id.primary for linked_id in self.linked_ids.all()])
+            if true_count == 0:
+                raise IntegrityError("At least one linked ID must have 'primary' attribute set to True.")
+            if true_count > 1:
+                raise IntegrityError("More than one linked ID has 'primary' attribute set to True.")
+        super(MetagovID, self).save(*args, **kwargs)
+
+    def is_primary(self):
+        """Helper method to determine if a MetagovID is primary. Accounts for the fact that a MetagovID
+        with no linked IDs is primary, even if its primary attribute is set to False."""
+        if self.primary or len(self.linked_ids.all()) == 0:
+            return True
+        return False
+
+    def get_primary_id(self):
+        """Helper method to restore the primary MetagovID for this user, whether it's the called
+        instance of a linked_instance."""
+        if self.is_primary():
+            return self
+        for linked_id in self.linked_ids.all():
+            if linked_id.is_primary():
+                return linked_id
+        raise ValueError(f"No primary ID associated with {self.external_id}")
+
+
+class LinkedAccount(models.Model):
+    """Contains information about specific platform account linked to user
+
+    Fields:
+
+    metagov_id: foreign key to MetagovID
+    community: foreign key - metagov community the user is part of
+    community_platform_id: string (optional) - distinguishes between ie two Slacks in the same community
+    platform_type: string - ie Github, Slack
+    platform_identifier: string - ID, username, etc, unique to the platform (or unique to community_platform_id)
+    custom_data: dict- optional additional data for linked platform account
+    link_type: string (choice) - method through which account was linked
+    link_quality: string (choice) - metagov's assessment of the quality of the link (depends on method)
+   """
+
+    metagov_id = models.ForeignKey(MetagovID, on_delete=models.CASCADE, related_name="linked_accounts")
+    community = models.ForeignKey(Community, on_delete=models.CASCADE)
+    community_platform_id = models.CharField(max_length=100, blank=True, null=True)
+    platform_type = models.CharField(max_length=50)
+    platform_identifier = models.CharField(max_length=200)
+
+    custom_data = models.JSONField(default=dict)
+    link_type = models.CharField(max_length=30, choices=[(t.value, t.name) for t in LinkType],
+        default=LinkType.UNKNOWN.value)
+    link_quality = models.CharField(max_length=30, choices=[(q.value, q.name) for q in LinkQuality],
+        default=LinkQuality.UNKNOWN.value)
+
+    def save(self, *args, **kwargs):
+        """Performs extra validation on save such that community, platform type, identifier, and community_platform_id
+        are unique together."""
+        result = LinkedAccount.objects.filter(community=self.community, platform_type=self.platform_type,
+            platform_identifier=self.platform_identifier, community_platform_id=self.community_platform_id)
+        if (not self.pk and result) or (self.pk and result and result[0].pk != self.pk):
+            raise IntegrityError(
+                f"LinkedAccount with the following already exists: community {self.community};"
+                f"platform_type: {self.platform_type}; platform_identifier: {self.platform_identifier}"
+                f"community_platform_id: {self.community_platform_id}"
+            )
+        super(LinkedAccount, self).save(*args, **kwargs)
+
+    def serialize(self):
+        return {"external_id": self.metagov_id.external_id, "community": self.community.slug,
+            "community_platform_id": self.community_platform_id, "platform_type": self.platform_type,
+            "platform_identifier": self.platform_identifier, "custom_data": self.custom_data,
+            "link_type": self.link_type, "link_quality": self.link_quality}
