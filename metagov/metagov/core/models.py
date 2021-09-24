@@ -73,7 +73,8 @@ class LinkQuality(Enum):
     UNKNOWN = "unknown"
 
 def quality_is_greater(a, b):
-    order = [LinkQuality.UNKNOWN, LinkQuality.UNCONFIRMED, LinkQuality.WEAK_CONFIRM, LinkQuality.STRONG_CONFIRM]
+    order = [LinkQuality.UNKNOWN.value, LinkQuality.UNCONFIRMED.value, LinkQuality.WEAK_CONFIRM.value,
+        LinkQuality.STRONG_CONFIRM.value]
     return order.index(a) > order.index(b)
 
 class Plugin(models.Model):
