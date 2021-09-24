@@ -39,6 +39,11 @@ class WrongCommunityError(PluginAuthError):
     default_detail = "Already installed to this Slack workspace for a different community. Uninstall and try again."
 
 
+class PluginNotInstalledError(PluginAuthError):
+    default_code = "slack_plugin_not_installed"
+    default_detail = "No Slack plugin has been installed for this community."
+
+
 def get_authorize_url(state: str, type: str, community=None):
     try:
         client_id = env("SLACK_CLIENT_ID")
@@ -64,6 +69,15 @@ def get_authorize_url(state: str, type: str, community=None):
         return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&team={team or ''}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope={user_scope}"
     if type == AuthorizationType.USER_LOGIN:
         return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&state={state}&user_scope=identity.basic,identity.avatar"
+
+
+def find_plugin(community_platform_id):
+    """Given a team id, finds the matching plugin instance if it exists.
+    # FIXME: make more generalizeable instead of assuming Slack
+    """
+    for inst in Slack.objects.all():
+        if inst.config["team_id"] == community_platform_id:
+            return inst
 
 
 def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, external_id=None, *args, **kwargs):
@@ -105,26 +119,17 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         installer_user_id = response["authed_user"]["id"]
         team_id = response["team"]["id"]
 
-        # Check if there are any existing Slack Plugin instances for this Slack team
-        # TODO: pull some of this logic into core. Each plugin has its own version of "team_id" that may need to be unique.
-        existing_plugin_to_reinstall = None
+        existing_plugin_to_reinstall = find_plugin(team_id)
+        if existing_plugin_to_reinstall:
+            if existing_plugin_to_reinstall.community != community:
+                # if community doesn't match, there is a Slack Plugin for this team enabled for a
+                # DIFFERENT community, so we error. Slack admin would need to go into the slack workspace and uninstall the app, if they want to create a Slack Pluign for
+                # the same workspace under a different community.
+                logger.error(f"Slack Plugin for team {team_id} already exists for another community: {inst}")
+                raise WrongCommunityError
+
         for inst in Slack.objects.all():
-            if inst.config["team_id"] == team_id:
-                if inst.community == community:
-                    # team matches, community matches
-
-                    # There is already a Slack Plugin enabled for this Community, so we want to delete and recreate it.
-                    # This is to support re-installation, which you might want to do if scopes have changed for example.
-                    existing_plugin_to_reinstall = inst
-                else:
-                    # team matches, community doesnt
-
-                    # There is already a Slack Plugin for this team enabled for a DIFFERENT community, so we error.
-                    # Slack admin would need to go into the slack workspace and uninstall the app, if they want to create a Slack Pluign for
-                    # the same workspace under a different community.
-                    logger.error(f"Slack Plugin for team {team_id} already exists for another community: {inst}")
-                    raise WrongCommunityError
-            elif inst.community == community:
+            if inst.community == community and inst.config["team_id"] != team_id:
                 # community matches, team doesnt
                 logger.info(
                     f"Trying to install Slack to community {community} for team_id {team_id}, but community already has a Slack Plugin enabled for team {inst.config['team_id']}"
@@ -194,12 +199,14 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
             raise PluginAuthError(detail="Unexpected token_type")
 
         # Get or create linked account using this data
+        team_id = response["team"]["id"]
+        plugin = find_plugin(team_id)
+
+        if not plugin:
+            raise PluginNotInstalledError
+
         result = plugin.add_linked_account(platform_identifier=user["id"], external_id,
-            community_platform_id=response["team"]["id"], link_type=LinkType.OAUTH,
-            link_quality=LinkQuality.STRONG_CONFIRM)
-        # FIXME: we don't actually have a plugin obj at this point. ok, question: can a user ever
-        # login without a plugin enabled? if yes, need to rethink, otherwise can copy lookup info
-        # from other branch
+            community_platform_id=team_id, link_type=LinkType.OAUTH, link_quality=LinkQuality.STRONG_CONFIRM)
 
         # Add some params to redirect
         params = {
@@ -208,7 +215,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
             # Slack User Token for logged-in user
             "user_token": user["access_token"],
             # Team that the user logged into
-            "team_id": response["team"]["id"],
+            "team_id": team_id,
             # (Optional) State that was originally passed from Driver, so it can validate it
             "state": state,
         }
