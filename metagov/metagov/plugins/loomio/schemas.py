@@ -23,7 +23,7 @@ start_loomio_poll = {
             "description": "allow voters to see the results before the poll has closed",
         },
         "anonymous": {"type": "boolean", "description": "hide identities of voters"},
-        "discussion_id": {"type": "boolean", "description": "id of discussion thread to add this poll to"},
+        "discussion_id": {"type": "number", "description": "id of discussion thread to add this poll to"},
         "voter_can_add_options": {"type": "boolean", "description": "if voters can add options to the poll"},
         "recipient_audience": {
             "type": "string",
@@ -51,7 +51,7 @@ start_loomio_poll = {
         },
         "recipient_message": {"type": "string", "description": "message to include in the email invitation"},
     },
-    "required": ["title", "options", "closing_at"],
+    "required": ["title", "options", "closing_at", "poll_type"],
 }
 
 
