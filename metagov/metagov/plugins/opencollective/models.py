@@ -123,7 +123,8 @@ class OpenCollective(Plugin):
     def process_oc_webhook(self, request):
         body = json.loads(request.body)
         collective_legacy_id = self.state.get("collective_legacy_id")
-        if body.get("CollectiveId") != collective_legacy_id:
+        from_collective = body.get("data", {}).get("fromCollective", {}).get("id")
+        if body.get("CollectiveId") != collective_legacy_id and from_collective != collective_legacy_id:
             raise PluginErrorInternal(
                 f"Received webhook for the wrong collective. Expected {collective_legacy_id}, found "
                 + str(body.get("CollectiveId"))
@@ -155,7 +156,12 @@ class OpenCollective(Plugin):
         return expense_data
 
     def add_expense_url(self, expense):
-        url = f"{OPEN_COLLECTIVE_URL}/{self.config['collective_slug']}/expenses/{expense['legacyId']}"
+        collective_slug = self.config["collective_slug"]
+        # Account will be different from Collective IF the expense was subitted in a project
+        account_slug = expense.get("account", {}).get("slug")
+        account_route = f"{collective_slug}/{account_slug}" if account_slug != collective_slug else collective_slug
+
+        url = f"{OPEN_COLLECTIVE_URL}/{account_route}/expenses/{expense['legacyId']}"
         expense["url"] = url
 
     def add_conversation_url(self, conversation):
