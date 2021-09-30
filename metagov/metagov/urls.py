@@ -104,4 +104,15 @@ urlpatterns = [
     path(f"{utils.internal_path}/community", views.create_community, name="community"),
     # Get, update, or delete a community
     path(f"{utils.internal_path}/community/<slug:slug>", views.community, name="community"),
+    # Identity system url
+    path(f"{utils.internal_path}/identity/create_id", views.create_id, name="create_id"),
+    path(f"{utils.internal_path}/identity/merge_ids", views.merge_ids, name="merge_ids"),
+    path(f"{utils.internal_path}/identity/link_account", views.link_account, name="link_account"),
+    path(f"{utils.internal_path}/identity/unlink_account", views.unlink_account, name="unlink_account"),
+    path(f"{utils.internal_path}/identity/get_user", views.get_user, name="get_user"),
+    path(f"{utils.internal_path}/identity/get_users", views.get_users, name="get_users"),
+    path(f"{utils.internal_path}/identity/filter_users_by_account", views.filter_users_by_account,
+        name="filter_users_by_account"),
+    path(f"{utils.internal_path}/identity/get_linked_account", views.get_linked_account, name="get_linked_account"),
+
 ] + plugin_patterns
