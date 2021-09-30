@@ -604,7 +604,7 @@ def create_id(request):
             "count": data.get("count", None)
         }
         new_id = identity.create_id(**identity.strip_null_values_from_dict(params))
-        return JsonResponse(new_id, status=status.HTTP_201_CREATED)
+        return JsonResponse(new_id, status=status.HTTP_201_CREATED, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
@@ -632,7 +632,7 @@ def link_account(request):
             "link_quality": data.get("link_quality", None),
         }
         account = identity.link_account(**identity.strip_null_values_from_dict(params))
-        return JsonResponse(account.serialize(), status=status.HTTP_200_OK)
+        return JsonResponse(account.serialize(), status=status.HTTP_200_OK, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
@@ -647,14 +647,15 @@ def unlink_account(request):
             "community_platform_id": data.get("community_platform_id", None)
         }
         account_deleted = identity.link_account(**identity.strip_null_values_from_dict(params))
-        return JsonResponse(account_deleted, status=status.HTTP_200_OK)
+        return JsonResponse(account_deleted, status=status.HTTP_200_OK, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["GET"])
 def get_user(request):
     try:
-        return JsonResponse(identity.get_user(request.GET.get("external_id")), status=status.HTTP_200_OK)
+        return JsonResponse(identity.get_user(request.GET.get("external_id")),
+            status=status.HTTP_200_OK, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
@@ -670,7 +671,7 @@ def get_users(request):
             "platform_identifier": request.GET.get("platform_identifier", None)
         }
         user_data = identity.get_users(**identity.strip_null_values_from_dict(params))
-        return JsonResponse(user_data, status=status.HTTP_200_OK)
+        return JsonResponse(user_data, status=status.HTTP_200_OK, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
@@ -686,7 +687,7 @@ def filter_users_by_account(request):
             "link_quality": request.GET.get("link_quality", None),
         }
         user_data = identity.filter_users_by_account(**identity.strip_null_values_from_dict(params))
-        return JsonResponse(user_data, status=status.HTTP_200_OK)
+        return JsonResponse(user_data, status=status.HTTP_200_OK, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
@@ -699,6 +700,6 @@ def get_linked_account(request):
             "community_platform_id": request.GET.get("community_platform_id", None)
         }
         user_data = identity.get_linked_account(**identity.strip_null_values_from_dict(params))
-        return JsonResponse(user_data, status=status.HTTP_200_OK)
+        return JsonResponse(user_data, status=status.HTTP_200_OK, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
