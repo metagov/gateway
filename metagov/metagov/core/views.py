@@ -669,6 +669,7 @@ def get_users(request):
             "community_platform_id": data.get("community_platform_id", None),
             "link_type": data.get("link_type", None),
             "link_quality": data.get("link_quality", None),
+            "platform_identifier": data.get("platform_identifier", None)
         }
         user_data = identity.get_users(**identity.strip_null_values_from_dict(params))
         return JsonResponse(user_data, status=status.HTTP_200_OK)
