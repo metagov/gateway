@@ -653,23 +653,21 @@ def unlink_account(request):
 
 @api_view(["GET"])
 def get_user(request):
-    data = JSONParser().parse(request)
     try:
-        return JsonResponse(identity.get_user(data["external_id"]), status=status.HTTP_200_OK)
+        return JsonResponse(identity.get_user(request.GET.get("external_id")), status=status.HTTP_200_OK)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["GET"])
 def get_users(request):
-    data = JSONParser().parse(request)
     try:
         params = {
-            "community": Community.objects.get(slug=data["community_slug"]),
-            "platform_type": data.get("platform_type", None),
-            "community_platform_id": data.get("community_platform_id", None),
-            "link_type": data.get("link_type", None),
-            "link_quality": data.get("link_quality", None),
-            "platform_identifier": data.get("platform_identifier", None)
+            "community": Community.objects.get(slug=request.GET.get("community")),
+            "platform_type": request.GET.get("platform_type", None),
+            "community_platform_id": request.GET.get("community_platform_id", None),
+            "link_type": request.GET.get("link_type", None),
+            "link_quality": request.GET.get("link_quality", None),
+            "platform_identifier": request.GET.get("platform_identifier", None)
         }
         user_data = identity.get_users(**identity.strip_null_values_from_dict(params))
         return JsonResponse(user_data, status=status.HTTP_200_OK)
@@ -678,15 +676,14 @@ def get_users(request):
 
 @api_view(["GET"])
 def filter_users_by_account(request):
-    data = JSONParser().parse(request)
     try:
         params = {
-            "external_id_list": data["external_id_list"],
-            "community": Community.objects.get(slug=data["community_slug"]),
-            "platform_type": data.get("platform_type", None),
-            "community_platform_id": data.get("community_platform_id", None),
-            "link_type": data.get("link_type", None),
-            "link_quality": data.get("link_quality", None),
+            "external_id_list": request.GET.get("external_id_list"),
+            "community": Community.objects.get(slug=request.GET.get("community")),
+            "platform_type": request.GET.get("platform_type", None),
+            "community_platform_id": request.GET.get("community_platform_id", None),
+            "link_type": request.GET.get("link_type", None),
+            "link_quality": request.GET.get("link_quality", None),
         }
         user_data = identity.filter_users_by_account(**identity.strip_null_values_from_dict(params))
         return JsonResponse(user_data, status=status.HTTP_200_OK)
@@ -695,12 +692,11 @@ def filter_users_by_account(request):
 
 @api_view(["GET"])
 def get_linked_account(request):
-    data = JSONParser().parse(request)
     try:
         params = {
-            "external_id": data["external_id"],
-            "platform_type": data["platform_type"],
-            "community_platform_id": data.get("community_platform_id", None)
+            "external_id": request.GET.get("external_id"),
+            "platform_type": request.GET.get("platform_type"),
+            "community_platform_id": request.GET.get("community_platform_id", None)
         }
         user_data = identity.get_linked_account(**identity.strip_null_values_from_dict(params))
         return JsonResponse(user_data, status=status.HTTP_200_OK)
