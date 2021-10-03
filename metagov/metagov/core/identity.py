@@ -103,12 +103,6 @@ def unlink_account(community, platform_type, platform_identifier, community_plat
 def strip_null_values_from_dict(dictionary):
     return {key: val for key, val in dictionary.items() if val is not None}
 
-def get_filters(platform_type, community_platform_id, link_type, link_quality):
-    """Helper function to filter by keys only when value is not None."""
-    filters = {"platform_type": platform_type, "community_platform_id": community_platform_id,
-        "link_type": link_type, "link_quality": link_quality}
-    return strip_null_values_from_dict(filters)
-
 def get_identity_data_object(metagovID):
     """Helper function, takes a MetagovID object instance and creates a json dictionary for its
     data plus all linked LinkedAccount objects."""
@@ -141,15 +135,17 @@ def get_user(external_id):
     return get_identity_data_object(instance)
 
 def get_users(community, platform_type=None, community_platform_id=None,
-    link_type=None, link_quality=None):
+    link_type=None, link_quality=None, platform_identifier=None):
     """Gets all users in a given community. Supply platform type and/or ID, link_type and/or
     link_quality to filter."""
 
-    if platform_type or community_platform_id or link_type or link_quality:
+    if platform_type or community_platform_id or link_type or link_quality or platform_identifier:
 
         # get linked accounts & filter
         results = LinkedAccount.objects.filter(community=community)
-        filters = get_filters(platform_type, community_platform_id, link_type, link_quality)
+        filters = strip_null_values_from_dict({"platform_type": platform_type, "link_type": link_type,
+            "community_platform_id": community_platform_id, "link_quality": link_quality,
+            "platform_identifier": platform_identifier})
         results = results.filter(**filters) if filters else results
 
         # get metagov_ids associated with linked accounts, removing duplicates by using primary ID
@@ -176,7 +172,8 @@ def filter_users_by_account(external_id_list, platform_type=None, community_plat
 
     # filter
     filtered_users = []
-    filters = get_filters(platform_type, community_platform_id, link_type, link_quality)
+    filters = strip_null_values_from_dict({"platform_type": platform_type, "link_type": link_type,
+        "community_platform_id": community_platform_id, "link_quality": link_quality})
     for user in users:
         if not filters or user.linked_accounts.filter(**filters):
             filtered_users.append(get_identity_data_object(user))
