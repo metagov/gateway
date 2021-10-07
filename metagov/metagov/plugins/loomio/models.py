@@ -36,7 +36,6 @@ class Loomio(Plugin):
             group = self._get_memberships(api_key)["groups"][0]
             api_key_group_map[api_key] = {"key": group["key"], "handle": group["handle"]}
 
-        logger.info(api_key_group_map)
         self.state.set("api_key_group_map", api_key_group_map)
 
     def _get_api_key(self, key_or_handle):
