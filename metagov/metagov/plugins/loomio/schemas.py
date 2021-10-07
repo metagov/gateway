@@ -4,6 +4,10 @@ start_loomio_poll = {
     "properties": {
         "title": {"type": "string", "description": "title of the thread"},
         "closing_at": {"type": "string", "format": "date"},
+        "subgroup": {
+            "type": "string",
+            "description": "subgroup to create the poll in. can be the loomio key or the loomio handle. only works if plugin is configured with an API key for this subgroup.",
+        },
         "poll_type": {
             "type": "string",
             "enum": ["proposal", "poll", "count", "score", "ranked_choice", "meeting", "dot_vote"],
