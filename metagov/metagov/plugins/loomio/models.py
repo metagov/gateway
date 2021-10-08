@@ -55,7 +55,7 @@ class Loomio(Plugin):
 
     @Registry.action(slug="list-members", description="list groups and users")
     def list_members(self, _parameters):
-        return self._get_memberships(self.config['api_key'])
+        return self._get_memberships(self.config["api_key"])
 
     @Registry.action(
         slug="create-discussion",
@@ -153,6 +153,11 @@ class LoomioPoll(GovernanceProcess):
 
         # Update vote counts
         self.outcome["votes"] = create_vote_dict(response)
+
+        # Add other data from poll
+        self.outcome["voters_count"] = poll.get("voters_count")
+        self.outcome["undecided_voters_count"] = poll.get("undecided_voters_count")
+        self.outcome["cast_stances_pct"] = poll.get("cast_stances_pct")
 
         logger.info(f"Updated outcome: {self.outcome}")
         self.save()
