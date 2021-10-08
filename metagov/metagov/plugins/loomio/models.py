@@ -16,7 +16,11 @@ class Loomio(Plugin):
     auth_type = AuthType.API_KEY
     config_schema = {
         "type": "object",
-        "properties": {"api_key": {"type": "string"}, "webhook_slug": {"type": "string"}},
+        "properties": {
+            "api_key": {"type": "string"},
+            "subgroup_api_keys": {"type": "array", "items": {"type": "string"}},
+            "webhook_slug": {"type": "string"},
+        },
         "required": ["api_key"],
     }
 
@@ -24,15 +28,34 @@ class Loomio(Plugin):
         proxy = True
 
     def initialize(self):
-        pass
+        # Map API keys -> handle ("metagov-testing") and key ("2qE8dI91")
+        api_key_group_map = {}
+        all_api_keys = self.config["subgroup_api_keys"] or []
+        all_api_keys.append(self.config["api_key"])
+        for api_key in all_api_keys:
+            group = self._get_memberships(api_key)["groups"][0]
+            api_key_group_map[api_key] = {"key": group["key"], "handle": group["handle"]}
 
-    @Registry.action(slug="list-members", description="list groups and users")
-    def list_members(self, _parameters):
-        resp = requests.get(f"https://www.loomio.org/api/b1/memberships?api_key={self.config['api_key']}")
+        self.state.set("api_key_group_map", api_key_group_map)
+
+    def _get_api_key(self, key_or_handle):
+        """Get the API key for a specific Loomio group. Returns None if not found."""
+        api_key_group_map = self.state.get("api_key_group_map")
+        for api_key, v in api_key_group_map.items():
+            if v["key"] == key_or_handle or v["handle"] == key_or_handle:
+                return api_key
+        return None
+
+    def _get_memberships(self, api_key):
+        resp = requests.get(f"https://www.loomio.org/api/b1/memberships?api_key={api_key}")
         if not resp.ok:
             logger.error(f"Error: {resp.status_code} {resp.text}")
             raise PluginErrorInternal(resp.text)
         return resp.json()
+
+    @Registry.action(slug="list-members", description="list groups and users")
+    def list_members(self, _parameters):
+        return self._get_memberships(self.config['api_key'])
 
     @Registry.action(
         slug="create-discussion",
@@ -67,8 +90,12 @@ class LoomioPoll(GovernanceProcess):
         url = "https://www.loomio.org/api/b1/polls"
         payload = parameters._json
         payload.pop("options")
+
+        subgroup = payload.pop("subgroup", None)
+        api_key = self.plugin_inst._get_api_key(subgroup) if subgroup else self.plugin_inst.config["api_key"]
+
         payload["options[]"] = parameters.options
-        payload["api_key"] = self.plugin_inst.config["api_key"]
+        payload["api_key"] = api_key
         resp = requests.post(url, payload)
         if not resp.ok:
             logger.error(f"Error: {resp.status_code} {resp.text}")
