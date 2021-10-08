@@ -62,6 +62,10 @@ start_loomio_poll = {
 create_discussion_input = {
     "type": "object",
     "properties": {
+        "subgroup": {
+            "type": "string",
+            "description": "subgroup to create the discussion in. can be the loomio key or the loomio handle. only works if plugin is configured with an API key for this subgroup.",
+        },
         "title": {"type": "string", "description": "title of the thread"},
         "description": {"type": "string", "description": "context for the thread"},
         "description_format": {

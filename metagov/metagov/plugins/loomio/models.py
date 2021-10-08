@@ -53,9 +53,25 @@ class Loomio(Plugin):
             raise PluginErrorInternal(resp.text)
         return resp.json()
 
-    @Registry.action(slug="list-members", description="list groups and users")
-    def list_members(self, _parameters):
-        return self._get_memberships(self.config["api_key"])
+    @Registry.action(
+        slug="list-members",
+        description="list groups and users",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "subgroup": {
+                    "type": "string",
+                    "description": "subgroup to list membership of. can be the loomio key or the loomio handle. only works if plugin is configured with an API key for this subgroup.",
+                }
+            },
+        },
+    )
+    def list_members(self, parameters):
+        if parameters.get("subgroup"):
+            api_key = self._get_api_key(parameters["subgroup"])
+        else:
+            api_key = self.config["api_key"]
+        return self._get_memberships(api_key)
 
     @Registry.action(
         slug="create-discussion",
@@ -63,8 +79,13 @@ class Loomio(Plugin):
         input_schema=Schemas.create_discussion_input,
     )
     def create_discussion(self, parameters):
+        subgroup = parameters.pop("subgroup", None)
         payload = parameters
-        payload["api_key"] = self.config["api_key"]
+        if subgroup:
+            payload["api_key"] = self._get_api_key(subgroup)
+        else:
+            payload["api_key"] = self.config["api_key"]
+
         resp = requests.post(f"https://www.loomio.org/api/b1/discussions", payload)
         if not resp.ok:
             logger.error(f"Error: {resp.status_code} {resp.text}")
