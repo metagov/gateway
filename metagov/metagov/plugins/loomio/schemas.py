@@ -46,7 +46,7 @@ start_loomio_poll = {
         "recipient_user_ids": {
             "type": "array",
             "description": "array of user ids to notify or invite",
-            "items": {"type": "string"},
+            "items": {"type": "number"},
         },
         "recipient_emails": {
             "type": "array",
