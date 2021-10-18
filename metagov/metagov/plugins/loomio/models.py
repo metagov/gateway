@@ -188,4 +188,7 @@ class LoomioPoll(GovernanceProcess):
 
 def create_vote_dict(response):
     poll_options = response["poll_options"]
-    return {opt["name"]: opt["total_score"] for opt in poll_options}
+    result = {}
+    for opt in poll_options:
+        result[opt["name"]] = {"count": opt["total_score"], "users": list(opt["voter_scores"].keys())}
+    return result
