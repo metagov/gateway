@@ -64,7 +64,7 @@ class UnitTests(TestCase):
         self.assertListEqual(no_votes, ["foo"])
 
     def test_boolean_reaction_dict_empty(self):
-        """Test that the reactions_to_dict function counts votes correctly"""
+        """Test that the reactions_to_user_lists function counts votes correctly"""
         reactions = [
             {
                 "user": {"login": "foo", "type": "User"},

@@ -2,6 +2,8 @@ import json
 import logging
 import random
 
+from django.db.models.fields import TextField
+
 from rest_framework.exceptions import ValidationError
 from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 import requests
@@ -171,6 +173,8 @@ EMOJI_MAP = {
     ],
 }
 
+VOTE_ACTION_ID = "cast_vote"
+
 
 class Bool:
     YES = "yes"
@@ -182,7 +186,6 @@ class SlackEmojiVote(GovernanceProcess):
     # TODO(enhancement): let the caller define the emoji for each option
     # TODO(enhancement): add suport for "closing_at" time
     # TODO(enhancement): support single-choice and multiple-choice
-    # TODO(enhancement): only allow one vote per person on boolean votes
     name = "emoji-vote"
     plugin_name = "slack"
     input_schema = {
@@ -200,16 +203,26 @@ class SlackEmojiVote(GovernanceProcess):
                 "type": "string",
                 "description": "channel to post the vote in",
             },
-            "users": {
+            "eligible_voters": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "users to participate in vote in a multi-person message thread. ignored if channel is provided.",
+                "description": "list of users who are eligible to vote. if eligible_voters is provided and channel is not provided, creates vote in a private group message.",
+            },
+            "ineligible_voters": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "list of users who are not eligible to vote",
+            },
+            "ineligible_voter_message": {
+                "type": "string",
+                "description": "message to display to ineligible voter when they attempt to cast a vote",
+                "default": "You are not eligible to vote in this poll.",
             },
             "emoji_family": {
                 "type": "string",
                 "enum": ["hearts", "flowers", "numbers"],
                 "description": "emoji family to use for choice selection. ignored for 'boolean' poll type",
-                "default": "numbers"
+                "default": "numbers",
             },
         },
         "required": ["title", "poll_type"],
@@ -221,33 +234,32 @@ class SlackEmojiVote(GovernanceProcess):
     def start(self, parameters: Parameters) -> None:
         text = construct_message_header(parameters.title, parameters.details)
         self.state.set("message_header", text)
+        self.state.set("parameters", parameters._json)
+
         poll_type = parameters.poll_type
         options = [Bool.YES, Bool.NO] if poll_type == "boolean" else parameters.options
         if options is None:
             raise ValidationError("Options are required for non-boolean votes")
 
         maybe_channel = parameters.channel
-        maybe_users = parameters.users
+        maybe_users = parameters.eligible_voters
         if maybe_channel is None and (maybe_users is None or len(maybe_users) == 0):
-            raise ValidationError("users or channel are required")
+            raise ValidationError("eligible_voters or channel are required")
 
-        if poll_type == "boolean":
-            option_emoji_map = {"+1": Bool.YES, "-1": Bool.NO}
+        self.state.set("poll_type", poll_type)
+        self.state.set("options", options)
+        self.outcome = {
+            "votes": dict([(k, {"users": [], "count": 0}) for k in options]),
+        }
+
+        blocks = self._construct_blocks()
+        blocks = json.dumps(blocks)
+
+        if maybe_channel:
+            response = self.plugin_inst.post_message({"channel": maybe_channel, "blocks": blocks})
         else:
-            family = parameters.emoji_family
-            emojis = EMOJI_MAP[family]
-            if len(emojis) < len(options):
-                raise PluginErrorInternal("There are more voting options than possible emojis")
-            if family != "numbers":
-                random.shuffle(emojis)
-            emojis = emojis[: len(options)]
-            option_emoji_map = dict(zip(emojis, options))
-            for (k, v) in option_emoji_map.items():
-                text += f"\n> :{k}:  {v}"
+            response = self.plugin_inst.post_message({"users": maybe_users, "blocks": blocks})
 
-        self.state.set("option_emoji_map", option_emoji_map)
-
-        response = self.plugin_inst.post_message({"channel": maybe_channel, "users": maybe_users, "text": text})
         ts = response["ts"]
         channel = response["channel"]
 
@@ -259,82 +271,125 @@ class SlackEmojiVote(GovernanceProcess):
             }
         )
 
-        # Add 1 initial reaction for each emoji type
-        for emoji in option_emoji_map.keys():
-            self.plugin_inst.method(
-                {"method_name": "reactions.add", "channel": channel, "timestamp": ts, "name": emoji}
-            )
+        self.outcome["url"] = permalink_resp["permalink"]
+        self.outcome["channel"] = channel
+        self.outcome["message_ts"] = ts
 
-        self.state.set("poll_type", parameters.poll_type)
-
-        self.outcome = {
-            "url": permalink_resp["permalink"],
-            "channel": channel,
-            "message_ts": ts,
-            "votes": dict([(k, {"users": [], "count": 0}) for k in options]),
-        }
         self.status = ProcessStatus.PENDING.value
         self.save()
 
     def receive_webhook(self, request):
-        json_data = json.loads(request.body)
-        data = json_data["event"]
-        evt_type = data["type"]
-        if not evt_type.startswith("reaction_"):
+        payload = json.loads(request.POST.get("payload"))
+        if payload["message"]["ts"] != self.outcome["message_ts"]:
             return
-        ts = data["item"]["ts"]
-        if ts != self.outcome["message_ts"]:
-            return
+        logger.info(f"{self} received block action")
+        response_url = payload["response_url"]
 
-        reaction = normalize_reaction(data["reaction"])
-        option_emoji_map = self.state.get("option_emoji_map")
-        if reaction not in option_emoji_map:
-            return
+        for a in payload["actions"]:
+            if a["action_id"] == VOTE_ACTION_ID:
+                selected_option = a["value"]
+                user = payload["user"]["id"]
 
-        option = option_emoji_map[reaction]
-        logger.debug(f"Processing reaction '{reaction}' as a vote for '{option}'")
+                # If user is not eligible to vote, don't case vote & show a message
+                if not self._is_eligible_voter(user):
+                    message = self.state.get("parameters").get("ineligible_voter_message")
+                    logger.debug(f"Ignoring vote from ineligible voter {user}")
+                    self.plugin_inst.method(
+                        {
+                            "method_name": "chat.postEphemeral",
+                            "channel": self.outcome["channel"],
+                            "text": message,
+                            "user": user,
+                        }
+                    )
+                    return
 
-        # Get the voting message post and update all the vote counts based on the emojis currently present
-        ts = self.outcome["message_ts"]
-        response = self.plugin_inst.method(
-            {
-                "method_name": "conversations.history",
-                "channel": self.outcome["channel"],
-                "latest": ts,
-                "oldest": ts,
-                "inclusive": True,
-                "limit": 1,
-            }
-        )
-        self.update_outcome_from_reaction_list(response["messages"][0].get("reactions", []))
+                self._cast_vote(user, selected_option)
+
+        # Update vote message to show votes cast
+        blocks = self._construct_blocks()
+        blocks = json.dumps(blocks)
+        requests.post(response_url, json={"replace_original": "true", "blocks": blocks})
+
+    def _cast_vote(self, user, value):
+        if not self.outcome["votes"].get(value):
+            return False
+        if user in self.outcome["votes"][value]["users"]:
+            return False
+
+        # Update vote count for selected value
+        logger.debug(f"> {user} cast vote for {value}")
+        self.outcome["votes"][value]["users"].append(user)
+        self.outcome["votes"][value]["count"] = len(self.outcome["votes"][value]["users"])
+
+        # If user previously voter for a different option, remove old vote
+        for k, v in self.outcome["votes"].items():
+            if k != value and user in v["users"]:
+                v["users"].remove(user)
+                v["count"] = len(v["users"])
+
+        self.save()
+
+    def _is_eligible_voter(self, user):
+        eligible_voters = self.state.get("parameters").get("eligible_voters")
+        if eligible_voters and user not in eligible_voters:
+            return False
+        ineligible_voters = self.state.get("parameters").get("ineligible_voters")
+        if ineligible_voters and user in ineligible_voters:
+            return False
+        return True
+
+    def _construct_blocks(self, hide_buttons=False):
+        """
+        Construct voting message blocks
+        """
+        text = self.state.get("message_header")
+        poll_type = self.state.get("poll_type")
+        options = self.state.get("options")
+        votes = self.outcome["votes"]
+
+        blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
+        for idx, opt in enumerate(options):
+            if poll_type == "boolean":
+                option_text = f"Approve" if opt == Bool.YES else "Reject"
+                button_text = f":+1:" if opt == Bool.YES else ":-1:"
+            else:
+                option_text = opt
+                family = self.state.get("parameters")["emoji_family"]
+                button_text = f":{EMOJI_MAP[family][idx]}:"
+
+            # show vote count and user list next to each vote option
+            num = votes[opt]["count"]
+            option_text = f"{option_text}   `{num}`"
+            if num > 0:
+                users = [f"<@{id}>" for id in votes[opt]["users"]]
+                users = ", ".join(users)
+                option_text = f"{option_text} ({users})"
+
+            vote_option_section = {"type": "section", "text": {"type": "mrkdwn", "text": option_text}}
+            if not hide_buttons:
+                vote_option_section["accessory"] = {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": button_text, "emoji": True},
+                    "value": opt,
+                    "action_id": VOTE_ACTION_ID,
+                }
+            blocks.append(vote_option_section)
+        return blocks
 
     def close(self):
-        # Edit content of the post to mark it as "closed."
-        option_emoji_map = self.state.get("option_emoji_map")
-        text = self.state.get("message_header")
-        if self.state.get("poll_type") == "boolean":
-            yes = self.outcome["votes"][Bool.YES]["count"]
-            no = self.outcome["votes"][Bool.NO]["count"]
-            text += f"\nFinal vote count: {yes} for and {no} against."
-        else:
-            for (k, v) in option_emoji_map.items():
-                count = self.outcome["votes"][v]["count"]
-                text += f"\n> :{k}:  {v} ({count})"
+        # Set governnace process to completed
+        self.status = ProcessStatus.COMPLETED.value
 
+        # Update vote message to hide voting buttons
+        blocks = self._construct_blocks(hide_buttons=True)
         self.plugin_inst.method(
             {
                 "method_name": "chat.update",
                 "channel": self.outcome["channel"],
                 "ts": self.outcome["message_ts"],
-                "text": text,
+                "blocks": json.dumps(blocks),
             }
-        )
-        self.status = ProcessStatus.COMPLETED.value
-        self.save()
-
-    def update_outcome_from_reaction_list(self, reaction_list):
-        self.outcome["votes"] = reactions_to_dict(
-            reaction_list, self.state.get("option_emoji_map"), excluded_users=[self.plugin_inst.config["bot_user_id"]]
         )
         self.save()
 
@@ -344,41 +399,3 @@ def construct_message_header(title, details=None):
     if details:
         text += f"{details}\n"
     return text
-
-
-def reactions_to_dict(reaction_list, emoji_to_option, excluded_users=[]):
-    """Convert list of reactions from Slack API into a dictionary of option votes"""
-    votes = {}
-    for r in reaction_list:
-        emoji = normalize_reaction(r.pop("name"))
-        option = emoji_to_option.get(emoji)
-        if not option:
-            continue
-        # remove excluded users from list of reactions
-        user_list = set(r["users"])
-        user_list.difference_update(set(excluded_users))
-        user_list = list(user_list)
-        user_list.sort()
-
-        if votes.get(option):
-            # we already have some users listed (because of normalized reactions)
-            uniq_users = list(set(votes[option]["users"] + user_list))
-            uniq_users.sort()
-            votes[option] = {"users": uniq_users, "count": len(uniq_users)}
-        else:
-            votes[option] = {"users": user_list, "count": len(user_list)}
-
-    # add zeros for options that don't have any reactions
-    for v in emoji_to_option.values():
-        if votes.get(v) is None:
-            votes[v] = {"users": [], "count": 0}
-
-    return votes
-
-
-def normalize_reaction(reaction: str):
-    if reaction.startswith("+1::skin-tone-"):
-        return "+1"
-    if reaction.startswith("-1::skin-tone-"):
-        return "-1"
-    return reaction
