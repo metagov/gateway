@@ -125,7 +125,9 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
                 # if community doesn't match, there is a Slack Plugin for this team enabled for a
                 # DIFFERENT community, so we error. Slack admin would need to go into the slack workspace and uninstall the app, if they want to create a Slack Pluign for
                 # the same workspace under a different community.
-                logger.error(f"Slack Plugin for team {team_id} already exists for another community: {existing_plugin_to_reinstall}")
+                logger.error(
+                    f"Slack Plugin for team {team_id} already exists for another community: {existing_plugin_to_reinstall}"
+                )
                 raise WrongCommunityError
 
         for inst in Slack.objects.all():
@@ -176,8 +178,13 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         logger.info(f"Created Slack plugin {plugin}")
 
         # Get or create linked account using this data
-        result = plugin.add_linked_account(platform_identifier=installer_user_id, external_id=external_id,
-            community_platform_id=team_id, link_type=LinkType.OAUTH.value, link_quality=LinkQuality.STRONG_CONFIRM.value)
+        result = plugin.add_linked_account(
+            platform_identifier=installer_user_id,
+            external_id=external_id,
+            community_platform_id=team_id,
+            link_type=LinkType.OAUTH.value,
+            link_quality=LinkQuality.STRONG_CONFIRM.value,
+        )
 
         # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
         params = {
@@ -205,8 +212,13 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         if not plugin:
             raise PluginNotInstalledError
 
-        result = plugin.add_linked_account(platform_identifier=user["id"], external_id=external_id,
-            community_platform_id=team_id, link_type=LinkType.OAUTH.value, link_quality=LinkQuality.STRONG_CONFIRM.value)
+        result = plugin.add_linked_account(
+            platform_identifier=user["id"],
+            external_id=external_id,
+            community_platform_id=team_id,
+            link_type=LinkType.OAUTH.value,
+            link_quality=LinkQuality.STRONG_CONFIRM.value,
+        )
 
         # Add some params to redirect
         params = {
@@ -226,6 +238,20 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
 
 
 def process_event(request):
+
+    if request.META["CONTENT_TYPE"] == "application/x-www-form-urlencoded":
+        payload = json.loads(request.POST.get("payload"))
+        if payload["type"] != "block_actions":
+            return
+        team_id = payload["team"]["id"]
+        for plugin in Slack.objects.all():
+            if plugin.config["team_id"] == team_id:
+                active_processes = SlackEmojiVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
+                for process in active_processes:
+                    logger.info(f"Passing Slack interaction to {process}")
+                    process.receive_webhook(request)
+        return
+
     json_data = json.loads(request.body)
     if json_data["type"] == "url_verification":
         challenge = json_data.get("challenge")
@@ -246,13 +272,8 @@ def process_event(request):
 
         for plugin in Slack.objects.all():
             if plugin.config["team_id"] == json_data["team_id"]:
-                logger.info(f"Passing event to {plugin}")
+                logger.info(f"Passing webhook event to {plugin}")
                 plugin.receive_event(request)
-                evt_type = json_data["event"]["type"]
-                if evt_type == "reaction_added" or evt_type == "reaction_removed":
-                    active_processes = SlackEmojiVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
-                    for process in active_processes:
-                        process.receive_webhook(request)
     return HttpResponse()
 
 

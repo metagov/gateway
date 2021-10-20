@@ -90,5 +90,9 @@ settings:
       - team_domain_change
       - team_rename
       - user_change
+  interactivity:
+    is_enabled: true
+    # Replace me!
+    request_url: $METAGOV_SERVER/api/hooks/slack
   org_deploy_enabled: false
   socket_mode_enabled: false
