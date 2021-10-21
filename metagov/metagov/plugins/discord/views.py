@@ -76,7 +76,7 @@ def _exchange_code(code):
         "client_secret": env("DISCORD_CLIENT_SECRET"),
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": f"{settings.SERVER_UR}/auth/discord/callback",
+        "redirect_uri": f"{settings.SERVER_URL}/auth/discord/callback",
     }
     resp = requests.post("https://discordapp.com/api/oauth2/token", data=data)
     if not resp.ok:
@@ -87,7 +87,7 @@ def _exchange_code(code):
     return response
 
 
-def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, *args, **kwargs):
+def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, request=None, *args, **kwargs):
     """
     OAuth2 callback endpoint handler for authorization code grant type.
     This function does two things:
@@ -101,6 +101,8 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
     community : the Community to enable Discord for
     state : optional state to pass along to the redirect_uri
     """
+    if request:
+        logger.debug(f"> guild_id: {request.GET.get('guild_id')}")
     # data = parse.urlencode({
     #     "client_id": env("DISCORD_CLIENT_ID"),
     #     "client_secret": env("DISCORD_CLIENT_SECRET"),
