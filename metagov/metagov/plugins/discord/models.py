@@ -28,7 +28,7 @@ class Discord(Plugin):
             "guild_name": {"description": "Discord Guild Name", "type": "string"},
         },
     }
-    client = discord.Client()
+    # client = discord.Client()
 
     class Meta:
         proxy = True
