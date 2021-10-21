@@ -6,11 +6,13 @@ import requests
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
 from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 from rest_framework.exceptions import ValidationError
+from metagov.core.errors import PluginErrorInternal
 
 logger = logging.getLogger(__name__)
 
 env = environ.Env()
 environ.Env.read_env()
+DISCORD_BOT_TOKEN = env("DISCORD_BOT_TOKEN")
 
 
 @Registry.plugin
@@ -31,6 +33,9 @@ class Discord(Plugin):
 
     def initialize(self):
         logger.debug(f"init discord {self.config}")
+        guild_id = self.config["guild_id"]
+        guild = self._make_discord_request(f"/guilds/{guild_id}")
+        self.state.set("guild_data", guild)
         # ... create webhook for guild / channel ?
 
     def receive_event(self, request):
@@ -46,6 +51,42 @@ class Discord(Plugin):
     #         "is_metagov_bot": message["author"]["bot"],
     #     }
     #     self.send_event_to_driver(event_type=event_type, initiator=initiator, data=message)
+
+    def _make_discord_request(self, route, method="GET", json=None):
+        if not route.startswith("/"):
+            route = f"/{route}"
+
+        resp = requests.request(
+            method,
+            f"https://discord.com/api{route}",
+            headers={"Authorization": f"Bearer {DISCORD_BOT_TOKEN}"},
+            json=json,
+        )
+        if not resp.ok:
+            logger.error(f"{resp.status_code} {resp.reason}")
+            logger.error(resp.request.body)
+            raise PluginErrorInternal(resp.text)
+        if resp.content:
+            return resp.json()
+        return None
+
+    @Registry.action(
+        slug="method",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "method": {"type": "string", "description": "HTTP method. Defaults to GET."},
+                "route": {"type": "string"},
+            },
+            "required": ["route"],
+        },
+        description="Perform any Discord API call",
+    )
+    def discord_method(self, parameters):
+        method = parameters.pop("method", "GET")
+        route = parameters.pop("route")
+        # TODO fill in guild id
+        return self._make_discord_request(route, method, json=parameters)
 
     """
     @Registry.action(

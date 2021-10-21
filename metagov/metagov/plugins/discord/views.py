@@ -97,16 +97,16 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
     guild_id = response["guild"]["id"]
 
     # Get user info
-    resp = requests.get(
-        "https://www.discord.com/api/users/@me",
-        headers={"Authorization": f"Bearer {user_access_token}"},
-    )
+    resp = requests.get("https://discord.com/api/users/@me", headers={"Authorization": f"Bearer {user_access_token}"})
     logger.debug(resp.request.headers)
     if not resp.ok:
         logger.error(f"Discord req failed: {resp.status_code} {resp.reason}")
         raise PluginAuthError(detail="Error getting user info for installing user")
     current_user = resp.json()
-    logger.debug(current_user)
+
+    # TODO: create MetagovId
+    # current_user_id = current_user["id"]
+    # current_user_username = current_user["username"]
 
     if type == AuthorizationType.APP_INSTALL:
         # Check if there are any existing Discord Plugin instances for this Discord team
