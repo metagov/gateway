@@ -98,9 +98,10 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
 
     # Get user info
     resp = requests.get(
-        "https://www.discordapp.com/api/users/@me",
+        "https://www.discord.com/api/users/@me",
         headers={"Authorization": f"Bearer {user_access_token}"},
     )
+    logger.debug(resp.request.headers)
     if not resp.ok:
         logger.error(f"Discord req failed: {resp.status_code} {resp.reason}")
         raise PluginAuthError(detail="Error getting user info for installing user")
