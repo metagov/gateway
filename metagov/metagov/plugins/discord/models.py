@@ -62,8 +62,11 @@ class Discord(Plugin):
             headers={"Authorization": f"Bot {DISCORD_BOT_TOKEN}"},
             json=json,
         )
+
         if not resp.ok:
             logger.error(f"{resp.status_code} {resp.reason}")
+            logger.debug(resp.request.headers)
+            logger.debug(resp.request.url)
             logger.error(resp.request.body)
             raise PluginErrorInternal(resp.text)
         if resp.content:
@@ -102,6 +105,7 @@ class Discord(Plugin):
         user_id = parameters.pop("user_id")
         return self.client.get_user(user_id)
 
+    
     @Registry.action(
         slug="getguild",
         input_schema={
