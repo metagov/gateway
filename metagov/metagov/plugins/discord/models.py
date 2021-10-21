@@ -1,5 +1,3 @@
-# import asyncio
-# import discord
 import environ
 import json
 import logging
@@ -8,7 +6,6 @@ import requests
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
 from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 from rest_framework.exceptions import ValidationError
-# from threading import Thread
 
 logger = logging.getLogger(__name__)
 
@@ -23,29 +20,25 @@ class Discord(Plugin):
     config_schema = {
         "type": "object",
         "properties": {
-            # these are set automatically if using the oauth flow
+            # these are set automatically using the oauth flow
             "guild_id": {"description": "Discord Guild ID", "type": "number"},
             "guild_name": {"description": "Discord Guild Name", "type": "string"},
         },
     }
-    # client = discord.Client()
 
     class Meta:
         proxy = True
 
     def initialize(self):
         logger.debug(f"init discord {self.config}")
-        #... create webhook ...
-        # loop = asyncio.new_event_loop()
-        # asyncio.set_event_loop(loop)
-        # loop.create_task(self.client.start(env("DISCORD_BOT_TOKEN")))
-        # Thread(target=loop.run_forever).start()
+        # ... create webhook for guild / channel ?
 
-    # @client.event
-    # async def on_message(self, message):
-    #     event_type = "MESSAGE_CREATE"
-
-    #     logger.debug(f"Received event {event_type}")
+    def receive_event(self, request):
+        json_data = json.loads(request.body)
+        t = json_data["type"]
+        name = json_data["name"]
+        logger.debug(f">> {self} got event {t} {name}")
+        user = json_data.get("user")
 
     #     initiator = {
     #         "user_id": message["author"]["name"],
