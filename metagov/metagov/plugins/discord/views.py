@@ -1,11 +1,11 @@
-import asyncio
+# import asyncio
 import environ
 import json
 import logging
 import requests
 import urllib.request
 
-from asgiref.sync import sync_to_async
+# from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
@@ -13,7 +13,8 @@ from metagov.core.errors import PluginErrorInternal, PluginAuthError
 from metagov.core.plugin_manager import AuthorizationType
 from metagov.plugins.discord.models import Discord
 from requests.models import PreparedRequest
-from urllib import parse
+
+# from urllib import parse
 
 logger = logging.getLogger(__name__)
 
@@ -48,27 +49,45 @@ def get_authorize_url(state: str, type: str, community=None):
         raise PluginAuthError(detail="Client ID not configured")
 
     if type == AuthorizationType.APP_INSTALL:
-        team = None
-        if community:
-            try:
-                plugin = Discord.objects.get(community=community)
-                team = plugin.config.get("guild_id")
-                logger.debug(
-                    f"Discord is already enabled for {community}, so only allowing re-installation to the same team ({team})"
-                )
-            except Discord.DoesNotExist:
-                pass
+        # team = None
+        # if community:
+        #     try:
+        #         plugin = Discord.objects.get(community=community)
+        #         team = plugin.config.get("guild_id")
+        #         logger.debug(
+        #             f"Discord is already enabled for {community}, so only allowing re-installation to the same team ({team})"
+        #         )
+        #     except Discord.DoesNotExist:
+        #         pass
 
+        # ?client_id={{discord_client_id}}&response_type=code&redirect_uri={{server_url}}%2Fdiscord%2Foauth&scope=bot%20identify%20guilds&permissions=8589934591&state=policykit_discord_mod_install
+        extra = "scope=bot%20identify%20guilds&permissions=8589934591"
+        return (
+            f"https://discord.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&{extra}"
+        )
         return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&redirect_uri={settings.SERVER_URL}%2Fauth%2Fdiscord%2Fcallback&team={team or ''}&permissions=8589934591&scope=bot%20identify%20guilds"
     if type == AuthorizationType.USER_LOGIN:
         return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&redirect_uri={settings.SERVER_URL}%2Fauth%2Fdiscord%2Fcallback&scope=identify%20guilds"
 
 
-def _create_discord(community, plugin_config):
-    return Discord.objects.create(name="discord", community=community, config=plugin_config)
+def _exchange_code(code):
+    data = {
+        "client_id": env("DISCORD_CLIENT_ID"),
+        "client_secret": env("DISCORD_CLIENT_SECRET"),
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": f"{settings.SERVER_UR}/auth/discord/callback",
+    }
+    resp = requests.post("https://discordapp.com/api/oauth2/token", data=data)
+    if not resp.ok:
+        logger.error(f"Discord auth failed: {resp.status_code} {resp.reason}")
+        raise PluginAuthError
+    logger.debug(resp.text)
+    response = resp.json()
+    return response
 
 
-async def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, *args, **kwargs):
+def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, *args, **kwargs):
     """
     OAuth2 callback endpoint handler for authorization code grant type.
     This function does two things:
@@ -82,32 +101,40 @@ async def auth_callback(type: str, code: str, redirect_uri: str, community, stat
     community : the Community to enable Discord for
     state : optional state to pass along to the redirect_uri
     """
-    data = parse.urlencode({
-        "client_id": env("DISCORD_CLIENT_ID"),
-        "client_secret": env("DISCORD_CLIENT_SECRET"),
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": settings.SERVER_URL + "/auth/discord/callback"
-    }).encode()
-    req = urllib.request.Request('https://discordapp.com/api/oauth2/token', data=data)
-    req.add_header("Content-Type", "application/x-www-form-urlencoded")
-    req.add_header("User-Agent", "Mozilla/5.0")
-    resp = urllib.request.urlopen(req)
-    if resp.status != 200:
-        logger.error(f"Discord auth failed: {resp.status}")
-        raise PluginAuthError
+    # data = parse.urlencode({
+    #     "client_id": env("DISCORD_CLIENT_ID"),
+    #     "client_secret": env("DISCORD_CLIENT_SECRET"),
+    #     "grant_type": "authorization_code",
+    #     "code": code,
+    #     "redirect_uri": settings.SERVER_URL + "/auth/discord/callback"
+    # }).encode()
+    # req = urllib.request.Request('https://discordapp.com/api/oauth2/token', data=data)
+    # req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    # req.add_header("User-Agent", "Mozilla/5.0")
+    # resp = urllib.request.urlopen(req)
+    # if resp.status != 200:
+    #     logger.error(f"Discord auth failed: {resp.status}")
+    #     raise PluginAuthError
 
-    response = json.loads(resp.read().decode('utf-8'))
+    # response = json.loads(resp.read().decode('utf-8'))
+    response = _exchange_code(code)
     logger.info(f"---- {response} ----")
+    # {
+    #     "access_token": "6qrZcUqja7812RVdnEKjpzOL4CvHBFG",
+    #     "token_type": "Bearer",
+    #     "expires_in": 604800,
+    #     "refresh_token": "D43f5y0ahjqew82jZ4NViEr2YafMKhue",
+    #     "scope": "identify"
+    # }
 
     guild_id = response["guild"]["id"]
 
     # Get user info
-    req = urllib.request.Request('https://www.discordapp.com/api/users/@me')
-    req.add_header('Authorization', 'Bearer %s' % response["access_token"])
+    req = urllib.request.Request("https://www.discordapp.com/api/users/@me")
+    req.add_header("Authorization", "Bearer %s" % response["access_token"])
     req.add_header("User-Agent", "Mozilla/5.0")
     resp = urllib.request.urlopen(req)
-    current_user = json.loads(resp.read().decode('utf-8'))
+    current_user = json.loads(resp.read().decode("utf-8"))
 
     if type == AuthorizationType.APP_INSTALL:
         if response["token_type"] != "Bearer":
@@ -140,25 +167,23 @@ async def auth_callback(type: str, code: str, redirect_uri: str, community, stat
                 raise AlreadyInstalledError
 
         # Configuration for the new Discord Plugin to create
-        plugin_config = {
-            "guild_id": guild_id,
-            "guild_name": response["guild"]["name"]
-        }
+        plugin_config = {"guild_id": guild_id, "guild_name": response["guild"]["name"]}
 
-        if REQUIRE_INSTALLER_TO_BE_ADMIN:
-            # TODO call auth.revoke if anything fails, to uninstall the bot and delete the bot token
+        # if REQUIRE_INSTALLER_TO_BE_ADMIN:
+        #     # TODO call auth.revoke if anything fails, to uninstall the bot and delete the bot token
 
-            if response["guild"]["owner_id"] != current_user["id"]:
-                raise NonAdminInstallError
+        #     if response["guild"]["owner_id"] != current_user["id"]:
+        #         raise NonAdminInstallError
 
         if existing_plugin_to_reinstall:
-            logger.info(f"Deleting existing Discord plugin found for requested community {existing_plugin_to_reinstall}")
+            logger.info(
+                f"Deleting existing Discord plugin found for requested community {existing_plugin_to_reinstall}"
+            )
             existing_plugin_to_reinstall.delete()
 
-        loop = asyncio.get_event_loop()
-        create_discord = sync_to_async(_create_discord)
-        loop.create_task(create_discord(community, plugin_config))
-        logger.info(f"Created Discord plugin {plugin}")
+        logger.debug("creating Discord plugin")
+        plugin = Discord.objects.create(name="discord", community=community, config=plugin_config)
+        logger.debug(plugin)
 
         # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)
         params = {
@@ -195,6 +220,7 @@ async def auth_callback(type: str, code: str, redirect_uri: str, community, stat
         return HttpResponseRedirect(url)
 
     return HttpResponseBadRequest()
+
 
 def add_query_parameters(url, params):
     req = PreparedRequest()

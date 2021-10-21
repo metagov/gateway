@@ -1,5 +1,5 @@
-import asyncio
-import discord
+# import asyncio
+# import discord
 import environ
 import json
 import logging
@@ -8,7 +8,7 @@ import requests
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
 from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
 from rest_framework.exceptions import ValidationError
-from threading import Thread
+# from threading import Thread
 
 logger = logging.getLogger(__name__)
 
@@ -34,24 +34,27 @@ class Discord(Plugin):
         proxy = True
 
     def initialize(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.create_task(self.client.start(env("DISCORD_BOT_TOKEN")))
-        Thread(target=loop.run_forever).start()
+        logger.debug(f"init discord {self.config}")
+        #... create webhook ...
+        # loop = asyncio.new_event_loop()
+        # asyncio.set_event_loop(loop)
+        # loop.create_task(self.client.start(env("DISCORD_BOT_TOKEN")))
+        # Thread(target=loop.run_forever).start()
 
-    @client.event
-    async def on_message(self, message):
-        event_type = "MESSAGE_CREATE"
+    # @client.event
+    # async def on_message(self, message):
+    #     event_type = "MESSAGE_CREATE"
 
-        logger.debug(f"Received event {event_type}")
+    #     logger.debug(f"Received event {event_type}")
 
-        initiator = {
-            "user_id": message["author"]["name"],
-            "provider": "discord",
-            "is_metagov_bot": message["author"]["bot"],
-        }
-        self.send_event_to_driver(event_type=event_type, initiator=initiator, data=message)
+    #     initiator = {
+    #         "user_id": message["author"]["name"],
+    #         "provider": "discord",
+    #         "is_metagov_bot": message["author"]["bot"],
+    #     }
+    #     self.send_event_to_driver(event_type=event_type, initiator=initiator, data=message)
 
+    """
     @Registry.action(
         slug="getuser",
         input_schema={
@@ -193,3 +196,4 @@ class Discord(Plugin):
     def unban_user(self, parameters):
         user = self.get_user(parameters.get("user"))
         user.unban()
+    """
