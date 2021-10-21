@@ -59,7 +59,7 @@ class Discord(Plugin):
         resp = requests.request(
             method,
             f"https://discord.com/api{route}",
-            headers={"Authorization": f"Bearer {DISCORD_BOT_TOKEN}"},
+            headers={"Authorization": f"Bot {DISCORD_BOT_TOKEN}"},
             json=json,
         )
         if not resp.ok:
