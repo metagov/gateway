@@ -42,6 +42,11 @@ class WrongCommunityError(PluginAuthError):
     default_detail = "Already installed to this Discord guild for a different community. Uninstall and try again."
 
 
+class PluginNotInstalledError(PluginAuthError):
+    default_code = "discord_plugin_not_installed"
+    default_detail = "Discord plugin has not been installed to any guilds that this user belongs to."
+
+
 def get_authorize_url(state: str, type: str, community=None):
     try:
         client_id = env("DISCORD_CLIENT_ID")
@@ -94,8 +99,6 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
     user_access_token = response["access_token"]
     user_refresh_token = response["refresh_token"]
 
-    guild_id = response["guild"]["id"]
-
     # Get user info
     resp = requests.get("https://discord.com/api/users/@me", headers={"Authorization": f"Bearer {user_access_token}"})
     logger.debug(resp.request.headers)
@@ -109,6 +112,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
     # current_user_username = current_user["username"]
 
     if type == AuthorizationType.APP_INSTALL:
+        guild_id = response["guild"]["id"]
         # Check if there are any existing Discord Plugin instances for this Discord team
         # TODO: pull some of this logic into core. Each plugin has its own version of "team_id" that may need to be unique.
         existing_plugin_to_reinstall = None
@@ -171,14 +175,31 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
 
     elif type == AuthorizationType.USER_LOGIN:
 
+        # Find which guilds this user is a part of
+        resp = requests.get(
+            "https://www.discordapp.com/api/users/@me/guilds",
+            headers={"Authorization": f"Bearer {response['access_token']}"},
+        )
+        user_guilds = resp.json()
+
+        # Build a list of guild IDs that this user belongs do that are integrated with Metagov
+        integrated_guilds = []
+        for guild in user_guilds:
+            for inst in Discord.objects.all():
+                if inst.config["guild_id"] == guild["id"]:
+                    integrated_guilds.append(guild["id"])
+
+        if not integrated_guilds:
+            raise PluginNotInstalledError
+
         # Add some params to redirect
         params = {
             # Discord User ID for logged-in user
             "user_id": current_user["id"],
             # Discord User Token for logged-in user
             "user_token": response["access_token"],
-            # Guild that the user logged into
-            "guild_id": guild_id,
+            # Metagov-integrated guilds that this user belongs to
+            "guild_id[]": integrated_guilds,
             # (Optional) State that was originally passed from Driver, so it can validate it
             "state": state,
         }
