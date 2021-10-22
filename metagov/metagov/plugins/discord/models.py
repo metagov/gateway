@@ -31,11 +31,11 @@ class Discord(Plugin):
     class Meta:
         proxy = True
 
-    def initialize(self):
-        logger.debug(f"init discord {self.config}")
-        guild_id = self.config["guild_id"]
-        guild = self._make_discord_request(f"/guilds/{guild_id}")
-        self.state.set("guild_data", guild)
+    # def initialize(self):
+    #     logger.debug(f"init discord {self.config}")
+        # guild_id = self.config["guild_id"]
+        # guild = self._make_discord_request(f"/guilds/{guild_id}")
+        # self.state.set("guild_data", guild)
         # ... create webhook for guild / channel ?
 
     def receive_event(self, request):
@@ -67,7 +67,6 @@ class Discord(Plugin):
             logger.error(f"{resp.status_code} {resp.reason}")
             logger.debug(resp.request.headers)
             logger.debug(resp.request.url)
-            logger.error(resp.request.body)
             raise PluginErrorInternal(resp.text)
         if resp.content:
             return resp.json()
@@ -105,23 +104,17 @@ class Discord(Plugin):
         user_id = parameters.pop("user_id")
         return self.client.get_user(user_id)
 
-    
-    @Registry.action(
-        slug="getguild",
-        input_schema={
-            "type": "object",
-            "properties": {"guild_id": {"type": "string"}},
-            "required": ["guild_id"],
-        },
-        description="Returns a guild with the given ID or None if not found.",
-    )
-    def getguild(self, parameters):
-        guild_id = parameters.pop("guild_id")
-        guild = self.client.get_guild(int(guild_id))
-        if guild is None:
-            logger.warn(f"Failed to find a guild with the given ID {guild_id}")
-        return guild
+    """
 
+    @Registry.action(
+        slug="get-guild",
+        description="Get guild information",
+    )
+    def get_guild(self, parameters):
+        guild_id = self.config["guild_id"]
+        return self._make_discord_request(f"/guilds/{guild_id}")
+
+    """
     @Registry.action(
         slug="post-message",
         input_schema={
