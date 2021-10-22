@@ -177,17 +177,20 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
 
         # Find which guilds this user is a part of
         resp = requests.get(
-            "https://www.discordapp.com/api/users/@me/guilds",
+            "https://discord.com/api/users/@me/guilds",
             headers={"Authorization": f"Bearer {response['access_token']}"},
         )
         user_guilds = resp.json()
+        logger.debug(user_guilds)
 
         # Build a list of guild IDs that this user belongs do that are integrated with Metagov
         integrated_guilds = []
         for guild in user_guilds:
             for inst in Discord.objects.all():
-                if inst.config["guild_id"] == guild["id"]:
-                    integrated_guilds.append(guild["id"])
+                if str(inst.config["guild_id"]) == str(guild["id"]):
+                    guild_id_name = f"{guild['id']}:{guild['name']}"
+                    logger.debug(f">>>keeping {guild_id_name}")
+                    integrated_guilds.append(guild_id_name)
 
         if not integrated_guilds:
             raise PluginNotInstalledError
@@ -199,7 +202,7 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
             # Discord User Token for logged-in user
             "user_token": response["access_token"],
             # Metagov-integrated guilds that this user belongs to
-            "guild_id[]": integrated_guilds,
+            "guild[]": integrated_guilds,
             # (Optional) State that was originally passed from Driver, so it can validate it
             "state": state,
         }
