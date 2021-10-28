@@ -116,15 +116,12 @@ class Near(Plugin):
         description="Makes a contract call which can only view state.",
         input_schema=Schemas.view_parameters,
     )
-    def view(self, parameters):
+    def view(self, method_name, args=None):
         contract_id = self.config["contract_id"]
-        method_name = parameters["method_name"]
-        args = parameters.get("args", {})
-
         account = self.create_master_account()  # creates a new provider every time!
 
         try:
-            return account.view_function(contract_id, method_name, args)
+            return account.view_function(contract_id, method_name, args or {})
         except (TransactionError, ViewFunctionError) as e:
             raise PluginErrorInternal(str(e))
 
@@ -133,7 +130,7 @@ class Near(Plugin):
         description="Makes a contract call which can modify or view state. The master account will be charged a transaction fee.",
         input_schema=Schemas.call_parameters,
     )
-    def call(self, parameters):
+    def call(self, method_name, **kwargs):
         """
         "Contract calls require a transaction fee (gas) so you will need an access key for the --accountId that will be charged. (near login)"
         Rght now we only support making calls from the "master account"... ?
@@ -142,12 +139,12 @@ class Near(Plugin):
 
         account = self.create_master_account()  # creates a new provider every time!
 
-        optional_args = {key: parameters[key] for key in parameters.keys() if key in ["gas", "amount"]}
+        optional_args = {key: kwargs[key] for key in kwargs.keys() if key in ["gas", "amount"]}
         try:
             return account.function_call(
                 contract_id=contract_id,
-                method_name=parameters["method_name"],
-                args=parameters.get("args", {}),
+                method_name=method_name,
+                args=kwargs.get("args", {}),
                 **optional_args,
             )
         except (TransactionError, ViewFunctionError) as e:

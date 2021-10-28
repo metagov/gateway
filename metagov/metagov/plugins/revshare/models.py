@@ -1,7 +1,7 @@
 import logging
 import random
 
-from metagov.core.plugin_manager import AuthorizationType, Registry, Parameters, VotingStandard
+from metagov.core.plugin_manager import Registry
 import metagov.plugins.revshare.schemas as Schemas
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import Plugin
@@ -9,6 +9,7 @@ from metagov.core.models import Plugin
 logger = logging.getLogger(__name__)
 
 DEFAULT_KEY = "_DEFAULT"
+
 
 @Registry.plugin
 class RevShare(Plugin):
@@ -27,10 +28,7 @@ class RevShare(Plugin):
         description="Add weighted pointer to revshare config, or update its weight if it already exists",
         input_schema=Schemas.add_pointer_input,
     )
-    def add_pointer(self, parameters):
-        pointer = parameters["pointer"]
-        weight = parameters["weight"]
-        key = parameters.get("key", DEFAULT_KEY)
+    def add_pointer(self, pointer, weight, key=DEFAULT_KEY):
         config = self.state.get(key) or {}
         config[pointer] = weight
         self.state.set(key, config)
@@ -39,11 +37,9 @@ class RevShare(Plugin):
     @Registry.action(
         slug="remove-pointer",
         description="Remove pointer from revshare config",
-        input_schema=Schemas.remove_pointer_input
+        input_schema=Schemas.remove_pointer_input,
     )
-    def remove_pointer(self, parameters):
-        pointer = parameters["pointer"]
-        key = parameters.get("key", DEFAULT_KEY)
+    def remove_pointer(self, pointer, key=DEFAULT_KEY):
         config = self.state.get(key) or {}
         config.pop(pointer, None)
         self.state.set(key, config)
@@ -54,9 +50,7 @@ class RevShare(Plugin):
         description="Replace revshare config with new config",
         input_schema=Schemas.replace_config_input,
     )
-    def replace(self, parameters):
-        new_pointers = parameters["pointers"]
-        key = parameters.get("key", DEFAULT_KEY)
+    def replace(self, pointers, key=DEFAULT_KEY):
         self.state.set(key, new_pointers)
         return new_pointers
 
@@ -66,8 +60,7 @@ class RevShare(Plugin):
         input_schema=Schemas.get_config_input,
         is_public=True,
     )
-    def get_config(self, parameters):
-        key = parameters.get("key", DEFAULT_KEY)
+    def get_config(self, key=DEFAULT_KEY):
         return self.state.get(key) or {}
 
     @Registry.action(
@@ -77,8 +70,7 @@ class RevShare(Plugin):
         output_schema=Schemas.pick_pointer_output,
         is_public=True,
     )
-    def pick_pointer(self, parameters):
-        key = parameters.get("key", DEFAULT_KEY)
+    def pick_pointer(self, key=DEFAULT_KEY):
         pointers = self.state.get(key) or {}
         if len(pointers) == 0:
             raise PluginErrorInternal(f"No pointers for key {key}")

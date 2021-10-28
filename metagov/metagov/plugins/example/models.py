@@ -35,10 +35,10 @@ class Randomness(Plugin):
         },
         output_schema={"type": "object", "properties": {"lucky_number": {"type": "integer"}}},
     )
-    def set_lucky_number(self, parameters):
+    def set_lucky_number(self, lucky_number):
         # [useless example] expose an action for updating plugin state
-        self.state.set("lucky_number", parameters["lucky_number"])
-        return {"lucky_number": parameters["lucky_number"]}
+        self.state.set("lucky_number", lucky_number)
+        return {"lucky_number": lucky_number}
 
     @Registry.action(
         slug="random-int",
@@ -46,11 +46,11 @@ class Randomness(Plugin):
         input_schema={"type": "object", "properties": {"low": {"type": "integer"}, "high": {"type": "integer"}}},
         output_schema={"type": "object", "properties": {"value": {"type": "integer"}}},
     )
-    def rand_int(self, parameters):
+    def rand_int(self, low=None, high=None):
         import random
 
-        low = parameters.get("low", self.config["default_low"])
-        high = parameters.get("high", self.config["default_high"])
+        low = self.config["default_low"] if low is None else low
+        high = self.config["default_high"] if high is None else high
         random_number = random.randint(low, high - 1)
 
         # [useless example] access plugin state
@@ -109,7 +109,7 @@ class StochasticVote(GovernanceProcess):
         options = self.state.get("options")
 
         # use `plugin_inst` to access plugin functions
-        result = self.plugin_inst.rand_int({"low": 0, "high": len(options)})
+        result = self.plugin_inst.rand_int(low=0, high=len(options))
         rand_index = result["value"]
         print(f"Winner is {options[rand_index]}!")
 

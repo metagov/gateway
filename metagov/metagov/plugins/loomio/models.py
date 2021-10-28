@@ -66,9 +66,9 @@ class Loomio(Plugin):
             },
         },
     )
-    def list_members(self, parameters):
-        if parameters.get("subgroup"):
-            api_key = self._get_api_key(parameters["subgroup"])
+    def list_members(self, subgroup=None):
+        if subgroup:
+            api_key = self._get_api_key(subgroup)
         else:
             api_key = self.config["api_key"]
         return self._get_memberships(api_key)
@@ -78,9 +78,8 @@ class Loomio(Plugin):
         description="create a new discussion",
         input_schema=Schemas.create_discussion_input,
     )
-    def create_discussion(self, parameters):
-        subgroup = parameters.pop("subgroup", None)
-        payload = parameters
+    def create_discussion(self, title, subgroup=None, **kwargs):
+        payload = {"title": title, **kwargs}
         if subgroup:
             payload["api_key"] = self._get_api_key(subgroup)
         else:

@@ -65,14 +65,20 @@ class Slack(Plugin):
         },
         description="Post message either in a channel, direct message, or multi-person message. Supports all params accepted by Slack method chat.postMessage.",
     )
-    def post_message(self, parameters):
+    def post_message(self, users=None, channel=None, **kwargs):
         bot_token = self.config["bot_token"]
-        data = {"token": bot_token, **parameters}  # note: parameters may include a token override!
-        if not parameters.get("users") and not parameters.get("channel"):
+        data = {
+            "token": bot_token,
+            "users": users,
+            "channel": channel,
+            # note: kwargs may include a token override
+            **kwargs,
+        }
+        if not users and not channel:
             raise ValidationError("users or channel are required")
-        if parameters.get("users") and not parameters.get("channel"):
+        if users and not channel:
             # open a conversation for DM or multi person message
-            users = ",".join(parameters.get("users"))
+            users = ",".join(users)
             params = {"token": bot_token, "users": users}
             response = self.slack_request("POST", "conversations.open", data=params)
             channel = response["channel"]["id"]
@@ -94,7 +100,7 @@ class Slack(Plugin):
         },
         description="Perform any Slack method (provided sufficient scopes)",
     )
-    def method(self, parameters):
+    def method(self, method_name, **kwargs):
         """
         Action for performing any method in https://api.slack.com/methods
         See also: https://api.slack.com/web#basics
@@ -105,9 +111,9 @@ class Slack(Plugin):
         curl -iX POST "https://metagov.policykit.org/api/internal/action/slack.method" -H  "accept: application/json" -H  "X-Metagov-Community: slack-tmq3pkxt9" -d '{"parameters":{"channel":"C0177HZTV7X","method":"pins.add","timestamp":"1622820212.008000"}}'
         curl -iX POST "https://metagov.policykit.org/api/internal/action/slack.method" -H  "accept: application/json" -H  "X-Metagov-Community: slack-tmq3pkxt9" -d '{"parameters":{"channel":"C0177HZTV7X","method":"pins.remove","timestamp":"1622820212.008000"}}'
         """
-        method = parameters.pop("method_name")
+        method = method_name
         # note: parameters may include a token override!
-        data = {"token": self.config["bot_token"], **parameters}
+        data = {"token": self.config["bot_token"], **kwargs}
         try:
             return self.slack_request("POST", method, data=data)
         except PluginErrorInternal as e:
@@ -256,20 +262,14 @@ class SlackEmojiVote(GovernanceProcess):
         blocks = json.dumps(blocks)
 
         if maybe_channel:
-            response = self.plugin_inst.post_message({"channel": maybe_channel, "blocks": blocks})
+            response = self.plugin_inst.post_message(channel=maybe_channel, blocks=blocks)
         else:
-            response = self.plugin_inst.post_message({"users": maybe_users, "blocks": blocks})
+            response = self.plugin_inst.post_message(users=maybe_users, blocks=blocks)
 
         ts = response["ts"]
         channel = response["channel"]
 
-        permalink_resp = self.plugin_inst.method(
-            {
-                "method_name": "chat.getPermalink",
-                "channel": channel,
-                "message_ts": ts,
-            }
-        )
+        permalink_resp = self.plugin_inst.method(method_name="chat.getPermalink", channel=channel, message_ts=ts)
 
         self.outcome["url"] = permalink_resp["permalink"]
         self.outcome["channel"] = channel
@@ -295,12 +295,7 @@ class SlackEmojiVote(GovernanceProcess):
                     message = self.state.get("parameters").get("ineligible_voter_message")
                     logger.debug(f"Ignoring vote from ineligible voter {user}")
                     self.plugin_inst.method(
-                        {
-                            "method_name": "chat.postEphemeral",
-                            "channel": self.outcome["channel"],
-                            "text": message,
-                            "user": user,
-                        }
+                        method_name="chat.postEphemeral", channel=self.outcome["channel"], text=message, user=user
                     )
                     return
 
@@ -384,12 +379,10 @@ class SlackEmojiVote(GovernanceProcess):
         # Update vote message to hide voting buttons
         blocks = self._construct_blocks(hide_buttons=True)
         self.plugin_inst.method(
-            {
-                "method_name": "chat.update",
-                "channel": self.outcome["channel"],
-                "ts": self.outcome["message_ts"],
-                "blocks": json.dumps(blocks),
-            }
+            method_name="chat.update",
+            channel=self.outcome["channel"],
+            ts=self.outcome["message_ts"],
+            blocks=json.dumps(blocks),
         )
         self.save()
 

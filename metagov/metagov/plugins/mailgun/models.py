@@ -55,12 +55,12 @@ class Mailgun(Plugin):
             }
         }
     )
-    def send_message(self, data):
+    def send_message(self, **kwargs):
         # making post request to mailgun api
         response = requests.post(
             url='https://api.mailgun.net/v3/{0}/messages'.format(self.config['domain_name']),
             auth=('api', self.config['api_key']),
-            data=data # this is the json set in internal/action/mailgun.send-mail
+            data=kwargs # this is the json set in internal/action/mailgun.send-mail
         )
 
         return response.json()

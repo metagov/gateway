@@ -86,7 +86,7 @@ class Github(Plugin):
         },
         description="Perform any Github method (provided sufficient scopes)",
     )
-    def method(self, parameters):
+    def method(self, route, method="GET", **kwargs):
         """
         Action to perform any method in https://docs.github.com/en/rest/overview/endpoints-available-for-github-apps
 
@@ -98,23 +98,17 @@ class Github(Plugin):
                  "comment_id": "123123",
                  "repo": "my_repo"}}'
         """
-        method = parameters.pop("method", "GET")
-        try:
-            route = parameters.pop("route")
-        except PluginErrorInternal as e:
-            logger.warn(f"Route for method {method} not found")
-            return
         try:
             interpolated_route = route.format(
                 owner=self.state.get("owner"),
                 installation_id=self.config["installation_id"],
-                **parameters
+                **kwargs
             )
         except PluginErrorInternal as e:
-            logger.warn(f"Route for method with parameters {parameters} and state {self.state} not found")
+            logger.warn(f"Route for method with parameters {kwargs} and state {self.state} not found")
             return
         try:
-            return self.github_request(method, interpolated_route, data=parameters)
+            return self.github_request(method, interpolated_route, data=kwargs)
         except PluginErrorInternal as e:
             logger.warn(f"Method {interpolated_route} failed with error {e}")
 
@@ -123,16 +117,16 @@ class Github(Plugin):
         description='creates issue in a repository',
         input_schema=Schemas.create_issue_parameters
     )
-    def create_issue(self, parameters):
-        owner, repo = self.state.get("owner"), parameters["repo_name"]
-        data = {"title": parameters["title"], "body": parameters["body"]}
-        return self.github_request(method="post", route=f"/repos/{owner}/{repo}/issues", data=data)
+    def create_issue(self, title, repo_name, body):
+        owner = self.state.get("owner")
+        data = {"title": title, "body": body}
+        return self.github_request(method="post", route=f"/repos/{owner}/{repo_name}/issues", data=data)
 
     @Registry.action(
         slug='get-installation',
         description='get information about this github installation'
     )
-    def get_installation(self, parameters):
+    def get_installation(self):
         return self.github_request(method="get", route=f"/app/installations/{self.config['installation_id']}", use_jwt=True)
 
 
@@ -161,7 +155,7 @@ class GithubIssueReactVote(GovernanceProcess):
         # create an issue to use as a vote:
         action_params = parameters._json
         action_params["title"], action_params["body"] = create_issue_text("react", action_params)
-        issue = self.plugin_inst.create_issue(parameters=action_params)
+        issue = self.plugin_inst.create_issue(**action_params)
 
         self.state.set("issue_number", issue["number"])
         self.state.set("bot_id", issue["user"]["id"])
@@ -273,7 +267,7 @@ class GithubIssueCommentVote(GovernanceProcess):
         # create an issue to use as a vote:
         action_params = parameters._json
         action_params["title"], action_params["body"] = create_issue_text("comment", action_params)
-        issue = self.plugin_inst.create_issue(parameters=action_params)
+        issue = self.plugin_inst.create_issue(**action_params)
 
         # save
         self.state.set("issue_number", issue["number"])
