@@ -44,17 +44,6 @@ class PluginNotInstalledError(PluginAuthError):
     default_detail = "No Slack plugin has been installed for this community."
 
 
-@registry.RequestHandler(plugin="slack")
-class SlackHandler(PluginHandler):
-    def handle_oauth_install(state: str, type: str, community=None):
-        pass
-    def handle_oauth_callback(type: str, code: str, redirect_uri: str, community, state=None, external_id=None, *args, **kwargs):
-        pass
-
-    def handle_webhook(request):
-        pass
-
-
 def get_authorize_url(state: str, type: str, community=None):
     try:
         client_id = env("SLACK_CLIENT_ID")
