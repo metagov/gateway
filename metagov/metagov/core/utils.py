@@ -134,7 +134,7 @@ def create_or_update_plugin(plugin_name, plugin_config, community):
 
     community_platform_id = None
     if cls.community_platform_id_key:
-        community_platform_id = plugin_config.get(cls.community_platform_id_key)
+        community_platform_id = str(plugin_config.get(cls.community_platform_id_key))
 
     try:
         plugin = cls.objects.get(name=plugin_name, community=community, community_platform_id=community_platform_id)
