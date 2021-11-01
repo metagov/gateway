@@ -100,10 +100,10 @@ class ApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         plugins = Plugin.objects.filter(community=community, name="sourcecred")
         self.assertEqual(plugins.count(), 1)
-        self.assertEqual(plugins.first().config["server_url"], sc_server)
+        self.assertEqual(plugins.first().community_platform_id, sc_server)
         sc_proxy_plugins = SourceCred.objects.filter(community=community, name="sourcecred")
         self.assertEqual(sc_proxy_plugins.count(), 1)
-        self.assertEqual(sc_proxy_plugins.first().config["server_url"], sc_server)
+        self.assertEqual(sc_proxy_plugins.first().community_platform_id, sc_server)
 
         # good sourcecred request (plugin is activated)
         sourcecred_request_url = "/api/internal/action/sourcecred.user-cred"
