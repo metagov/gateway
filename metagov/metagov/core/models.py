@@ -104,7 +104,10 @@ class Plugin(models.Model):
         unique_together = ["name", "community", "community_platform_id"]
 
     def __str__(self):
-        return f"{self.name} {':' if self.community_platform_id else ''} {self.community_platform_id or ''} for '{self.community}'"
+        community_platform_id_str = ''
+        if self.community_platform_id:
+            community_platform_id_str = f" ({self.community_platform_id})"
+        return f"{self.name}{community_platform_id_str} for '{self.community}'"
 
     def save(self, *args, **kwargs):
         if not self.pk:
