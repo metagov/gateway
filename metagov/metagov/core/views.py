@@ -542,7 +542,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
                 raise ValidationError(err.message)
 
         # 3. Invoke action function
-        response = action_function(parameters)
+        response = action_function(**parameters)
 
         # 4. Validate response
         if meta.output_schema:

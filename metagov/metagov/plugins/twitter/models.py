@@ -62,11 +62,11 @@ class Twitter(Plugin):
             "required": ["text"],
         },
     )
-    def send_tweet(self, parameters):
+    def send_tweet(self, text):
         if not self.config.get("allow_posting_tweets", False):
             raise PluginErrorInternal
 
-        res = self.tweepy_api().update_status(parameters["text"])
+        res = self.tweepy_api().update_status(text)
         return res._json
 
     @Registry.action(
@@ -81,10 +81,8 @@ class Twitter(Plugin):
             "required": ["user_id", "text"]
         }
     )
-    def send_direct_message(self, parameters):
-        user_id = int(parameters['user_id'])
-        text = parameters['text']
-        
+    def send_direct_message(self, user_id, text):
+        user_id = int(user_id)
         res = self.tweepy_api().send_direct_message(user_id, text)
         return res._json
 
@@ -97,9 +95,9 @@ class Twitter(Plugin):
             "required": ["screen_name"]
         }
     )
-    def get_user_id(self, parameters):
+    def get_user_id(self, screen_name):
         try:
-            user = self.tweepy_api().get_user(parameters["screen_name"])
+            user = self.tweepy_api().get_user(screen_name)
             return user.id
 
         except tweepy.error.TweepError as e:

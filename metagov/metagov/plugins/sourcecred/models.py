@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Optional
 
-from metagov.core.plugin_manager import AuthorizationType, Registry, Parameters, VotingStandard
+from metagov.core.plugin_manager import Registry
 import requests
 from metagov.core.errors import PluginErrorInternal
 from metagov.core.models import Plugin
@@ -38,24 +38,20 @@ class SourceCred(Plugin):
                 },
             },
         },
-        output_schema={"type": "object", "properties": {
-            "value": {"type": "number"}}},
+        output_schema={"type": "object", "properties": {"value": {"type": "number"}}},
         is_public=True,
     )
-    def get_cred(self, parameters):
-        username = parameters.get('username')
-        id = parameters.get('id')
+    def get_cred(self, username=None, id=None):
         cred = self.get_user_cred(username=username, id=id)
         return {"value": cred}
 
     @Registry.action(
         slug="total-cred",
         description="Get total cred for the community",
-        output_schema={"type": "object", "properties": {
-            "value": {"type": "number"}}},
+        output_schema={"type": "object", "properties": {"value": {"type": "number"}}},
         is_public=True,
     )
-    def fetch_total_cred(self, parameters):
+    def fetch_total_cred(self):
         cred_data = self.fetch_accounts_analysis()
         total = 0
         for account in cred_data["accounts"]:
@@ -65,8 +61,7 @@ class SourceCred(Plugin):
     def get_user_cred(self, username: Optional[str] = None, id: Optional[str] = None):
         cred_data = self.fetch_accounts_analysis()
         if not (username or id):
-            raise PluginErrorInternal(
-                "Either a username or an id argument is required")
+            raise PluginErrorInternal("Either a username or an id argument is required")
         for account in cred_data["accounts"]:
             name = account["account"]["identity"]["name"]
             """
@@ -76,7 +71,7 @@ class SourceCred(Plugin):
             the discord id for example is store in the index before last always
             the same could apply to discourse, github, and whatever 
             """
-            account_aliases: list = account['account']["identity"]["aliases"]
+            account_aliases: list = account["account"]["identity"]["aliases"]
             if id:
                 # Making sure the id is in string form for comparison
                 id = str(id)
@@ -86,8 +81,7 @@ class SourceCred(Plugin):
                         return account["totalCred"]
             if username and name == username:
                 return account["totalCred"]
-        raise PluginErrorInternal(
-            f"{username or id} not found in sourcecred instance")
+        raise PluginErrorInternal(f"{username or id} not found in sourcecred instance")
 
     def fetch_accounts_analysis(self):
         server = self.config["server_url"]
@@ -100,5 +94,4 @@ class SourceCred(Plugin):
             accounts = resp.json()
             return accounts
 
-        raise PluginErrorInternal(
-            f"Error fetching SourceCred accounts.json: {resp.status_code} {resp.reason}")
+        raise PluginErrorInternal(f"Error fetching SourceCred accounts.json: {resp.status_code} {resp.reason}")

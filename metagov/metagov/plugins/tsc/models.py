@@ -28,8 +28,8 @@ class TSC(Plugin):
             "required": ["user_id"]
         }
     )
-    def get_user(self, data):
-        url = self.config['server_url'] + '/api/user/' + data['user_id']
+    def get_user(self, user_id):
+        url = self.config['server_url'] + '/api/user/' + user_id
         response = requests.get(url)
 
         return response.json()
@@ -46,8 +46,8 @@ class TSC(Plugin):
             'required': ['contract_id']
         }
     )
-    def get_contract(self, data):
-        url = self.config['server_url'] + '/api/contract/' + data['contract_id']
+    def get_contract(self, contract_id):
+        url = self.config['server_url'] + '/api/contract/' + contract_id
         response = requests.get(url)
 
         return response.json()
@@ -63,8 +63,8 @@ class TSC(Plugin):
             'required': ['execution_id']
         }
     )
-    def get_execution(self, data):
-        url = self.config['server_url'] + '/api/execution/' + data['execution_id']
+    def get_execution(self, execution_id):
+        url = self.config['server_url'] + '/api/execution/' + execution_id
         response = requests.get(url)
 
         return response.json()
@@ -80,8 +80,8 @@ class TSC(Plugin):
             'required': ['agreement_id']
         }
     )
-    def get_agreement(self, data):
-        url = self.config['server_url'] + '/api/agreement/' + data['agreement_id']
+    def get_agreement(self, agreement_id):
+        url = self.config['server_url'] + '/api/agreement/' + agreement_id
         response = requests.get(url)
 
         return response.json()

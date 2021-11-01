@@ -93,8 +93,9 @@ class Discourse(Plugin):
         input_schema=Schemas.send_message_parameters,
         output_schema=Schemas.create_post_or_topic_response,
     )
-    def create_message(self, parameters):
-        parameters["target_recipients"] = ",".join(parameters.pop("target_usernames"))
+    def create_message(self, target_usernames, **kwargs):
+        parameters = {**kwargs}
+        parameters["target_recipients"] = ",".join(target_usernames)
         if parameters.get("topic_id"):
             parameters["archetype"] = "regular"
         else:
@@ -108,8 +109,8 @@ class Discourse(Plugin):
         input_schema=Schemas.create_post_parameters,
         output_schema=Schemas.create_post_or_topic_response,
     )
-    def create_post(self, parameters):
-        post = self.discourse_request("POST", "posts.json", json=parameters)
+    def create_post(self, **kwargs):
+        post = self.discourse_request("POST", "posts.json", json=kwargs)
         return self.construct_post_response(post)
 
     @Registry.action(
@@ -118,8 +119,8 @@ class Discourse(Plugin):
         input_schema=Schemas.create_topic_parameters,
         output_schema=Schemas.create_post_or_topic_response,
     )
-    def create_topic(self, parameters):
-        post = self.discourse_request("POST", "posts.json", json=parameters)
+    def create_topic(self, **kwargs):
+        post = self.discourse_request("POST", "posts.json", json=kwargs)
         return self.construct_post_response(post)
 
     @Registry.action(
@@ -128,8 +129,8 @@ class Discourse(Plugin):
         input_schema=Schemas.delete_post_or_topic_parameters,
         output_schema=None,
     )
-    def delete_post(self, parameters):
-        self.discourse_request("DELETE", f"posts/{parameters['id']}")
+    def delete_post(self, id):
+        self.discourse_request("DELETE", f"posts/{id}")
         return {}
 
     @Registry.action(
@@ -138,8 +139,8 @@ class Discourse(Plugin):
         input_schema=Schemas.delete_post_or_topic_parameters,
         output_schema=None,
     )
-    def delete_topic(self, parameters):
-        self.discourse_request("DELETE", f"t/{parameters['id']}.json")
+    def delete_topic(self, id):
+        self.discourse_request("DELETE", f"t/{id}.json")
         return {}
 
     @Registry.action(
@@ -148,8 +149,8 @@ class Discourse(Plugin):
         input_schema=Schemas.delete_post_or_topic_parameters,
         output_schema=None,
     )
-    def recover_post(self, parameters):
-        self.discourse_request("PUT", f"posts/{parameters['id']}/recover")
+    def recover_post(self, id):
+        self.discourse_request("PUT", f"posts/{id}/recover")
         return {}
 
     @Registry.action(
@@ -158,8 +159,8 @@ class Discourse(Plugin):
         input_schema=Schemas.delete_post_or_topic_parameters,
         output_schema=None,
     )
-    def recover_topic(self, parameters):
-        self.discourse_request("PUT", f"t/{parameters['id']}/recover")
+    def recover_topic(self, id):
+        self.discourse_request("PUT", f"t/{id}/recover")
         return {}
 
     @Registry.action(
@@ -168,10 +169,9 @@ class Discourse(Plugin):
         input_schema=Schemas.lock_post_parameters,
         output_schema=Schemas.lock_post_response,
     )
-    def lock_post(self, parameters):
-        post_id = parameters["id"]
-        data = {"locked": json.dumps(parameters["locked"])}
-        return self.discourse_request("PUT", f"posts/{post_id}/locked", data=data)
+    def lock_post(self, id, locked):
+        data = {"locked": json.dumps(locked)}
+        return self.discourse_request("PUT", f"posts/{id}/locked", data=data)
 
     def validate_request_signature(self, request):
         event_signature = request.headers.get("X-Discourse-Event-Signature")

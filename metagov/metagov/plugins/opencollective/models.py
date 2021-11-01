@@ -67,7 +67,7 @@ class OpenCollective(Plugin):
         return result["data"]
 
     @Registry.action(slug="list-members", description="list members of the collective")
-    def list_members(self, _parameters):
+    def list_members(self):
         result = self.run_query(Queries.members, {"slug": self.config["collective_slug"]})
         accounts = [a["account"] for a in result["collective"]["members"]["nodes"]]
         return {"accounts": accounts}
@@ -77,11 +77,11 @@ class OpenCollective(Plugin):
         description="Start a new conversation on Open Collective",
         input_schema=Schemas.create_conversation,
     )
-    def create_conversation(self, parameters):
+    def create_conversation(self, raw, title, tags=None):
         variables = {
-            "html": parameters["raw"],
-            "title": parameters["title"],
-            "tags": parameters.get("tags", []),
+            "html": raw,
+            "title": title,
+            "tags": tags or [],
             "CollectiveId": self.state.get("collective_id"),
         }
         result = self.run_query(Queries.create_conversation, variables)
@@ -94,12 +94,12 @@ class OpenCollective(Plugin):
         description="Add a comment to a conversation or expense on Open Collective",
         input_schema=Schemas.create_comment,
     )
-    def create_comment(self, parameters):
-        comment = {"html": parameters["raw"]}
-        if parameters.get("conversation_id"):
-            comment["ConversationId"] = parameters["conversation_id"]
-        if parameters.get("expense_id"):
-            comment["expense"] = {"id": parameters["expense_id"]}
+    def create_comment(self, raw, conversation_id=None, expense_id=None):
+        comment = {"html": raw}
+        if conversation_id:
+            comment["ConversationId"] = conversation_id
+        if expense_id:
+            comment["expense"] = {"id": expense_id}
         result = self.run_query(Queries.create_comment, {"comment": comment})
         comment_data = result["createComment"]
         return comment_data
@@ -109,10 +109,10 @@ class OpenCollective(Plugin):
         description="Approve, unapprove, or reject expense",
         input_schema=Schemas.process_expense,
     )
-    def process_expense(self, parameters):
+    def process_expense(self, expense_id, action):
         variables = {
-            "reference": {"id": parameters["expense_id"]},
-            "action": parameters["action"],  # APPROVE, UNAPPROVE, or REJECT
+            "reference": {"id": expense_id},
+            "action": action,  # APPROVE, UNAPPROVE, or REJECT
         }
         result = self.run_query(Queries.process_expense, variables)
         expense_data = result["processExpense"]
@@ -190,7 +190,7 @@ class OpenCollectiveVote(GovernanceProcess):
 
     def start(self, parameters: Parameters) -> None:
         result = self.plugin_inst.create_conversation(
-            {"raw": parameters.details, "title": parameters.title, "tags": ["metagov-vote"]}
+            raw=parameters.details, title=parameters.title, tags="metagov-vote"
         )
         logger.info(f"Poll created at {result['url']}")
 
@@ -224,11 +224,9 @@ class OpenCollectiveVote(GovernanceProcess):
         yes_votes = votes[self.YES]
         no_votes = votes[self.NO]
         self.plugin_inst.create_comment(
-            {
-                # TODO: Driver should be able to customize this msg for each process instance. Include template in input_schema?
-                "raw": f"Voting period is closed. Final count is {yes_votes} for and {no_votes} against.",
-                "conversation_id": conversation_id,
-            }
+            # TODO: Driver should be able to customize this msg for each process instance. Include template in input_schema?
+            raw=f"Voting period is closed. Final count is {yes_votes} for and {no_votes} against.",
+            conversation_id=conversation_id,
         )
         self.status = ProcessStatus.COMPLETED.value
         self.save()
