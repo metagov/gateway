@@ -18,6 +18,7 @@ class SourceCred(Plugin):
         "properties": {"server_url": {"description": "URL of the SourceCred server", "type": "string"}},
         "required": ["server_url"],
     }
+    community_platform_id_key = "server_url"
 
     class Meta:
         proxy = True

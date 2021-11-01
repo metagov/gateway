@@ -159,3 +159,55 @@ class DataRetrievalTestCase(TestCase):
         self.assertEquals(result["platform_identifier"], "tobin_heath")
         result = identity.get_linked_account(new_id.external_id, "Slack")
         self.assertEquals(result, {})
+
+
+    def test_community_platform_id_filter(self):
+        new_id = MetagovID.objects.all()[4]
+        platform_identifier = "tobin_heath"
+        platform_type = "OpenCollective"
+        community_platform_id = "my-collective-123"
+        account = identity.link_account(
+            new_id.external_id,
+            self.community,
+            platform_type,
+            platform_identifier,
+            link_type=LinkType.OAUTH.value,
+            community_platform_id=community_platform_id,
+        )
+
+        # Lookup with correct community_platform_id filter
+        result = identity.get_linked_account(
+            new_id.external_id, platform_type, community_platform_id=community_platform_id
+        )
+        self.assertEquals(result["platform_type"], platform_type)
+        self.assertEquals(result["platform_identifier"], platform_identifier)
+
+        # Lookup with incorrect community_platform_id filter
+        result = identity.get_linked_account(
+            new_id.external_id, platform_type, community_platform_id="wrong-collective"
+        )
+        self.assertEquals(result, {})
+
+        # Lookup without community_platform_id filter
+        result = identity.get_linked_account(
+            new_id.external_id, platform_type, community_platform_id=None
+        )
+        self.assertEquals(result, {})
+
+        # Lookup with community_platform_id filter
+        account = identity.retrieve_account(
+            self.community, platform_type, platform_identifier, community_platform_id=community_platform_id
+        )
+        self.assertEquals(account.metagov_id, new_id)
+
+        # Lookup with incorrect community_platform_id filter
+        with self.assertRaises(Exception) as context:
+            account = identity.retrieve_account(
+                self.community, platform_type, platform_identifier, community_platform_id="wrong-collective"
+            )
+        self.assertTrue('No LinkedAccount' in str(context.exception))
+
+        # Lookup without community_platform_id filter
+        with self.assertRaises(Exception) as context:
+            account = identity.retrieve_account(self.community, platform_type, platform_identifier)
+        self.assertTrue('community_platform_id' in str(context.exception))

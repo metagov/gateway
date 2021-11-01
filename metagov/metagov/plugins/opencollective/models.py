@@ -35,6 +35,7 @@ class OpenCollective(Plugin):
         },
         "required": ["api_key", "collective_slug"],
     }
+    community_platform_id_key = "collective_slug"
 
     class Meta:
         proxy = True

@@ -27,6 +27,7 @@ class Slack(Plugin):
             "bot_user_id": {"description": "Bot User ID", "type": "string"},
         },
     }
+    community_platform_id_key = "team_id"
 
     class Meta:
         proxy = True

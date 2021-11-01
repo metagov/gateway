@@ -174,7 +174,9 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         if existing_plugin_to_reinstall:
             logger.info(f"Deleting existing Slack plugin found for requested community {existing_plugin_to_reinstall}")
             existing_plugin_to_reinstall.delete()
-        plugin = Slack.objects.create(name="slack", community=community, config=plugin_config)
+        plugin = Slack.objects.create(
+            name="slack", community=community, config=plugin_config, community_platform_id=team_id
+        )
         logger.info(f"Created Slack plugin {plugin}")
 
         # Get or create linked account using this data

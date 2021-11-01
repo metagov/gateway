@@ -85,19 +85,26 @@ class Plugin(models.Model):
         Community, models.CASCADE, related_name="plugins", help_text="Community that this plugin instance belongs to"
     )
     config = models.JSONField(default=dict, null=True, blank=True, help_text="Configuration for this plugin instance")
+    community_platform_id = models.CharField(max_length=100, blank=True, null=True, help_text="Optional identifier for this instance. If multiple instances are allowed per community, this field must be set to a unique value for each instance.")
     state = models.OneToOneField(DataStore, models.CASCADE, help_text="Datastore to persist any state", null=True)
 
     # Static metadata
     auth_type = AuthType.NONE
+    """If this plugin makes authenticated requests to an external platform, this field declares how the authentication occurs (API key or OAUTH). (Optional)"""
+
     config_schema = {}
+    """JSON schema for the config object. If set, config will be validated against the schema when the plugin is enabled. (Optional)"""
+
+    community_platform_id_key = None
+    """Key on the config that represents a unique community identifier on the platform. If set, this config value will be automatically used as the 'community_platform_id.' (Optional)"""
 
     objects = PluginManager()
 
     class Meta:
-        unique_together = ["name", "community"]
+        unique_together = ["name", "community", "community_platform_id"]
 
     def __str__(self):
-        return f"{self.name} for '{self.community}'"
+        return f"{self.name} {':' if self.community_platform_id else ''} {self.community_platform_id or ''} for '{self.community}'"
 
     def save(self, *args, **kwargs):
         if not self.pk:
@@ -129,24 +136,22 @@ class Plugin(models.Model):
                 f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}"
             )
 
-    def add_linked_account(self, *, platform_identifier, external_id=None, community_platform_id=None,
-            custom_data=None, link_type=None, link_quality=None):
+    def add_linked_account(self, *, platform_identifier, external_id=None, custom_data=None, link_type=None, link_quality=None):
         """Given a platform identifier, creates or updates a linked account. Also creates a metagov
         id for the user if no external_id is passed in.
-        # NOTE: once we've standardized community_platform_id or similar we can get value from self
         """
         from metagov.core import identity
 
-        optional_params = {"community_platform_id": community_platform_id, "custom_data": custom_data,
+        optional_params = {"community_platform_id": self.community_platform_id, "custom_data": custom_data,
             "link_type": link_type, "link_quality": link_quality}
         optional_params = identity.strip_null_values_from_dict(optional_params)
 
         try:
             # if linked account exists, update if new data is higher quality
-            result = identity.retrieve_account(self.community, self.name, platform_identifier, community_platform_id)
+            result = identity.retrieve_account(self.community, self.name, platform_identifier, self.community_platform_id)
             if link_quality and quality_is_greater(link_quality, result.link_quality):
                 result = identity.update_linked_account(self.community, self.name,
-                    platform_identifier, community_platform_id, **optional_params)
+                    platform_identifier, self.community_platform_id, **optional_params)
 
         except ValueError as error:
             # otherwise create linked account
