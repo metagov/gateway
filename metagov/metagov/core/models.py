@@ -1,22 +1,26 @@
 import logging
 import time
+import uuid
 from enum import Enum
 
 import jsonpickle
+import jsonschema
 import requests
-import uuid
 from django.conf import settings
-from django.db import models, IntegrityError
+from django.db import IntegrityError, models
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
+from metagov.core.plugin_manager import Parameters, plugin_registry
 
 logger = logging.getLogger(__name__)
+
 
 class AuthType:
     API_KEY = "api_key"
     OAUTH = "oauth"
     NONE = "none"
+
 
 class Community(models.Model):
     slug = models.SlugField(
@@ -28,6 +32,57 @@ class Community(models.Model):
         if self.readable_name:
             return f"{self.readable_name} ({self.slug})"
         return str(self.slug)
+
+    @property
+    def plugins(self):
+        return Plugin.objects.filter(community=self)
+
+    def get_plugin(self, plugin_name, community_platform_id=None):
+        """Get plugin proxy instance"""
+
+        cls = plugin_registry.get(plugin_name)
+        if not cls:
+            raise ValueError(f"Plugin '{plugin_name}' not found")
+        if community_platform_id:
+            return cls.objects.get(name=plugin_name, community=self, community_platform_id=community_platform_id)
+        else:
+            return cls.objects.get(name=plugin_name, community=self)
+
+    def enable_plugin(self, plugin_name, plugin_config):
+        """Enable or update plugin"""
+        from metagov.core.utils import create_or_update_plugin
+
+        plugin, created = create_or_update_plugin(plugin_name, plugin_config, self)
+        return plugin
+
+    def disable_plugin(self, plugin_name, community_platform_id=None):
+        """Disable plugin"""
+        plugin = self.get_plugin(plugin_name, community_platform_id)
+        logger.debug(f"Disabling plugin '{plugin}'")
+        plugin.delete()
+
+    def perform_action(
+        self, plugin_name, action_id, parameters=None, jsonschema_validation=True, community_platform_id=None
+    ):
+        """Perform an action in the community"""
+        # Look up plugin instance
+        cls = plugin_registry[plugin_name]
+        meta = cls._action_registry[action_id]
+        plugin = self.get_plugin(plugin_name, community_platform_id)
+
+        # Validate input parameters
+        if jsonschema_validation and meta.input_schema and parameters:
+            jsonschema.validate(parameters, meta.input_schema)
+
+        # Invoke action function
+        action_function = getattr(plugin, meta.function_name)
+        result = action_function(**parameters)
+
+        # Validate result
+        if jsonschema_validation and meta.output_schema and result:
+            jsonschema.validate(result, meta.output_schema)
+
+        return result
 
 
 class DataStore(models.Model):
@@ -60,11 +115,13 @@ class PluginManager(models.Manager):
             return qs.filter(name=self.model.name)
         return qs
 
+
 class LinkType(Enum):
     OAUTH = "oauth"
     MANUAL_ADMIN = "manual admin"
     EMAIL_MATCHING = "email matching"
     UNKNOWN = "unknown"
+
 
 class LinkQuality(Enum):
     STRONG_CONFIRM = "confirmed (strong)"
@@ -72,10 +129,16 @@ class LinkQuality(Enum):
     UNCONFIRMED = "unconfirmed"
     UNKNOWN = "unknown"
 
+
 def quality_is_greater(a, b):
-    order = [LinkQuality.UNKNOWN.value, LinkQuality.UNCONFIRMED.value, LinkQuality.WEAK_CONFIRM.value,
-        LinkQuality.STRONG_CONFIRM.value]
+    order = [
+        LinkQuality.UNKNOWN.value,
+        LinkQuality.UNCONFIRMED.value,
+        LinkQuality.WEAK_CONFIRM.value,
+        LinkQuality.STRONG_CONFIRM.value,
+    ]
     return order.index(a) > order.index(b)
+
 
 class Plugin(models.Model):
     """Represents an instance of an activated plugin."""
@@ -85,7 +148,12 @@ class Plugin(models.Model):
         Community, models.CASCADE, related_name="plugins", help_text="Community that this plugin instance belongs to"
     )
     config = models.JSONField(default=dict, null=True, blank=True, help_text="Configuration for this plugin instance")
-    community_platform_id = models.CharField(max_length=100, blank=True, null=True, help_text="Optional identifier for this instance. If multiple instances are allowed per community, this field must be set to a unique value for each instance.")
+    community_platform_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Optional identifier for this instance. If multiple instances are allowed per community, this field must be set to a unique value for each instance.",
+    )
     state = models.OneToOneField(DataStore, models.CASCADE, help_text="Datastore to persist any state", null=True)
 
     # Static metadata
@@ -104,7 +172,7 @@ class Plugin(models.Model):
         unique_together = ["name", "community", "community_platform_id"]
 
     def __str__(self):
-        community_platform_id_str = ''
+        community_platform_id_str = ""
         if self.community_platform_id:
             community_platform_id_str = f" ({self.community_platform_id})"
         return f"{self.name}{community_platform_id_str} for '{self.community}'"
@@ -118,6 +186,45 @@ class Plugin(models.Model):
     def initialize(self):
         """Initialize the plugin. Invoked once, when the plugin instance is created."""
         pass
+
+    def start_process(self, process_name, callback_url=None, **kwargs):
+        """Start a new GovernanceProcess"""
+        # Find the proxy class for the specified GovernanceProcess
+        cls = self.__get_process_cls(process_name)
+
+        # Convert kwargs to Parameters (does schema validation and filling in default values)
+        params = Parameters(values=kwargs, schema=cls.input_schema)
+
+        # Create new process instance
+        new_process = cls.objects.create(name=process_name, callback_url=callback_url, plugin=self)
+        logger.debug(f"Created process: {new_process}")
+
+        # Start process
+        try:
+            new_process.start(params)
+        except Exception as e:
+            # Delete model if any exceptions were raised
+            new_process.delete()
+            raise e
+
+        logger.debug(f"Started process: {new_process}")
+        return new_process
+
+    def __get_process_cls(self, process_name):
+        processes = plugin_registry[self.name]._process_registry
+        if process_name not in processes:
+            raise ValueError(
+                f"No such process '{process_name}' for {self.name} plugin. Available processes: {list(processes.keys())}"
+            )
+        return processes[process_name]
+
+    def get_processes(self, process_name):
+        cls = self.__get_process_cls(process_name)
+        return cls.objects.all()
+
+    def get_process(self, process_name, process_id):
+        cls = self.__get_process_cls(process_name)
+        return cls.objects.get(pk=process_id)
 
     def send_event_to_driver(self, event_type: str, data: dict, initiator: dict):
         """Send an event to the driver"""
@@ -139,31 +246,42 @@ class Plugin(models.Model):
                 f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}"
             )
 
-    def add_linked_account(self, *, platform_identifier, external_id=None, custom_data=None, link_type=None, link_quality=None):
+    def add_linked_account(
+        self, *, platform_identifier, external_id=None, custom_data=None, link_type=None, link_quality=None
+    ):
         """Given a platform identifier, creates or updates a linked account. Also creates a metagov
         id for the user if no external_id is passed in.
         """
         from metagov.core import identity
 
-        optional_params = {"community_platform_id": self.community_platform_id, "custom_data": custom_data,
-            "link_type": link_type, "link_quality": link_quality}
+        optional_params = {
+            "community_platform_id": self.community_platform_id,
+            "custom_data": custom_data,
+            "link_type": link_type,
+            "link_quality": link_quality,
+        }
         optional_params = identity.strip_null_values_from_dict(optional_params)
 
         try:
             # if linked account exists, update if new data is higher quality
-            result = identity.retrieve_account(self.community, self.name, platform_identifier, self.community_platform_id)
+            result = identity.retrieve_account(
+                self.community, self.name, platform_identifier, self.community_platform_id
+            )
             if link_quality and quality_is_greater(link_quality, result.link_quality):
-                result = identity.update_linked_account(self.community, self.name,
-                    platform_identifier, self.community_platform_id, **optional_params)
+                result = identity.update_linked_account(
+                    self.community, self.name, platform_identifier, self.community_platform_id, **optional_params
+                )
 
         except ValueError as error:
             # otherwise create linked account
             if not external_id:
                 external_id = identity.create_id(self.community)[0]
-            result = identity.link_account(external_id, self.community, self.name,
-                platform_identifier, **optional_params)
+            result = identity.link_account(
+                external_id, self.community, self.name, platform_identifier, **optional_params
+            )
 
         return result
+
 
 class ProcessStatus(Enum):
     CREATED = "created"
@@ -332,7 +450,7 @@ class MetagovID(models.Model):
     community = models.ForeignKey(Community, on_delete=models.CASCADE)
     internal_id = models.PositiveIntegerField(unique=True)
     external_id = models.PositiveIntegerField(unique=True)
-    linked_ids = models.ManyToManyField('self')
+    linked_ids = models.ManyToManyField("self")
     primary = models.BooleanField(default=True)
 
     def save(self, *args, **kwargs):
@@ -377,7 +495,7 @@ class LinkedAccount(models.Model):
     custom_data: dict- optional additional data for linked platform account
     link_type: string (choice) - method through which account was linked
     link_quality: string (choice) - metagov's assessment of the quality of the link (depends on method)
-   """
+    """
 
     metagov_id = models.ForeignKey(MetagovID, on_delete=models.CASCADE, related_name="linked_accounts")
     community = models.ForeignKey(Community, on_delete=models.CASCADE)
@@ -386,16 +504,22 @@ class LinkedAccount(models.Model):
     platform_identifier = models.CharField(max_length=200)
 
     custom_data = models.JSONField(default=dict)
-    link_type = models.CharField(max_length=30, choices=[(t.value, t.name) for t in LinkType],
-        default=LinkType.UNKNOWN.value)
-    link_quality = models.CharField(max_length=30, choices=[(q.value, q.name) for q in LinkQuality],
-        default=LinkQuality.UNKNOWN.value)
+    link_type = models.CharField(
+        max_length=30, choices=[(t.value, t.name) for t in LinkType], default=LinkType.UNKNOWN.value
+    )
+    link_quality = models.CharField(
+        max_length=30, choices=[(q.value, q.name) for q in LinkQuality], default=LinkQuality.UNKNOWN.value
+    )
 
     def save(self, *args, **kwargs):
         """Performs extra validation on save such that community, platform type, identifier, and community_platform_id
         are unique together."""
-        result = LinkedAccount.objects.filter(community=self.community, platform_type=self.platform_type,
-            platform_identifier=self.platform_identifier, community_platform_id=self.community_platform_id)
+        result = LinkedAccount.objects.filter(
+            community=self.community,
+            platform_type=self.platform_type,
+            platform_identifier=self.platform_identifier,
+            community_platform_id=self.community_platform_id,
+        )
         if (not self.pk and result) or (self.pk and result and result[0].pk != self.pk):
             raise IntegrityError(
                 f"LinkedAccount with the following already exists: community {self.community};"
@@ -405,7 +529,13 @@ class LinkedAccount(models.Model):
         super(LinkedAccount, self).save(*args, **kwargs)
 
     def serialize(self):
-        return {"external_id": self.metagov_id.external_id, "community": self.community.slug,
-            "community_platform_id": self.community_platform_id, "platform_type": self.platform_type,
-            "platform_identifier": self.platform_identifier, "custom_data": self.custom_data,
-            "link_type": self.link_type, "link_quality": self.link_quality}
+        return {
+            "external_id": self.metagov_id.external_id,
+            "community": self.community.slug,
+            "community_platform_id": self.community_platform_id,
+            "platform_type": self.platform_type,
+            "platform_identifier": self.platform_identifier,
+            "custom_data": self.custom_data,
+            "link_type": self.link_type,
+            "link_quality": self.link_quality,
+        }
