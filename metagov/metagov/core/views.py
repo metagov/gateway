@@ -336,6 +336,7 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
         return HttpResponseNotFound()
 
     # Lookup plugin
+    # TODO(#50): change this to support multiple plugin instances of the same type
     plugin = get_plugin_instance(plugin_name, community)
 
     # Validate slug if the plugin has `webhook_slug` configured
@@ -404,6 +405,7 @@ def decorated_create_process_view(plugin_name, slug):
     @api_view(["POST"])
     def create_process(request):
         # Look up plugin instance (throws if plugin is not installed for this community)
+        # TODO(#50): change this to support multiple plugin instances of the same type
         plugin = get_plugin_instance(plugin_name, request.community)
         payload = JSONParser().parse(request)
         callback_url = payload.pop("callback_url", None)  # pop to remove it
@@ -521,6 +523,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
         Perform an action on a platform
         """
         # 1. Look up plugin instance
+        # TODO(#50): change this to support multiple plugin instances of the same type
         plugin = get_plugin_instance(plugin_name, request.community)
 
         action_function = getattr(plugin, meta.function_name)
@@ -580,17 +583,26 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
     return swagger_auto_schema(**arg_dict)(perform_action)
 
 
-def get_plugin_instance(plugin_name, community):
-    """get the right proxy of a plugin instance"""
+def get_plugin_instance(plugin_name, community, community_platform_id=None):
+    """
+    Get a plugin instance. Returns the proxy instance (e.g. "Slack" or "OpenCollective"), not the Plugin instance.
+    """
     cls = plugin_registry.get(plugin_name)
     if not cls:
         raise ValidationError(f"Plugin '{plugin_name}' not found")
 
-    plugin = cls.objects.filter(name=plugin_name, community=community).first()
-    if not plugin:
-        raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community}'")
-    return plugin
+    if community_platform_id:
+        try:
+            return cls.objects.get(name=plugin_name, community=community, community_platform_id=community_platform_id)
+        except cls.DoesNotExist:
+            raise ValidationError(f"Plugin '{plugin_name}' with community_platform_id '{community_platform_id or ''}' not found for community '{community}'")
 
+    plugins = cls.objects.filter(name=plugin_name, community=community)
+    if not plugins.exists():
+        raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community}'")
+    if plugins.count() > 1:
+        raise ValidationError(f"Multiple instances of '{plugin_name}' enabled for community '{community}'. Please provide community_platform_id.")
+    return plugins[0]
 
 # Identity Views
 from metagov.core import identity
@@ -620,6 +632,12 @@ def merge_ids(request):
 @api_view(["POST"])
 def link_account(request):
     data = JSONParser().parse(request)
+    # Validate that plugin is enabled for community
+    _ = get_plugin_instance(
+        data["platform_type"],
+        Community.objects.get(slug=data["community_slug"]),
+        community_platform_id=data.get("community_platform_id", None)
+    )
     try:
         params = {
             "external_id": data["external_id"],
@@ -639,6 +657,12 @@ def link_account(request):
 @api_view(["POST"])
 def unlink_account(request):
     data = JSONParser().parse(request)
+    # Validate that plugin is enabled for community
+    _ = get_plugin_instance(
+        data["platform_type"],
+        Community.objects.get(slug=data["community_slug"]),
+        community_platform_id=data.get("community_platform_id", None)
+    )
     try:
         params = {
             "community": Community.objects.get(slug=data["community_slug"]),
@@ -661,9 +685,17 @@ def get_user(request):
 
 @api_view(["GET"])
 def get_users(request):
+    community = Community.objects.get(slug=request.GET.get("community"))
+    if request.GET.__contains__("platform_type"):
+        # Validate that plugin is enabled for community
+        _ = get_plugin_instance(
+            request.GET.get("platform_type"),
+            community,
+            community_platform_id=request.GET.get("community_platform_id", None)
+        )
     try:
         params = {
-            "community": Community.objects.get(slug=request.GET.get("community")),
+            "community": community,
             "platform_type": request.GET.get("platform_type", None),
             "community_platform_id": request.GET.get("community_platform_id", None),
             "link_type": request.GET.get("link_type", None),
@@ -673,14 +705,22 @@ def get_users(request):
         user_data = identity.get_users(**identity.strip_null_values_from_dict(params))
         return JsonResponse(user_data, status=status.HTTP_200_OK, safe=False)
     except Exception as error:
-        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST, safe=False)
 
 @api_view(["GET"])
 def filter_users_by_account(request):
+    community = Community.objects.get(slug=request.GET.get("community"))
+    if request.GET.__contains__("platform_type"):
+        # Validate that plugin is enabled for community
+        _ = get_plugin_instance(
+            request.GET.get("platform_type"),
+            community,
+            community_platform_id=request.GET.get("community_platform_id", None)
+        )
     try:
         params = {
             "external_id_list": request.GET.get("external_id_list"),
-            "community": Community.objects.get(slug=request.GET.get("community")),
+            "community": community,
             "platform_type": request.GET.get("platform_type", None),
             "community_platform_id": request.GET.get("community_platform_id", None),
             "link_type": request.GET.get("link_type", None),

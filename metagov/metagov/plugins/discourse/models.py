@@ -52,6 +52,7 @@ class Discourse(Plugin):
         },
         "required": ["api_key", "server_url", "webhook_secret"],
     }
+    community_platform_id_key = "server_url"
 
     class Meta:
         proxy = True

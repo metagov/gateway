@@ -1,7 +1,5 @@
-from contextlib import suppress
-from enum import Enum
-import json, random
-from django.db import models, IntegrityError
+import random
+from django.db import IntegrityError
 from metagov.core.models import MetagovID, LinkedAccount
 
 
@@ -23,7 +21,7 @@ def create_id(community, count=1):
             ids_created.append(obj.external_id)
         except IntegrityError as error:
             # if uniqueness error, ignore and try again, otherwise re-raise the error
-            if 'UNIQUE constraint' not in str(e.args):
+            if 'UNIQUE constraint' not in str(error.args):
                 raise error
 
     return ids_created
@@ -59,7 +57,7 @@ def link_account(external_id, community, platform_type, platform_identifier, com
 
     return account
 
-def retrieve_account(community, platform_type, platform_identifier, blah, community_platform_id=None):
+def retrieve_account(community, platform_type, platform_identifier, community_platform_id=None):
     """Helper method to get a specific linked account."""
     result = LinkedAccount.objects.filter(community=community, platform_type=platform_type,
         platform_identifier=platform_identifier)
@@ -70,6 +68,13 @@ def retrieve_account(community, platform_type, platform_identifier, blah, commun
             f"No LinkedAccount found in community {community} with platform {platform_type} "
             f"and identifier {platform_identifier} (community_platform_id: {community_platform_id})"
         )
+    if result.count() > 1:
+        raise ValueError(
+            f"Multiple LinkedAccounts found in community {community} with platform {platform_type} "
+            f"and identifier {platform_identifier}. Please provide community_platform_id."
+        )
+    if result[0].community_platform_id and not community_platform_id:
+        raise ValueError(f"Unable to retrieve account. Platform {platform_type} requires community_platform_id.")
     return result[0]
 
 def update_linked_account(community, platform_type, platform_identifier, community_platform_id=None,
@@ -184,6 +189,7 @@ def get_linked_account(external_id, platform_type, community_platform_id=None):
     id_instance = MetagovID.objects.get(external_id=external_id)
     for account in id_instance.linked_accounts.all():
         if account.platform_type == platform_type:
-            if not community_platform_id or account.community_platform_id == community_platform_id:
+            if (not community_platform_id and not account.community_platform_id) \
+                or (account.community_platform_id == community_platform_id):
                 return account.serialize()
     return {}

@@ -54,6 +54,7 @@ def get_authorize_url(state: str, type: str, community=None):
         team = None
         if community:
             try:
+                # TODO(#50) change to allow a single community to have multiple Slack plugins
                 plugin = Slack.objects.get(community=community)
                 team = plugin.config.get("team_id")
                 logger.debug(
@@ -75,9 +76,7 @@ def find_plugin(community_platform_id):
     """Given a team id, finds the matching plugin instance if it exists.
     # FIXME: make more generalizeable instead of assuming Slack
     """
-    for inst in Slack.objects.all():
-        if inst.config["team_id"] == community_platform_id:
-            return inst
+    return Slack.objects.filter(community_platform_id=community_platform_id).first()
 
 
 def auth_callback(type: str, code: str, redirect_uri: str, community, state=None, external_id=None, *args, **kwargs):
@@ -130,13 +129,13 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
                 )
                 raise WrongCommunityError
 
-        for inst in Slack.objects.all():
-            if inst.community == community and inst.config["team_id"] != team_id:
-                # community matches, team doesnt
-                logger.info(
-                    f"Trying to install Slack to community {community} for team_id {team_id}, but community already has a Slack Plugin enabled for team {inst.config['team_id']}"
-                )
-                raise AlreadyInstalledError
+        already_installed_plugins = Slack.objects.filter(community=community).exclude(community_platform_id=team_id)
+        if already_installed_plugins.exists():
+            # community matches, team doesnt
+            logger.info(
+                f"Trying to install Slack to community {community} for team_id {team_id}, but community already has a Slack Plugin enabled for team {already_installed_plugins[0].community_platform_id}"
+            )
+            raise AlreadyInstalledError
 
         # Configuration for the new Slack Plugin to create
         plugin_config = {
@@ -174,14 +173,15 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         if existing_plugin_to_reinstall:
             logger.info(f"Deleting existing Slack plugin found for requested community {existing_plugin_to_reinstall}")
             existing_plugin_to_reinstall.delete()
-        plugin = Slack.objects.create(name="slack", community=community, config=plugin_config)
+        plugin = Slack.objects.create(
+            name="slack", community=community, config=plugin_config, community_platform_id=team_id
+        )
         logger.info(f"Created Slack plugin {plugin}")
 
         # Get or create linked account using this data
         result = plugin.add_linked_account(
             platform_identifier=installer_user_id,
             external_id=external_id,
-            community_platform_id=team_id,
             link_type=LinkType.OAUTH.value,
             link_quality=LinkQuality.STRONG_CONFIRM.value,
         )
@@ -215,7 +215,6 @@ def auth_callback(type: str, code: str, redirect_uri: str, community, state=None
         result = plugin.add_linked_account(
             platform_identifier=user["id"],
             external_id=external_id,
-            community_platform_id=team_id,
             link_type=LinkType.OAUTH.value,
             link_quality=LinkQuality.STRONG_CONFIRM.value,
         )
@@ -244,12 +243,11 @@ def process_event(request):
         if payload["type"] != "block_actions":
             return
         team_id = payload["team"]["id"]
-        for plugin in Slack.objects.all():
-            if plugin.config["team_id"] == team_id:
-                active_processes = SlackEmojiVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
-                for process in active_processes:
-                    logger.info(f"Passing Slack interaction to {process}")
-                    process.receive_webhook(request)
+        for plugin in Slack.objects.filter(community_platform_id=team_id):
+            active_processes = SlackEmojiVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
+            for process in active_processes:
+                logger.info(f"Passing Slack interaction to {process}")
+                process.receive_webhook(request)
         return
 
     json_data = json.loads(request.body)
@@ -270,10 +268,9 @@ def process_event(request):
                 # Ignore it and tell Slack not to retry this message again.
                 return HttpResponse(headers={"X-Slack-No-Retry": 1})
 
-        for plugin in Slack.objects.all():
-            if plugin.config["team_id"] == json_data["team_id"]:
-                logger.info(f"Passing webhook event to {plugin}")
-                plugin.receive_event(request)
+        for plugin in Slack.objects.filter(community_platform_id=json_data["team_id"]):
+            logger.info(f"Passing webhook event to {plugin}")
+            plugin.receive_event(request)
     return HttpResponse()
 
 

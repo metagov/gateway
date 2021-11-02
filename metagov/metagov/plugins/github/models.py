@@ -16,6 +16,7 @@ class Github(Plugin):
     name = 'github'
     config_schema = Schemas.github_app_config_schema
     auth_type = AuthType.OAUTH
+    community_platform_id_key = "installation_id"
 
     class Meta:
         proxy = True

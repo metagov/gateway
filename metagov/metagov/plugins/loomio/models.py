@@ -38,6 +38,10 @@ class Loomio(Plugin):
 
         self.state.set("api_key_group_map", api_key_group_map)
 
+        # Set the community_platform_id to the main group handle
+        parent_group_handle = api_key_group_map[self.config["api_key"]]["handle"]
+        self.community_platform_id = parent_group_handle
+
     def _get_api_key(self, key_or_handle):
         """Get the API key for a specific Loomio group. Returns None if not found."""
         api_key_group_map = self.state.get("api_key_group_map")
