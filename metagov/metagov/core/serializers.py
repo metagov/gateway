@@ -39,9 +39,7 @@ class CommunitySerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         plugins = validated_data.get("plugins") or []
         for data in plugins:
-            utils.create_or_update_plugin(
-                plugin_name=data.get("name"), plugin_config=data.get("config"), community=instance
-            )
+            instance.enable_plugin(data.get("name"), data.get("config"))
 
         # deactivate any plugins that are not present in `plugins` (that means they are being deactivated)
         active_plugins = [p.get("name") for p in plugins]

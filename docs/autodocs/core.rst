@@ -6,6 +6,12 @@ Models
 
 Plugin authors implement `Proxy Models <https://docs.djangoproject.com/en/3.1/topics/db/models/#proxy-models>`_ and decorate them with :ref:`Class Decorators`.
 
+.. autoclass:: metagov.core.models.Community
+    :members:
+    :exclude-members: DoesNotExist, MultipleObjectsReturned
+
+|
+
 .. autoclass:: metagov.core.models.Plugin
     :members:
     :exclude-members: save, DoesNotExist, MultipleObjectsReturned
@@ -18,11 +24,7 @@ Plugin authors implement `Proxy Models <https://docs.djangoproject.com/en/3.1/to
 
 |
 
-.. autoclass:: metagov.core.models.Community
-    :members:
-    :exclude-members: DoesNotExist, MultipleObjectsReturned
 
-|
 
 Decorators
 ##########

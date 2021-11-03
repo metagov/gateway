@@ -205,7 +205,9 @@ def plugin_authorize(request, plugin_name):
 
     # Create the state
     nonce = utils.generate_nonce()
-    state = {nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type, "metagov_id": metagov_id}}
+    state = {
+        nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type, "metagov_id": metagov_id}
+    }
     state_str = json.dumps(state).encode("ascii")
     state_encoded = base64.b64encode(state_str).decode("ascii")
     # Store nonce in the session so we can validate the callback request
@@ -282,8 +284,13 @@ def plugin_auth_callback(request, plugin_name):
 
     try:
         response = plugin_views.auth_callback(
-            type=type, code=code, redirect_uri=redirect_uri, community=community, state=state_to_pass,
-            request=request, metagov_id=metagov_id
+            type=type,
+            code=code,
+            redirect_uri=redirect_uri,
+            community=community,
+            state=state_to_pass,
+            request=request,
+            metagov_id=metagov_id,
         )
 
         return response if response else redirect_with_params(redirect_uri, **redirect_params)
@@ -410,29 +417,12 @@ def decorated_create_process_view(plugin_name, slug):
         payload = JSONParser().parse(request)
         callback_url = payload.pop("callback_url", None)  # pop to remove it
 
-        # Convert payload to Parameters (includes schema validation, so we do this first)
-        params = Parameters(values=payload, schema=cls.input_schema)
+        # Start a new process
+        process = plugin.start_process(slug, callback_url, **payload)
 
-        # Create new process instance
-        new_process = cls.objects.create(name=slug, callback_url=callback_url, plugin=plugin)
-        logger.info(f"Created process: {new_process}")
-
-        # Start process
-        try:
-            new_process.start(params)
-        except APIException as e:
-            new_process.delete()
-            raise e
-        except Exception as e:
-            # Catch any other exceptions so that we can delete the model.
-            new_process.delete()
-            raise e
-
-        logger.info(f"Started process: {new_process}")
-
-        # return 202 with resource location in header
+        # Return 202 with resource location in header
         response = HttpResponse(status=HTTPStatus.ACCEPTED)
-        response["Location"] = f"/{utils.construct_process_url(plugin_name, slug)}/{new_process.pk}"
+        response["Location"] = f"/{utils.construct_process_url(plugin_name, slug)}/{process.pk}"
         return response
 
     request_body_schema = utils.json_schema_to_openapi_object(cls.input_schema) if cls.input_schema else {}
@@ -522,14 +512,8 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
         """
         Perform an action on a platform
         """
-        # 1. Look up plugin instance
-        # TODO(#50): change this to support multiple plugin instances of the same type
-        plugin = get_plugin_instance(plugin_name, request.community)
 
-        action_function = getattr(plugin, meta.function_name)
-
-        # 2. Validate input parameters
-        parameters = {}
+        parameters = None
         if request.method == "POST" and request.body:
             payload = JSONParser().parse(request)
             parameters = payload.get("parameters", {})
@@ -538,29 +522,32 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
             parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
             utils.restruct(parameters)
 
-        if meta.input_schema:
-            try:
-                jsonschema.validate(parameters, meta.input_schema)
-            except jsonschema.exceptions.ValidationError as err:
-                raise ValidationError(err.message)
+        community = request.community
 
-        # 3. Invoke action function
-        response = action_function(**parameters)
+        try:
+            result = community.perform_action(
+                plugin_name=plugin_name,
+                action_id=slug,
+                parameters=parameters,
+                jsonschema_validation=True,
+                # TODO(#50) add support for specifying comm platform id
+                community_platform_id=None,
+            )
+        except Plugin.DoesNotExist:
+            raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community}'")
+        except Plugin.MultipleObjectsReturned:
+            raise ValidationError(
+                f"Plugin '{plugin_name}' has multiple instances for community '{community}'. Please specify community_platform_id."
+            )
+        except jsonschema.exceptions.ValidationError as err:
+            raise ValidationError(err.message)
 
-        # 4. Validate response
-        if meta.output_schema:
-            try:
-                jsonschema.validate(response, meta.output_schema)
-            except jsonschema.exceptions.ValidationError as err:
-                raise ValidationError(err.message)
-
-        # 5. Return response
-        if response is None:
+        if result is None:
             return HttpResponse()
         try:
-            return JsonResponse(response, safe=False)
+            return JsonResponse(result, safe=False)
         except TypeError:
-            logger.error(f"Failed to serialize '{response}'")
+            logger.error(f"Failed to serialize '{result}'")
             raise
 
     arg_dict = {
@@ -587,38 +574,33 @@ def get_plugin_instance(plugin_name, community, community_platform_id=None):
     """
     Get a plugin instance. Returns the proxy instance (e.g. "Slack" or "OpenCollective"), not the Plugin instance.
     """
-    cls = plugin_registry.get(plugin_name)
-    if not cls:
+    try:
+        return community.get_plugin(plugin_name, community_platform_id)
+    except ValueError:
         raise ValidationError(f"Plugin '{plugin_name}' not found")
+    except Plugin.DoesNotExist:
+        extra = f"with community_platform_id '{community_platform_id}'" if community_platform_id else ""
+        raise ValidationError(f"Plugin '{plugin_name}' {extra} not enabled for community '{community}'")
+    except Plugin.MultipleObjectsReturned:
+        raise ValidationError(
+            f"Plugin '{plugin_name}' has multiple instances for community '{community}'. Please specify community_platform_id."
+        )
 
-    if community_platform_id:
-        try:
-            return cls.objects.get(name=plugin_name, community=community, community_platform_id=community_platform_id)
-        except cls.DoesNotExist:
-            raise ValidationError(f"Plugin '{plugin_name}' with community_platform_id '{community_platform_id or ''}' not found for community '{community}'")
-
-    plugins = cls.objects.filter(name=plugin_name, community=community)
-    if not plugins.exists():
-        raise ValidationError(f"Plugin '{plugin_name}' not enabled for community '{community}'")
-    if plugins.count() > 1:
-        raise ValidationError(f"Multiple instances of '{plugin_name}' enabled for community '{community}'. Please provide community_platform_id.")
-    return plugins[0]
 
 # Identity Views
 from metagov.core import identity
+
 
 @api_view(["POST"])
 def create_id(request):
     data = JSONParser().parse(request)
     try:
-        params = {
-            "community": Community.objects.get(slug=data["community_slug"]),
-            "count": data.get("count", None)
-        }
+        params = {"community": Community.objects.get(slug=data["community_slug"]), "count": data.get("count", None)}
         new_id = identity.create_id(**identity.strip_null_values_from_dict(params))
         return JsonResponse(new_id, status=status.HTTP_201_CREATED, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(["POST"])
 def merge_ids(request):
@@ -629,6 +611,7 @@ def merge_ids(request):
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(["POST"])
 def link_account(request):
     data = JSONParser().parse(request)
@@ -636,7 +619,7 @@ def link_account(request):
     _ = get_plugin_instance(
         data["platform_type"],
         Community.objects.get(slug=data["community_slug"]),
-        community_platform_id=data.get("community_platform_id", None)
+        community_platform_id=data.get("community_platform_id", None),
     )
     try:
         params = {
@@ -654,6 +637,7 @@ def link_account(request):
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(["POST"])
 def unlink_account(request):
     data = JSONParser().parse(request)
@@ -661,27 +645,28 @@ def unlink_account(request):
     _ = get_plugin_instance(
         data["platform_type"],
         Community.objects.get(slug=data["community_slug"]),
-        community_platform_id=data.get("community_platform_id", None)
+        community_platform_id=data.get("community_platform_id", None),
     )
     try:
         params = {
             "community": Community.objects.get(slug=data["community_slug"]),
             "platform_type": data["platform_type"],
             "platform_identifier": data["platform_identifier"],
-            "community_platform_id": data.get("community_platform_id", None)
+            "community_platform_id": data.get("community_platform_id", None),
         }
         account_deleted = identity.link_account(**identity.strip_null_values_from_dict(params))
         return JsonResponse(account_deleted, status=status.HTTP_200_OK, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(["GET"])
 def get_user(request):
     try:
-        return JsonResponse(identity.get_user(request.GET.get("external_id")),
-            status=status.HTTP_200_OK, safe=False)
+        return JsonResponse(identity.get_user(request.GET.get("external_id")), status=status.HTTP_200_OK, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(["GET"])
 def get_users(request):
@@ -691,7 +676,7 @@ def get_users(request):
         _ = get_plugin_instance(
             request.GET.get("platform_type"),
             community,
-            community_platform_id=request.GET.get("community_platform_id", None)
+            community_platform_id=request.GET.get("community_platform_id", None),
         )
     try:
         params = {
@@ -700,12 +685,13 @@ def get_users(request):
             "community_platform_id": request.GET.get("community_platform_id", None),
             "link_type": request.GET.get("link_type", None),
             "link_quality": request.GET.get("link_quality", None),
-            "platform_identifier": request.GET.get("platform_identifier", None)
+            "platform_identifier": request.GET.get("platform_identifier", None),
         }
         user_data = identity.get_users(**identity.strip_null_values_from_dict(params))
         return JsonResponse(user_data, status=status.HTTP_200_OK, safe=False)
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST, safe=False)
+
 
 @api_view(["GET"])
 def filter_users_by_account(request):
@@ -715,7 +701,7 @@ def filter_users_by_account(request):
         _ = get_plugin_instance(
             request.GET.get("platform_type"),
             community,
-            community_platform_id=request.GET.get("community_platform_id", None)
+            community_platform_id=request.GET.get("community_platform_id", None),
         )
     try:
         params = {
@@ -731,13 +717,14 @@ def filter_users_by_account(request):
     except Exception as error:
         return JsonResponse(error, status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(["GET"])
 def get_linked_account(request):
     try:
         params = {
             "external_id": request.GET.get("external_id"),
             "platform_type": request.GET.get("platform_type"),
-            "community_platform_id": request.GET.get("community_platform_id", None)
+            "community_platform_id": request.GET.get("community_platform_id", None),
         }
         user_data = identity.get_linked_account(**identity.strip_null_values_from_dict(params))
         return JsonResponse(user_data, status=status.HTTP_200_OK, safe=False)
