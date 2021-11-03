@@ -12,7 +12,6 @@ from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 from metagov.core.plugin_manager import Parameters, plugin_registry
-
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +75,7 @@ class Community(models.Model):
 
         # Invoke action function
         action_function = getattr(plugin, meta.function_name)
-        result = action_function(**parameters)
+        result = action_function(**parameters or {})
 
         # Validate result
         if jsonschema_validation and meta.output_schema and result:

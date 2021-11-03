@@ -2,6 +2,7 @@ import jsonschema
 from django.db import IntegrityError
 from django.test import TestCase
 from metagov.core.app import MetagovApp
+from metagov.core.handlers import MetagovRequestHandler
 
 TEST_SLUG = "xyz"
 
@@ -59,3 +60,16 @@ class MetagovAppTests(TestCase):
         community.disable_plugin("randomness")
 
         self.assertEqual(community.plugins.count(), 0)
+
+class MetagovRequestHandlerTests(TestCase):
+    def setUp(self):
+        self.app = MetagovApp()
+        self.app.create_community(slug="xyz")
+        self.handler = MetagovRequestHandler(self.app)
+
+    def test_request_handler(self):
+        handler = self.handler._get_plugin_request_handler("slack")
+        self.assertIsNotNone(handler)
+
+        handler = self.handler._get_plugin_request_handler("sourcecred")
+        self.assertIsNone(handler)
