@@ -48,11 +48,11 @@ class Community(models.Model):
         else:
             return cls.objects.get(name=plugin_name, community=self)
 
-    def enable_plugin(self, plugin_name, plugin_config):
+    def enable_plugin(self, plugin_name, plugin_config=None):
         """Enable or update plugin"""
         from metagov.core.utils import create_or_update_plugin
 
-        plugin, created = create_or_update_plugin(plugin_name, plugin_config, self)
+        plugin, created = create_or_update_plugin(plugin_name, plugin_config or {}, self)
         return plugin
 
     def disable_plugin(self, plugin_name, community_platform_id=None):
@@ -222,9 +222,10 @@ class Plugin(models.Model):
         cls = self.__get_process_cls(process_name)
         return cls.objects.all()
 
-    def get_process(self, process_name, process_id):
-        cls = self.__get_process_cls(process_name)
-        return cls.objects.get(pk=process_id)
+    def get_process(self, id):
+        process = GovernanceProcess.objects.get(pk=id)
+        cls = self.__get_process_cls(process.name)
+        return cls.objects.get(pk=id)
 
     def send_event_to_driver(self, event_type: str, data: dict, initiator: dict):
         """Send an event to the driver"""
@@ -394,7 +395,7 @@ class GovernanceProcess(models.Model):
         - Call ``self.save()`` to persist changes."""
         pass
 
-
+# TODO emit a new custom signal for the Driver to listen to
 @receiver(pre_save)
 def pre_save_governance_process(sender, instance, **kwargs):
     """
