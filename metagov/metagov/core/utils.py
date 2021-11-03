@@ -112,22 +112,17 @@ def get_process_schemas(cls):
 
 def validate_and_fill_defaults(values, schema):
     from metagov.core.validators import DefaultValidatingDraft7Validator
-    from rest_framework.exceptions import ValidationError
-
-    try:
-        # this mutates `plugin_config` by filling in default values from schema
-        DefaultValidatingDraft7Validator(schema).validate(values)
-    except jsonschema.exceptions.ValidationError as err:
-        raise ValidationError(f"ValidationError: {err.message}")
+    # this mutates `plugin_config` by filling in default values from schema
+    # raises jsonschema.exceptions.ValidationError
+    DefaultValidatingDraft7Validator(schema).validate(values)
 
 
 def create_or_update_plugin(plugin_name, plugin_config, community):
     from metagov.core.plugin_manager import plugin_registry
-    from rest_framework.exceptions import ValidationError
 
     cls = plugin_registry.get(plugin_name)
     if not cls:
-        raise ValidationError(f"No such plugin registered: {plugin_name}")
+        raise ValueError(f"No such plugin registered: {plugin_name}")
 
     if cls.config_schema:
         validate_and_fill_defaults(plugin_config, cls.config_schema)

@@ -17,7 +17,7 @@ class Parameters:
 
         if schema:
             for field in schema.get("properties").keys():
-                if not values.get(field):
+                if values.get(field) is None:
                     setattr(self, field, None)
 
 
