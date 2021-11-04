@@ -1,25 +1,22 @@
-import base64
-import importlib
-import json
 import logging
 from http import HTTPStatus
 
 import jsonschema
 import metagov.core.openapi_schemas as MetagovSchemas
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, HttpResponseRedirect, JsonResponse
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, JsonResponse
 from django.shortcuts import redirect
 from django.utils.decorators import decorator_from_middleware
 from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from metagov.core import utils
-from metagov.core.errors import PluginAuthError
+from metagov.core.app import MetagovApp
+from metagov.core.handlers import MetagovRequestHandler
 from metagov.core.middleware import CommunityMiddleware
 from metagov.core.models import Community, Plugin, ProcessStatus
 from metagov.core.openapi_schemas import Tags
-from metagov.core.plugin_manager import plugin_registry, AuthorizationType, Parameters
+from metagov.core.plugin_manager import plugin_registry
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer, PluginSerializer
-from requests.models import PreparedRequest
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import APIException, ValidationError
@@ -28,6 +25,10 @@ from rest_framework.parsers import JSONParser
 community_middleware = decorator_from_middleware(CommunityMiddleware)
 
 logger = logging.getLogger(__name__)
+
+
+metagov_app = MetagovApp()
+metagov_handler = MetagovRequestHandler(app=metagov_app)
 
 
 def index(request):
@@ -169,133 +170,13 @@ def delete_plugin(request, plugin_name, id):
 @swagger_auto_schema(**MetagovSchemas.plugin_authorize)
 @api_view(["GET"])
 def plugin_authorize(request, plugin_name):
-    plugin_cls = plugin_registry.get(plugin_name)
-    if not plugin_cls:
-        return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
-
-    # auth type (user login or app installation)
-    type = request.GET.get("type", AuthorizationType.APP_INSTALL)
-    # community to install to (optional for installation, ignored for user login)
-    community_slug = request.GET.get("community")
-    # where to redirect after auth flow is done
-    redirect_uri = request.GET.get("redirect_uri")
-    # metagov_id of logged in user, if exists
-    metagov_id = request.GET.get("metagov_id")
-    # state to pass along to final redirect after auth flow is done
-    received_state = request.GET.get("state")
-    request.session["received_authorize_state"] = received_state
-
-    if type != AuthorizationType.APP_INSTALL and type != AuthorizationType.USER_LOGIN:
-        return HttpResponseBadRequest(
-            f"Parameter 'type' must be '{AuthorizationType.APP_INSTALL}' or '{AuthorizationType.USER_LOGIN}'"
-        )
-
-    community = None
-    if type == AuthorizationType.APP_INSTALL:
-        if community_slug:
-            try:
-                community = Community.objects.get(slug=community_slug)
-            except Community.DoesNotExist:
-                return HttpResponseBadRequest(f"No such community: {community_slug}")
-        else:
-            community = Community.objects.create()
-            # TODO: delete the community if installation fails.
-            logger.debug(f"Created new community for installing {plugin_name}: {community}")
-        community_slug = str(community.slug)
-
-    # Create the state
-    nonce = utils.generate_nonce()
-    state = {
-        nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type, "metagov_id": metagov_id}
-    }
-    state_str = json.dumps(state).encode("ascii")
-    state_encoded = base64.b64encode(state_str).decode("ascii")
-    # Store nonce in the session so we can validate the callback request
-    request.session["nonce"] = nonce
-
-    # FIXME: figure out a better way to register these functions
-    plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
-
-    url = plugin_views.get_authorize_url(state_encoded, type, community)
-
-    if type == AuthorizationType.APP_INSTALL:
-        logger.info(f"Redirecting to authorize '{plugin_name}' for community {community}")
-    elif type == AuthorizationType.USER_LOGIN:
-        logger.info(f"Redirecting to authorize user for '{plugin_name}'")
-    return HttpResponseRedirect(url)
-
-
-def redirect_with_params(url, **kwargs):
-    req = PreparedRequest()
-    req.prepare_url(url, kwargs)
-    return HttpResponseRedirect(req.url)
+    return metagov_handler.handle_oauth_authorize(request, plugin_name)
 
 
 @swagger_auto_schema(method="GET", auto_schema=None)
 @api_view(["GET"])
 def plugin_auth_callback(request, plugin_name):
-    logger.debug(f"Plugin auth callback received request: {request.GET}")
-    plugin_cls = plugin_registry.get(plugin_name)
-    if not plugin_cls:
-        return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
-    state_str = request.GET.get("state")
-    if not state_str:
-        return HttpResponseBadRequest("missing state")
-
-    # Validate and decode state
-    nonce = request.session.get("nonce")
-    if not nonce:
-        return HttpResponseBadRequest("missing session nonce")
-
-    state_obj = json.loads(base64.b64decode(state_str).decode("ascii"))
-    logger.debug(f"Decoded state: {state_obj}")
-    state = state_obj.get(nonce)
-    type = state.get("type")
-    community_slug = state.get("community")
-    redirect_uri = state.get("redirect_uri")
-    metagov_id = state.get("metagov_id")
-    state_to_pass = request.session.get("received_authorize_state")
-
-    if not redirect_uri:
-        return HttpResponseBadRequest("bad state: redirect_uri is missing")
-
-    # params to include on the redirect
-    redirect_params = {"state": state_to_pass, "community": community_slug}
-
-    if request.GET.get("error"):
-        return redirect_with_params(redirect_uri, **redirect_params, error=request.GET.get("error"))
-
-    code = request.GET.get("code")
-    if not code:
-        return redirect_with_params(redirect_uri, **redirect_params, error="server_error")
-
-    community = None
-    if type == AuthorizationType.APP_INSTALL:
-        # For installs, validate the community
-        if not community_slug:
-            return redirect_with_params(redirect_uri, **redirect_params, error="bad_state")
-        try:
-            community = Community.objects.get(slug=community_slug)
-        except Community.DoesNotExist:
-            return redirect_with_params(redirect_uri, **redirect_params, error="community_not_found")
-
-    # FIXME: figure out a better way to register these functions
-    plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
-
-    try:
-        response = plugin_views.auth_callback(
-            type=type,
-            code=code,
-            redirect_uri=redirect_uri,
-            community=community,
-            state=state_to_pass,
-            request=request,
-            metagov_id=metagov_id,
-        )
-
-        return response if response else redirect_with_params(redirect_uri, **redirect_params)
-    except PluginAuthError as e:
-        return redirect_with_params(redirect_uri, **redirect_params, error=e.get_codes(), error_description=e.detail)
+    return metagov_handler.handle_oauth_callback(request, plugin_name)
 
 
 @swagger_auto_schema(**MetagovSchemas.plugin_metadata)
@@ -338,42 +219,15 @@ def receive_webhook(request, community, plugin_name, webhook_slug=None):
     """
 
     try:
-        community = Community.objects.get(slug=community)
-    except Community.DoesNotExist:
+        return metagov_handler.handle_incoming_webhook(
+            request=request,
+            plugin_name=plugin_name,
+            community_slug=community,
+            # FIXME #50 ?
+            community_platform_id=None,
+        )
+    except (Community.DoesNotExist, Plugin.DoesNotExist):
         return HttpResponseNotFound()
-
-    # Lookup plugin
-    # TODO(#50): change this to support multiple plugin instances of the same type
-    plugin = get_plugin_instance(plugin_name, community)
-
-    # Validate slug if the plugin has `webhook_slug` configured
-    expected_slug = plugin.config.get(utils.WEBHOOK_SLUG_CONFIG_KEY)
-    if webhook_slug != expected_slug:
-        logger.error(f"Received request at {webhook_slug}, expected {expected_slug}. Rejecting.")
-        return HttpResponseBadRequest()
-
-    plugin_cls = plugin_registry[plugin_name]
-    if plugin_cls._webhook_receiver_function:
-        webhook_receiver = getattr(plugin, plugin_cls._webhook_receiver_function)
-        logger.info(f"Passing webhook request to: {plugin}")
-        try:
-            webhook_receiver(request)
-        except Exception as e:
-            logger.error(f"Plugin '{plugin}' failed to process webhook: {e}")
-
-    # Call `receive_webhook` on each of the GovernanceProcess proxy models
-    proxy_models = plugin_cls._process_registry.values()
-    for cls in proxy_models:
-        processes = cls.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
-        logger.info(f"{processes.count()} pending processes for plugin instance '{plugin}'")
-        for process in processes:
-            logger.info(f"Passing webhook request to: {process}")
-            try:
-                process.receive_webhook(request)
-            except Exception as e:
-                logger.error(e)
-
-    return HttpResponse()
 
 
 @csrf_exempt
@@ -384,20 +238,15 @@ def receive_webhook_global(request, plugin_name):
     API endpoint for receiving webhook requests from external services.
     For plugins that receive events for multiple communities to a single URL -- like Slack and Discord
     """
-    # FIXME: figure out a better way to register the event processing function
     try:
-        plugin_views = importlib.import_module(f"metagov.plugins.{plugin_name}.views")
-    except ModuleNotFoundError:
-        logger.error(f"no receiver for {plugin_name}")
-        return HttpResponse()
-
-    if not hasattr(plugin_views, "process_event"):
-        logger.error(f"no receiver for {plugin_name}")
-        return HttpResponse()
-
-    logger.debug(f"Processing incoming event for {plugin_name}")
-    response = plugin_views.process_event(request)
-    return response if response else HttpResponse()
+        return metagov_handler.handle_incoming_webhook(
+            request=request,
+            plugin_name=plugin_name,
+            # FIXME #50 ?
+            community_platform_id=None,
+        )
+    except (Community.DoesNotExist, Plugin.DoesNotExist):
+        return HttpResponseNotFound()
 
 
 def decorated_create_process_view(plugin_name, slug):

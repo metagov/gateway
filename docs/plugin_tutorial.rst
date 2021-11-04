@@ -395,40 +395,43 @@ Re-opening a governance process
 
 Not currently supported. Once a process moves into ``ProcessStatus.COMPLETED`` state, it cannot be re-opened.
 
-Oauth Installation
+OAuth Installation
 ******************
 
-Some platforms such as Slack and Github allow us to implement a one-click installation workflow via oauth. In order to support oauth installation, your plugin needs to have a ``views.py`` file implementing ``get_authorize_url`` and ``auth_callback``.
+Some platforms such as Slack and Github allow us to implement a one-click installation workflow via oauth.
+In order to support oauth installation, your plugin needs to have a ``handlers.py`` file implementing a ``PluginRequestHandler`` class with functions ``construct_oauth_authorize_url`` and ``handle_oauth_callback``.
 
-``views.get_authorize_url`` should return the authorization url provided by the platform. For example, `Github <https://docs.github.com/en/developers/apps/managing-github-apps/installing-github-apps#allowing-people-to-install-your-public-app-on-their-repository>`_ specifies a url with the format ``https://github.com/apps/<app name>/installations/new?state={state}``.
+``construct_oauth_authorize_url`` should return the authorization url provided by the platform. For example, `Github <https://docs.github.com/en/developers/apps/managing-github-apps/installing-github-apps#allowing-people-to-install-your-public-app-on-their-repository>`_ specifies a url with the format ``https://github.com/apps/<app name>/installations/new?state={state}``.
 
 .. code-block:: python
 
     from metagov.core.plugin_manager import AuthorizationType
+    from metagov.core.handlers import PluginRequestHandler
 
-    def get_authorize_url(state_encoded, type, community):
-
-        if type == AuthorizationType.APP_INSTALL:
-            return "https://example.com/oauth/v2/authorize?custom_data"
+    class MyPluginRequestHandler(PluginRequestHandler):
+        def construct_oauth_authorize_url(self, type, community=None):
+            if type == AuthorizationType.APP_INSTALL:
+                return "https://example.com/oauth/v2/authorize?custom_data"
 
 When a driver navigates to ``http://127.0.0.1:8000/auth/<plugin_name>/authorize?communty=123&redirect_uri=xyz``, they are requesting to enable the plugin for the specified community. Metagov core will redirect them to the URL that you defined via ``get_authorize_url``.
 
 Once the user approves installation of the app, the platform should redirect them to whatever URL has been provided as the callback URL in the app setup. In order to work correctly, this url should have the format ``http://127.0.0.1:8000/auth/<plugin_name>/callback``.
 
-The final step is writing the ``auth_callback`` function to process the request from the platform and create a new plugin instance for that installation. If you do not return any value, Metagov will redirect to `HttpResponseRedirect(redirect_uri)`; you can overwrite this behavior by supplying a custom URI within an `HttpResponseRedirect`. The function should end up looking something like this:
+The final step is writing the ``handle_oauth_callback`` function to process the request from the platform and create a new plugin instance for that installation. If you do not return any value, Metagov will redirect to ``HttpResponseRedirect(redirect_uri)``; you can overwrite this behavior by supplying a custom URI within an ``HttpResponseRedirect``. The function should end up looking something like this:
 
 .. code-block:: python
 
-    def auth_callback(type, code, redirect_uri, community, state=None):
+    from metagov.core.handlers import PluginRequestHandler
+    class MyPluginRequestHandler(PluginRequestHandler):
+        def handle_oauth_callback(self, type, code, redirect_uri, community, state=None):
+            # do some work, likely exchanging an identifier for an access code
 
-        # do some work, likely exchanging an identifier for an access code
+            # check if plugin already created for this community and delete it if it exists
+            existing_plugin = Tutorial.objects.filter(community=community)
+            for instance in existing_plugin:  # should only be one instance
+                logger.info(f"Deleting existing Tutorial plugin found for requested community     {existing_plugin}")
 
-        # check if plugin already created for this community and delete it if it exists
-        existing_plugin = Tutorial.objects.filter(community=community)
-        for instance in existing_plugin:  # should only be one instance
-            logger.info(f"Deleting existing Tutorial plugin found for requested community     {existing_plugin}")
-
-        # create new plugin
-        plugin_config = {"A": "A", "B":"B"}
-        plugin = Tutorial.objects.create(name="tutorial", community=community, config=plugin_config)
-        logger.info(f"Created Tutorial plugin {plugin}")
+            # create new plugin
+            plugin_config = {"A": "A", "B":"B"}
+            plugin = Tutorial.objects.create(name="tutorial", community=community, config=plugin_config)
+            logger.info(f"Created Tutorial plugin {plugin}")

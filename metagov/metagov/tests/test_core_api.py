@@ -1,8 +1,9 @@
-from django.test import TestCase
-from metagov.core.models import Community, Plugin, GovernanceProcess
-from metagov.plugins.sourcecred.models import SourceCred
+from django.test import Client, TestCase
+from metagov.core.models import Community, GovernanceProcess, Plugin
+from metagov.core.signals import governance_process_updated
 from metagov.plugins.example.models import Randomness, StochasticVote
-from django.test import Client
+from metagov.plugins.sourcecred.models import SourceCred
+from .plugin_test_utils import catch_signal
 
 
 class UnitTests(TestCase):
@@ -170,10 +171,19 @@ class ApiTests(TestCase):
         response = client.get(location, content_type="application/json")
         self.assertContains(response, "pending")
 
-        # close process early
-        response = client.delete(location, content_type="application/json")
-        self.assertContains(response, "completed")
-        self.assertContains(response, "winner")
+        # close process early, assert that signal is emitted
+        with catch_signal(governance_process_updated) as handler:
+            response = client.delete(location, content_type="application/json")
+
+            # assert that the signal is correct
+            handler.assert_called_once()
+            kwargs = handler.call_args.kwargs
+            self.assertEqual(kwargs["status"], "completed")
+            self.assertIsNotNone(kwargs["outcome"]["winner"])
+
+            # assert that the http response is correct
+            self.assertContains(response, "completed")
+            self.assertContains(response, "winner")
 
         # deactivate one plugin
         data["plugins"].pop()
