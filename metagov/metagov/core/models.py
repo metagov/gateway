@@ -8,10 +8,10 @@ import jsonschema
 import requests
 from django.conf import settings
 from django.db import IntegrityError, models
-from django.db.models.signals import pre_save
-from django.dispatch import receiver
+
 from django.utils.translation import gettext_lazy as _
 from metagov.core.plugin_manager import Parameters, plugin_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -393,46 +393,6 @@ class GovernanceProcess(models.Model):
 
         - Call ``self.save()`` to persist changes."""
         pass
-
-# TODO emit a new custom signal for the Driver to listen to
-@receiver(pre_save)
-def pre_save_governance_process(sender, instance, **kwargs):
-    """
-    Pre-save signale for GovernanceProcesses.
-    If the ``status`` was changed to ``completed``, OR if the ``outcome`` was changed,
-    it will post the serialized process to the ``callback_url``."""
-
-    # Need to check if this is a GovernanceProcess using subclass
-    # instead of using `sender` because these are Proxy models.
-    if not issubclass(sender, GovernanceProcess):
-        return
-
-    try:
-        obj = sender.objects.get(pk=instance.pk)
-    except sender.DoesNotExist:
-        pass  # process is new
-    else:
-        if not obj.status == instance.status and instance.status == ProcessStatus.COMPLETED.value:
-            logger.debug(f"Status changed: {obj.status}->{instance.status}")
-            notify_callback_url(instance)
-        elif not obj.outcome == instance.outcome:
-            logger.debug(f"Outcome changed: {obj.outcome} -> {instance.outcome}")
-            notify_callback_url(instance)
-
-
-def notify_callback_url(process: GovernanceProcess):
-    """Notify the Driver that this GovernanceProess has completed or that the outcome has been updated."""
-    if not process.callback_url:
-        return
-    logger.debug(f"Posting process to '{process.callback_url}':")
-
-    from metagov.core.serializers import GovernanceProcessSerializer
-
-    serializer = GovernanceProcessSerializer(process)
-    logger.debug(serializer.data)
-    resp = requests.post(process.callback_url, json=serializer.data)
-    if not resp.ok:
-        logger.error(f"Error posting outcome to callback url: {resp.status_code} {resp.text}")
 
 
 class MetagovID(models.Model):
