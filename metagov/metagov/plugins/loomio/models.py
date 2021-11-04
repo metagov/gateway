@@ -30,7 +30,7 @@ class Loomio(Plugin):
     def initialize(self):
         # Map API keys -> handle ("metagov-testing") and key ("2qE8dI91")
         api_key_group_map = {}
-        all_api_keys = self.config["subgroup_api_keys"] or []
+        all_api_keys = self.config.get("subgroup_api_keys") or []
         all_api_keys.append(self.config["api_key"])
         for api_key in all_api_keys:
             group = self._get_memberships(api_key)["groups"][0]
@@ -41,6 +41,7 @@ class Loomio(Plugin):
         # Set the community_platform_id to the main group handle
         parent_group_handle = api_key_group_map[self.config["api_key"]]["handle"]
         self.community_platform_id = parent_group_handle
+        self.save()
 
     def _get_api_key(self, key_or_handle):
         """Get the API key for a specific Loomio group. Returns None if not found."""
