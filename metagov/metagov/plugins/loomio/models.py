@@ -86,7 +86,10 @@ class Loomio(Plugin):
     def create_discussion(self, title, subgroup=None, **kwargs):
         payload = {"title": title, **kwargs}
         if subgroup:
-            payload["api_key"] = self._get_api_key(subgroup)
+            subgroup_api_key = self._get_api_key(subgroup)
+            if not subgroup_api_key:
+                raise PluginErrorInternal(f"No API key found for group {subgroup}.")
+            payload["api_key"] = subgroup_api_key
         else:
             payload["api_key"] = self.config["api_key"]
 
