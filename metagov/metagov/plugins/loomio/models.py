@@ -43,13 +43,17 @@ class Loomio(Plugin):
         self.community_platform_id = parent_group_handle
         self.save()
 
-    def _get_api_key(self, key_or_handle):
-        """Get the API key for a specific Loomio group. Returns None if not found."""
+    def _get_api_key(self, key_or_handle=None):
+        """Get the API key for a specific Loomio group. Raises exception if not found."""
+        if not key_or_handle:
+            # if no subgroup, use the main group key
+            return self.config["api_key"]
+
         api_key_group_map = self.state.get("api_key_group_map")
         for api_key, v in api_key_group_map.items():
             if v["key"] == key_or_handle or v["handle"] == key_or_handle:
                 return api_key
-        return None
+        raise PluginErrorInternal(f"No API key found for Loomio group {key_or_handle}.")
 
     def _get_memberships(self, api_key):
         resp = requests.get(f"https://www.loomio.org/api/b1/memberships?api_key={api_key}")
@@ -72,10 +76,7 @@ class Loomio(Plugin):
         },
     )
     def list_members(self, subgroup=None):
-        if subgroup:
-            api_key = self._get_api_key(subgroup)
-        else:
-            api_key = self.config["api_key"]
+        api_key = self._get_api_key(subgroup)
         return self._get_memberships(api_key)
 
     @Registry.action(
@@ -85,10 +86,7 @@ class Loomio(Plugin):
     )
     def create_discussion(self, title, subgroup=None, **kwargs):
         payload = {"title": title, **kwargs}
-        if subgroup:
-            payload["api_key"] = self._get_api_key(subgroup)
-        else:
-            payload["api_key"] = self.config["api_key"]
+        payload["api_key"] = self._get_api_key(subgroup)
 
         resp = requests.post(f"https://www.loomio.org/api/b1/discussions", payload)
         if not resp.ok:
@@ -117,7 +115,7 @@ class LoomioPoll(GovernanceProcess):
         payload.pop("options")
 
         subgroup = payload.pop("subgroup", None)
-        api_key = self.plugin_inst._get_api_key(subgroup) if subgroup else self.plugin_inst.config["api_key"]
+        api_key = self.plugin_inst._get_api_key(subgroup)
         self.state.set("poll_api_key", api_key)
 
         payload["options[]"] = parameters.options
