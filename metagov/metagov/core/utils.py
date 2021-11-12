@@ -27,16 +27,6 @@ def plugin_uses_webhooks(cls):
     return cls._webhook_receiver_function is not None
 
 
-def construct_action_url(plugin_name: str, slug: str, is_public=False) -> str:
-    if is_public:
-        return f"api/action/{plugin_name}.{slug}"
-    return f"{internal_path}/action/{plugin_name}.{slug}"
-
-
-def construct_process_url(plugin_name: str, slug: str) -> str:
-    return f"{internal_path}/process/{plugin_name}.{slug}"
-
-
 class SaferDraft7Validator(jsonschema.Draft7Validator):
     META_SCHEMA = {**jsonschema.Draft7Validator.META_SCHEMA, "additionalProperties": False}
 
@@ -154,6 +144,23 @@ def create_or_update_plugin(plugin_name, plugin_config, community):
 
         logger.info(f"Not updating '{plugin}', no change in config.")
         return (plugin, False)
+
+
+def get_plugin_instance(plugin_name, community, community_platform_id=None):
+    """
+    Get a plugin instance. Returns the proxy instance (e.g. "Slack" or "OpenCollective"), not the Plugin instance.
+    """
+    try:
+        return community.get_plugin(plugin_name, community_platform_id)
+    except ValueError:
+        raise ValidationError(f"Plugin '{plugin_name}' not found")
+    except Plugin.DoesNotExist:
+        extra = f"with community_platform_id '{community_platform_id}'" if community_platform_id else ""
+        raise ValidationError(f"Plugin '{plugin_name}' {extra} not enabled for community '{community}'")
+    except Plugin.MultipleObjectsReturned:
+        raise ValidationError(
+            f"Plugin '{plugin_name}' has multiple instances for community '{community}'. Please specify community_platform_id."
+        )
 
 
 # def jsonschema_to_parameters(schema):
