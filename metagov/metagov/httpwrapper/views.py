@@ -1,8 +1,6 @@
 """
 This module contains views necessary for external drivers to interact with metagov. Django-based apps
 can call the underlying methods directly.
-
-To see public-facing views that Metagov exposes on behalf of all drivers, check core.views.py.
 """
 import logging
 from http import HTTPStatus
@@ -28,13 +26,15 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.parsers import JSONParser
 
+
 community_middleware = decorator_from_middleware(CommunityMiddleware)
-
 logger = logging.getLogger(__name__)
-
-
 metagov_app = MetagovApp()
 metagov_handler = MetagovRequestHandler(app=metagov_app)
+
+
+def index(request):
+    return redirect("/redoc")
 
 
 # Community endpoints
@@ -175,12 +175,18 @@ def delete_plugin(request, plugin_name, id):
     return HttpResponse(status=status.HTTP_204_NO_CONTENT)
 
 
-# FIXME: is this something that's needed by Django-based apps? Funny that it's the only thing here
-# using metagov_handler
 @swagger_auto_schema(**MetagovSchemas.plugin_authorize)
 @api_view(["GET"])
 def plugin_authorize(request, plugin_name):
     return metagov_handler.handle_oauth_authorize(request, plugin_name)
+
+
+@swagger_auto_schema(method="GET", auto_schema=None)
+@api_view(["GET"])
+def plugin_auth_callback(request, plugin_name):
+    """This function provides endpoints for plugins to provide to external platforms so that platforms
+    can redirect ("call back") after oauth is complete."""
+    return metagov_handler.handle_oauth_callback(request, plugin_name)
 
 
 # Process endpoints
@@ -357,3 +363,45 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
         arg_dict["responses"] = {200: "action was performed successfully"}
 
     return swagger_auto_schema(**arg_dict)(perform_action)
+
+
+# Webhook endpoints
+
+
+@csrf_exempt
+@swagger_auto_schema(method="post", auto_schema=None)
+@api_view(["POST"])
+def receive_webhook(request, community, plugin_name, webhook_slug=None):
+    """
+    API endpoint for receiving webhook requests from external services
+    """
+
+    try:
+        return metagov_handler.handle_incoming_webhook(
+            request=request,
+            plugin_name=plugin_name,
+            community_slug=community,
+            # FIXME #50 ?
+            community_platform_id=None,
+        )
+    except (Community.DoesNotExist, Plugin.DoesNotExist):
+        return HttpResponseNotFound()
+
+
+@csrf_exempt
+@swagger_auto_schema(method="post", auto_schema=None)
+@api_view(["POST"])
+def receive_webhook_global(request, plugin_name):
+    """
+    API endpoint for receiving webhook requests from external services.
+    For plugins that receive events for multiple communities to a single URL -- like Slack and Discord
+    """
+    try:
+        return metagov_handler.handle_incoming_webhook(
+            request=request,
+            plugin_name=plugin_name,
+            # FIXME #50 ?
+            community_platform_id=None,
+        )
+    except (Community.DoesNotExist, Plugin.DoesNotExist):
+        return HttpResponseNotFound()

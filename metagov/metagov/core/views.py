@@ -1,10 +1,3 @@
-"""
-This module contains public-facing views that Metagov exposes on behalf of all drivers, both external
-drivers and Django app drivers.
-
-Additional views necessary only for external drivers can be found in the HTTPWrapper directory.
-"""
-`
 import logging
 from http import HTTPStatus
 
@@ -38,16 +31,6 @@ metagov_app = MetagovApp()
 metagov_handler = MetagovRequestHandler(app=metagov_app)
 
 
-def index(request):
-    return redirect("/redoc")
-
-
-@swagger_auto_schema(method="GET", auto_schema=None)
-@api_view(["GET"])
-def plugin_auth_callback(request, plugin_name):
-    """This function provides endpoints for plugins to provide to external platforms so that platforms
-    can redirect ("call back") after oauth is complete."""
-    return metagov_handler.handle_oauth_callback(request, plugin_name)
 
 
 # FIXME: it feels like this should be in HTTPWrapper but might a Django-based driver want a
@@ -84,40 +67,4 @@ def plugin_config_schemas(request):
     return JsonResponse(plugins)
 
 
-@csrf_exempt
-@swagger_auto_schema(method="post", auto_schema=None)
-@api_view(["POST"])
-def receive_webhook(request, community, plugin_name, webhook_slug=None):
-    """
-    API endpoint for receiving webhook requests from external services
-    """
 
-    try:
-        return metagov_handler.handle_incoming_webhook(
-            request=request,
-            plugin_name=plugin_name,
-            community_slug=community,
-            # FIXME #50 ?
-            community_platform_id=None,
-        )
-    except (Community.DoesNotExist, Plugin.DoesNotExist):
-        return HttpResponseNotFound()
-
-
-@csrf_exempt
-@swagger_auto_schema(method="post", auto_schema=None)
-@api_view(["POST"])
-def receive_webhook_global(request, plugin_name):
-    """
-    API endpoint for receiving webhook requests from external services.
-    For plugins that receive events for multiple communities to a single URL -- like Slack and Discord
-    """
-    try:
-        return metagov_handler.handle_incoming_webhook(
-            request=request,
-            plugin_name=plugin_name,
-            # FIXME #50 ?
-            community_platform_id=None,
-        )
-    except (Community.DoesNotExist, Plugin.DoesNotExist):
-        return HttpResponseNotFound()
