@@ -14,7 +14,6 @@ from metagov.core.app import MetagovApp
 from metagov.core.handlers import MetagovRequestHandler
 from metagov.core.middleware import CommunityMiddleware
 from metagov.core.models import Community, Plugin, ProcessStatus
-from metagov.core.openapi_schemas import Tags
 from metagov.core.plugin_manager import plugin_registry
 from metagov.core.serializers import CommunitySerializer, GovernanceProcessSerializer, PluginSerializer
 from rest_framework import status
