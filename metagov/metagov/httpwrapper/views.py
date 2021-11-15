@@ -13,8 +13,9 @@ from django.utils.decorators import decorator_from_middleware
 from django.views.decorators.csrf import csrf_exempt
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from metagov.core import utils
 from metagov.core.utils import get_plugin_instance
+import metagov.core.utils as core_utils
+from metagov.httpwrapper import utils
 from metagov.core.app import MetagovApp
 from metagov.core.handlers import MetagovRequestHandler
 from metagov.core.middleware import CommunityMiddleware
@@ -124,13 +125,13 @@ def decorated_enable_plugin_view(plugin_name):
     def enable_plugin(request):
         plugin_config = JSONParser().parse(request)
         # Create or re-create the plugin (only one instance per community supported for now!)
-        plugin, created = utils.create_or_update_plugin(plugin_name, plugin_config, request.community)
+        plugin, created = core_utils.create_or_update_plugin(plugin_name, plugin_config, request.community)
         # Serialize and return the Plugin instance
         serializer = PluginSerializer(plugin)
         resp_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
         return JsonResponse(serializer.data, status=resp_status)
 
-    request_body_schema = utils.json_schema_to_openapi_object(cls.config_schema) if cls.config_schema else {}
+    request_body_schema = core_utils.json_schema_to_openapi_object(cls.config_schema) if cls.config_schema else {}
 
     return swagger_auto_schema(
         method="post",
@@ -219,7 +220,7 @@ def decorated_create_process_view(plugin_name, slug):
         response["Location"] = f"/{utils.construct_process_url(plugin_name, slug)}/{process.pk}"
         return response
 
-    request_body_schema = utils.json_schema_to_openapi_object(cls.input_schema) if cls.input_schema else {}
+    request_body_schema = core_utils.json_schema_to_openapi_object(cls.input_schema) if cls.input_schema else {}
 
     return swagger_auto_schema(
         method="post",
@@ -317,7 +318,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
             # TODO: add back support for GET. Should be allowed if params are simple enough.
         if request.method == "GET":
             parameters = request.GET.dict()  # doesnt support repeated params 'a=2&a=3'
-            utils.restruct(parameters)
+            core_utils.restruct(parameters)
 
         community = request.community
 
@@ -355,12 +356,12 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
         "tags": tags or [Tags.ACTION],
     }
     if meta.input_schema:
-        properties = {"parameters": utils.json_schema_to_openapi_object(meta.input_schema)}
+        properties = {"parameters": core_utils.json_schema_to_openapi_object(meta.input_schema)}
 
         arg_dict["request_body"] = openapi.Schema(type=openapi.TYPE_OBJECT, properties={**properties})
 
     if meta.output_schema:
-        arg_dict["responses"] = {200: utils.json_schema_to_openapi_object(meta.output_schema)}
+        arg_dict["responses"] = {200: core_utils.json_schema_to_openapi_object(meta.output_schema)}
     else:
         arg_dict["responses"] = {200: "action was performed successfully"}
 
