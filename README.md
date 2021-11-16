@@ -1,24 +1,21 @@
-# Metagov
+# Metagov Gateway
 
-Metagov is intended to help developers and users quickly prototype and deploy different governance systems within any online community (across games, blockchains, and social networks). This project is part of the [Metagovernance Project](www.metagov.org), an interdisciplinary research project focused on the governance of virtual worlds. 
+The Metagov Gateway is an open-source API gateway for online communities. It helps communities govern themselves by connecting decision-making tools to platforms where decisions need to be made. It’s designed to support rapid prototyping of governance systems, decision-making processes, and social workflows across a range of platforms, from forums to chat services to blockchains. To help people prototype, Metagov ships with a powerful driver, PolicyKit, for authoring governance policies.
 
-Currently, this repo is mostly a placeholder for documentation related to specifying early prototypes of the toolset. It is intended to facilitate and serve as a site for collaboration with other developers interested in contributing to the project.
+The Gateway currently supports:
+- Discord
+- Slack
+- Discourse
+- GitHub
+- Open Collective
+- Loomio
+- SourceCred
+- NEAR
+- Web Monetization
 
-## Currently
-We are currently working on the Metagov Core (which manages plugins) and the interface between the Core and the Driver, currently PolicyKit. Simultaneously, other teams at Metagov are working on [Metagov v0.1 aka Govbase](https://github.com/thelastjosh/govbase) and the Agreement Engine, which will be used to draft both (dumb and smart) contracts and organizational charters / constitutions.
+The Gateway is part of the [Metagovernance Project](www.metagov.org). We're a nonprofit research group building standards and infrastructure for digital self-governance.
 
-## Vision
-To get a broad sense of what is going on, take a look at the diagram below (credit: Larry Lessig, Joshua Tan).
+**Install**
+If you want to try the Gateway, we **highly recommend** getting in touch with one of us first: either hello at metagov.org or shauna at metagov.org.
 
-![The life cycle of governance](https://github.com/thelastjosh/metagov-prototype/blob/master/Stages%20of%20governance.jpg "Life cycle of governance")
-
-## Roadmap
-Once you understand the general idea of the tool (feel free to ask questions!), use the roadmap below to figure out what needs doing. Note that the roadmap is constantly evolving (after all, this is a research project!). 
-
-![The life cycle of governance](https://github.com/thelastjosh/metagov-prototype/blob/master/Functional%20spec.svg "Functional spec")
-
-Roughly, we are prototyping **1, 2, 3, and 8 concurrently, and the rest later**. The final output has to port into a range of social platforms, from blockchains to social networks to certain online games, but currently we're ignoring questions of portability and just thinking about the basic logic and user experience. 
-
-## UI research
-1. [Agreement mockups](https://drive.google.com/open?id=1jCyOkpSSgoLUBBUsW0q9ediwtW6-OT0a)
-2. [Constitution menu mockups](https://drive.google.com/file/d/1yqeXb8rGE3HqYbkAF-31_v5osRDKSdFy/view?usp=sharing) (developed by Klang Games)
+The most up-to-date docs, including install instructions, can be found at docs.metagov.org.
