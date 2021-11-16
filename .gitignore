@@ -11,3 +11,6 @@ metagov/*.log
 # readthedocs
 docs/_build
 docs/env
+
+.DS_Store
+**/.DS_Store
