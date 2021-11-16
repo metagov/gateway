@@ -15,7 +15,7 @@ The Gateway currently supports:
 
 The Gateway is part of the [Metagovernance Project](www.metagov.org). We're a nonprofit research group building standards and infrastructure for digital self-governance.
 
-**Install**
+## Install
 If you want to try the Gateway, we **highly recommend** getting in touch with one of us first: either hello at metagov.org or shauna at metagov.org.
 
 The most up-to-date docs, including install instructions, can be found at docs.metagov.org.
