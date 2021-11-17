@@ -2,8 +2,6 @@ import json
 import logging
 import random
 import jsonschema
-from drf_yasg import openapi
-from jsonschema_to_openapi.convert import convert
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +14,6 @@ def plugin_uses_webhooks(cls):
 
 class SaferDraft7Validator(jsonschema.Draft7Validator):
     META_SCHEMA = {**jsonschema.Draft7Validator.META_SCHEMA, "additionalProperties": False}
-
-
-def json_schema_to_openapi_object(json_schema):
-    schema = convert(json_schema)
-    return openapi.Schema(
-        type=openapi.TYPE_OBJECT, properties=schema.get("properties", {}), required=schema.get("required", [])
-    )
 
 
 def generate_nonce(length=8):

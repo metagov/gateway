@@ -131,7 +131,7 @@ def decorated_enable_plugin_view(plugin_name):
         resp_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
         return JsonResponse(serializer.data, status=resp_status)
 
-    request_body_schema = core_utils.json_schema_to_openapi_object(cls.config_schema) if cls.config_schema else {}
+    request_body_schema = MetagovSchemas.json_schema_to_openapi_object(cls.config_schema) if cls.config_schema else {}
 
     return swagger_auto_schema(
         method="post",
@@ -220,7 +220,7 @@ def decorated_create_process_view(plugin_name, slug):
         response["Location"] = f"/{utils.construct_process_url(plugin_name, slug)}/{process.pk}"
         return response
 
-    request_body_schema = core_utils.json_schema_to_openapi_object(cls.input_schema) if cls.input_schema else {}
+    request_body_schema = MetagovSchemas.json_schema_to_openapi_object(cls.input_schema) if cls.input_schema else {}
 
     return swagger_auto_schema(
         method="post",
@@ -356,12 +356,12 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
         "tags": tags or [Tags.ACTION],
     }
     if meta.input_schema:
-        properties = {"parameters": core_utils.json_schema_to_openapi_object(meta.input_schema)}
+        properties = {"parameters": MetagovSchemas.json_schema_to_openapi_object(meta.input_schema)}
 
         arg_dict["request_body"] = openapi.Schema(type=openapi.TYPE_OBJECT, properties={**properties})
 
     if meta.output_schema:
-        arg_dict["responses"] = {200: core_utils.json_schema_to_openapi_object(meta.output_schema)}
+        arg_dict["responses"] = {200: MetagovSchemas.json_schema_to_openapi_object(meta.output_schema)}
     else:
         arg_dict["responses"] = {200: "action was performed successfully"}
 
