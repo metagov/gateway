@@ -12,10 +12,11 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 import environ
-import yaml
+import sys
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TESTING = sys.argv[1:2] == ["test"]
 
 env = environ.Env(
     # set casting, default value
@@ -79,23 +80,25 @@ REDOC_SETTINGS = {
     "HIDE_HOSTNAME": False,
 }
 
+default_val = "testing-value" if TESTING else None
+
 METAGOV_SETTINGS = {
     "SLACK": {
-        "CLIENT_ID": env("SLACK_CLIENT_ID"),
-        "CLIENT_SECRET": env("SLACK_CLIENT_SECRET"),
-        "SIGNING_SECRET": env("SLACK_SIGNING_SECRET"),
-        "APP_ID": env("SLACK_APP_ID"),
+        "CLIENT_ID": env("SLACK_CLIENT_ID", default=default_val),
+        "CLIENT_SECRET": env("SLACK_CLIENT_SECRET", default=default_val),
+        "SIGNING_SECRET": env("SLACK_SIGNING_SECRET", default=default_val),
+        "APP_ID": env("SLACK_APP_ID", default=default_val),
     },
     "GITHUB": {
-        "APP_NAME": env("GITHUB_APP_NAME"),
-        "APP_ID": env("GITHUB_APP_ID"),
-        "PRIVATE_KEY_PATH": env("GITHUB_PRIVATE_KEY_PATH"),
+        "APP_NAME": env("GITHUB_APP_NAME", default=default_val),
+        "APP_ID": env("GITHUB_APP_ID", default=default_val),
+        "PRIVATE_KEY_PATH": env("GITHUB_PRIVATE_KEY_PATH", default=default_val),
     },
     "TWITTER": {
-        "API_KEY": env("TWITTER_API_KEY"),
-        "API_SECRET_KEY": env("TWITTER_API_SECRET_KEY"),
-        "ACCESS_TOKEN": env("TWITTER_ACCESS_TOKEN"),
-        "ACCESS_TOKEN_SECRET": env("TWITTER_ACCESS_TOKEN_SECRET"),
+        "API_KEY": env("TWITTER_API_KEY", default=default_val),
+        "API_SECRET_KEY": env("TWITTER_API_SECRET_KEY", default=default_val),
+        "ACCESS_TOKEN": env("TWITTER_ACCESS_TOKEN", default=default_val),
+        "ACCESS_TOKEN_SECRET": env("TWITTER_ACCESS_TOKEN_SECRET", default=default_val),
     }
 }
 
@@ -141,7 +144,6 @@ import sys
 DEFAULT_LOG_LEVEL_FOR_TESTS = "DEBUG"
 DEFAULT_LOG_LEVEL = "DEBUG"
 
-TESTING = sys.argv[1:2] == ["test"]
 LOG_LEVEL = DEFAULT_LOG_LEVEL_FOR_TESTS if TESTING else DEFAULT_LOG_LEVEL
 
 # Generate loggers for Metagov and Plugins
