@@ -1,6 +1,6 @@
 __pycache__
 .vscode
-
+*.egg-info
 # Metagov Django app
 metagov/env/
 metagov/static

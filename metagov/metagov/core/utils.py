@@ -4,23 +4,10 @@ import random
 import jsonschema
 from drf_yasg import openapi
 from jsonschema_to_openapi.convert import convert
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
 internal_path = "api/internal"
-WEBHOOK_SLUG_CONFIG_KEY = "webhook_slug"
-
-
-def construct_webhook_url(plugin_instance):
-    from metagov.core.plugin_manager import plugin_registry
-
-    if not plugin_uses_webhooks(plugin_registry[plugin_instance.name]):
-        return None
-
-    base = f"{settings.SERVER_URL}/api/hooks/{plugin_instance.community.slug}/{plugin_instance.name}"
-    extra_slug = plugin_instance.config.get(WEBHOOK_SLUG_CONFIG_KEY)
-    return f"{base}/{extra_slug}" if extra_slug else base
 
 
 def plugin_uses_webhooks(cls):
@@ -102,6 +89,7 @@ def get_process_schemas(cls):
 
 def validate_and_fill_defaults(values, schema):
     from metagov.core.validators import DefaultValidatingDraft7Validator
+
     # this mutates `plugin_config` by filling in default values from schema
     # raises jsonschema.exceptions.ValidationError
     DefaultValidatingDraft7Validator(schema).validate(values)

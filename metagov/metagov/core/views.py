@@ -41,19 +41,8 @@ def plugin_metadata(request, plugin_name):
     if not cls:
         return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
 
-    return JsonResponse(
-        {
-            "name": cls.name,
-            "auth_type": cls.auth_type,
-            "uses_webhook": utils.plugin_uses_webhooks(cls),
-            "schemas": {
-                "config": cls.config_schema,
-                "actions": utils.get_action_schemas(cls),
-                "events": utils.get_event_schemas(cls),
-                "processes": utils.get_process_schemas(cls),
-            },
-        }
-    )
+    data = metagov_app.get_plugin_metadata(plugin_name)
+    return JsonResponse(data)
 
 # FIXME: it feels like this should be in HTTPWrapper but might a Django-based driver want a
 # convenience method for accessing schemas?

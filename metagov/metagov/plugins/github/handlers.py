@@ -1,8 +1,8 @@
 import json
 import logging
 import requests
-import environ
 
+from django.conf import settings
 from metagov.core.models import ProcessStatus
 from metagov.core.plugin_manager import AuthorizationType
 from metagov.plugins.github.models import Github, GithubIssueReactVote, GithubIssueCommentVote
@@ -11,33 +11,38 @@ from metagov.core.handlers import PluginRequestHandler
 
 logger = logging.getLogger(__name__)
 
-env = environ.Env()
-environ.Env.read_env()
-
-GITHUB_APP_NAME = env("GITHUB_APP_NAME")
+github_settings = settings.METAGOV_SETTINGS["GITHUB"]
+APP_NAME = github_settings["APP_NAME"]
 
 
 class GithubRequestHandler(PluginRequestHandler):
     def handle_incoming_webhook(self, request):
+        if not "X-GitHub-Event" in request.headers:
+            return
+
         json_data = json.loads(request.body)
         installation = json_data.get("installation")
         if not installation:
             return
 
-        if "X-GitHub-Event" in request.headers:
+        community_platform_id = str(installation["id"])
+        try:
+            plugin = Github.objects.get(community_platform_id=community_platform_id)
+        except Github.DoesNotExist:
+            logger.warn(f"No Github plugin found with installation id {community_platform_id}")
+            return
 
-            for plugin in Github.objects.filter(community_platform_id=str(installation["id"])):
-                logger.info(f"Passing event to {plugin}")
-                plugin.github_webhook_receiver(request)
+        logger.debug(f"Passing event to {plugin}")
+        plugin.github_webhook_receiver(request)
 
-                for process_type in [GithubIssueCommentVote, GithubIssueReactVote]:
-                    for process in process_type.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value):
-                        if hasattr(process, "receive_webhook"):
-                            process.receive_webhook(request)
+        for process_type in [GithubIssueCommentVote, GithubIssueReactVote]:
+            for process in process_type.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value):
+                if hasattr(process, "receive_webhook"):
+                    process.receive_webhook(request)
 
     def construct_oauth_authorize_url(self, type, community):
         if type == AuthorizationType.APP_INSTALL:
-            return f"https://github.com/apps/{GITHUB_APP_NAME}/installations/new/"
+            return f"https://github.com/apps/{APP_NAME}/installations/new/"
 
     def handle_oauth_callback(self, type, code, redirect_uri, community, state, request, *args, **kwargs):
 

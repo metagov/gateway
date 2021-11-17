@@ -374,7 +374,7 @@ def decorated_perform_action_view(plugin_name, slug, tags=[]):
 @csrf_exempt
 @swagger_auto_schema(method="post", auto_schema=None)
 @api_view(["POST"])
-def receive_webhook(request, community, plugin_name, webhook_slug=None):
+def receive_webhook(request, community, plugin_name):
     """
     API endpoint for receiving webhook requests from external services
     """

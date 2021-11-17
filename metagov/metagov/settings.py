@@ -79,6 +79,26 @@ REDOC_SETTINGS = {
     "HIDE_HOSTNAME": False,
 }
 
+METAGOV_SETTINGS = {
+    "SLACK": {
+        "CLIENT_ID": env("SLACK_CLIENT_ID"),
+        "CLIENT_SECRET": env("SLACK_CLIENT_SECRET"),
+        "SIGNING_SECRET": env("SLACK_SIGNING_SECRET"),
+        "APP_ID": env("SLACK_APP_ID"),
+    },
+    "GITHUB": {
+        "APP_NAME": env("GITHUB_APP_NAME"),
+        "APP_ID": env("GITHUB_APP_ID"),
+        "PRIVATE_KEY_PATH": env("GITHUB_PRIVATE_KEY_PATH"),
+    },
+    "TWITTER": {
+        "API_KEY": env("TWITTER_API_KEY"),
+        "API_SECRET_KEY": env("TWITTER_API_SECRET_KEY"),
+        "ACCESS_TOKEN": env("TWITTER_ACCESS_TOKEN"),
+        "ACCESS_TOKEN_SECRET": env("TWITTER_ACCESS_TOKEN_SECRET"),
+    }
+}
+
 SWAGGER_SETTINGS = {
     "USE_SESSION_AUTH": False,
     "SECURITY_DEFINITIONS": {},

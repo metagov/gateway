@@ -3,21 +3,25 @@ import hmac
 import json
 import logging
 
-import environ
 import requests
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
-from metagov.core.errors import PluginErrorInternal, PluginAuthError
+from metagov.core.errors import PluginAuthError, PluginErrorInternal
+from metagov.core.handlers import PluginRequestHandler
+from metagov.core.models import LinkQuality, LinkType, ProcessStatus
 from metagov.core.plugin_manager import AuthorizationType
 from metagov.plugins.slack.models import Slack, SlackEmojiVote
 from requests.models import PreparedRequest
-from django.core.exceptions import ImproperlyConfigured
-from metagov.core.models import ProcessStatus, LinkType, LinkQuality
-from metagov.core.handlers import PluginRequestHandler
 
 logger = logging.getLogger(__name__)
 
-env = environ.Env()
-environ.Env.read_env()
+
+slack_settings = settings.METAGOV_SETTINGS["SLACK"]
+CLIENT_ID = slack_settings["CLIENT_ID"]
+CLIENT_SECRET = slack_settings["CLIENT_SECRET"]
+# SIGNING_SECRET = slack_settings["SIGNING_SECRET"]
+# APP_ID = slack_settings["APP_ID"]
 
 # whether to require the installer to be an admin, and request user scopes for the installing user
 # if true, the installer's access token will be passed back after installation
@@ -52,7 +56,7 @@ class SlackRequestHandler(PluginRequestHandler):
         """
         # Check if this is an interactivity payload
         # See: https://api.slack.com/interactivity/handling#payloads
-        if request.META["CONTENT_TYPE"] == "application/x-www-form-urlencoded":
+        if request.META["CONTENT_TYPE"] == "application/x-www-form-urlencoded" and request.POST.get("payload"):
             payload = json.loads(request.POST.get("payload"))
             if payload["type"] != "block_actions":
                 return
@@ -91,7 +95,7 @@ class SlackRequestHandler(PluginRequestHandler):
 
     def construct_oauth_authorize_url(self, type: str, community=None):
         try:
-            client_id = env("SLACK_CLIENT_ID")
+            client_id = slack_settings("SLACK_CLIENT_ID")
         except ImproperlyConfigured:
             raise PluginAuthError(detail="Client ID not configured")
 
@@ -137,8 +141,8 @@ class SlackRequestHandler(PluginRequestHandler):
         Slack docs for exchanging code for access token: https://api.slack.com/authentication/oauth-v2#exchanging
         """
         data = {
-            "client_id": env("SLACK_CLIENT_ID"),
-            "client_secret": env("SLACK_CLIENT_SECRET"),
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
             "code": code,
         }
         resp = requests.post("https://slack.com/api/oauth.v2.access", data=data)
@@ -301,7 +305,7 @@ def verify_signature(request, timestamp, signature):
     # FIXME! this isn't working for some reason
     return True
 
-    signing_secret = env("SLACK_SIGNING_SECRET")
+    signing_secret = SIGNING_SECRET
     signing_secret = bytes(signing_secret, "utf-8")
     body = request.body.decode("utf-8")
     base = f"v0:{timestamp}:{body}".encode("utf-8")

@@ -48,7 +48,6 @@ class Discourse(Plugin):
                 "type": "string",
                 "description": "A random string. When creating the Metagov webhook in Discourse, enter this string under 'secret.'",
             },
-            "webhook_slug": {"type": "string"},
         },
         "required": ["api_key", "server_url", "webhook_secret"],
     }

@@ -1,13 +1,12 @@
-import django.dispatch
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from metagov.core.models import GovernanceProcess, ProcessStatus
 import requests
 import logging
 
-logger = logging.getLogger(__name__)
+from metagov.core.signals import governance_process_updated, platform_event_created
 
-governance_process_updated = django.dispatch.Signal()
+logger = logging.getLogger(__name__)
 
 
 @receiver(pre_save)
@@ -41,7 +40,11 @@ def notify_process_updated(process: GovernanceProcess):
     notify the Driver that this GovernanceProess has changed."""
 
     governance_process_updated.send(
-        sender=process.__class__, status=process.status, outcome=process.outcome, errors=process.errors
+        sender=process.__class__,
+        instance=process,
+        status=process.status,
+        outcome=process.outcome,
+        errors=process.errors,
     )
 
     if process.callback_url:
@@ -53,4 +56,4 @@ def notify_process_updated(process: GovernanceProcess):
         logger.debug(serializer.data)
         resp = requests.post(process.callback_url, json=serializer.data)
         if not resp.ok:
-            logger.error(f"Error posting outcome to callback url: {resp.status_code} {resp.text}")
+            logger.error(f"Error posting outcome to callback url: {resp.status_code} {resp.reason}")
