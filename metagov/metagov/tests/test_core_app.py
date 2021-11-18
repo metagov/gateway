@@ -3,7 +3,7 @@ from django.db import IntegrityError
 from django.test import TestCase
 from metagov.core.app import MetagovApp
 from metagov.core.handlers import MetagovRequestHandler
-from metagov.core.signals import governance_process_updated
+from metagov.core.signals import governance_process_updated, platform_event_created
 from .plugin_test_utils import catch_signal
 
 TEST_SLUG = "xyz"
@@ -47,6 +47,14 @@ class MetagovAppTests(TestCase):
         # get_plugin returns the proxy instance so we can access methods on it
         plugin = community.get_plugin("randomness")
         plugin.rand_int()
+
+        # send_event_to_driver emits signal
+        with catch_signal(platform_event_created) as handler:
+            plugin.send_event_to_driver(event_type="test", data={"foo": "bar"}, initiator={"user": "abc"})
+            handler.assert_called_once()
+            kwargs = handler.call_args.kwargs
+            self.assertEqual(kwargs["event_type"], "test")
+            self.assertEqual(kwargs["data"]["foo"], "bar")
 
         # can run process
         process = plugin.start_process("delayed-stochastic-vote", options=["one", "two"], delay=0)

@@ -1,6 +1,8 @@
 from drf_yasg import openapi
 from metagov.core.middleware import COMMUNITY_HEADER
 from metagov.core.plugin_manager import AuthorizationType
+from jsonschema_to_openapi.convert import convert
+from drf_yasg import openapi
 
 class Tags(object):
     GOVERNANCE_PROCESS = "Governance Processes"
@@ -9,6 +11,11 @@ class Tags(object):
     COMMUNITY = "Community Configuration"
     PLUGIN_AUTH = "Plugin Auth"
 
+def json_schema_to_openapi_object(json_schema):
+    schema = convert(json_schema)
+    return openapi.Schema(
+        type=openapi.TYPE_OBJECT, properties=schema.get("properties", {}), required=schema.get("required", [])
+    )
 
 community_header = openapi.Parameter(
     COMMUNITY_HEADER, openapi.IN_HEADER, required=True, type=openapi.TYPE_STRING, description="Unique community slug"

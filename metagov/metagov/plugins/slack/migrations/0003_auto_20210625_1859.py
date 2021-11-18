@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('core', '0001_initial'),
-        ('slack', '0002_slackvote'),
+        ('metagov_slack', '0002_slackvote'),
     ]
 
     operations = [

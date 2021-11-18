@@ -39,6 +39,8 @@ class MetagovRequestHandler:
     def handle_incoming_webhook(
         self, request, plugin_name, community_slug=None, community_platform_id=None
     ) -> HttpResponse:
+        logger.debug(f"Received webhook request: {plugin_name} ({community_platform_id or 'no community_platform_id'}) ({community_slug or 'no community'})")
+
         if community_slug:
             # Pass request a specific plugin instance
             community = self.app.get_community(community_slug)
@@ -76,28 +78,44 @@ class MetagovRequestHandler:
             logger.error(f"Webhook handler not implemented for '{plugin_name}'")
             return HttpResponseNotFound()
 
-    def handle_oauth_authorize(self, request, plugin_name) -> HttpResponse:
+    def handle_oauth_authorize(
+        self,
+        request,
+        plugin_name,
+        redirect_uri=None,
+        type=None,
+        community_slug=None,
+        metagov_id=None,
+    ) -> HttpResponse:
         """
         Oauth2 authorize for installation and/or user login
+
+        :param request: Django request object
+        :param plugin_name: name of plugin to install or to use for user authentication
+        :param type: auth type (user login or app installation)
+        :param redirect_uri: where to redirect after auth flow is done
+        :param community_slug: community to install to (optional for installation, ignored for user login)
+        :param metagov_id: metagov_id of logged in user, if exists
         """
         if not plugin_registry.get(plugin_name):
             return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
         # auth type (user login or app installation)
-        type = request.GET.get("type", AuthorizationType.APP_INSTALL)
+        type = type or request.GET.get("type", AuthorizationType.APP_INSTALL)
         # community to install to (optional for installation, ignored for user login)
-        community_slug = request.GET.get("community")
+        community_slug = community_slug or request.GET.get("community")
         # where to redirect after auth flow is done
-        redirect_uri = request.GET.get("redirect_uri")
+        redirect_uri = redirect_uri or request.GET.get("redirect_uri")
         # metagov_id of logged in user, if exists
-        metagov_id = request.GET.get("metagov_id")
+        metagov_id = metagov_id or request.GET.get("metagov_id")
         # state to pass along to final redirect after auth flow is done
         received_state = request.GET.get("state")
         request.session["received_authorize_state"] = received_state
-
         if type != AuthorizationType.APP_INSTALL and type != AuthorizationType.USER_LOGIN:
             return HttpResponseBadRequest(
                 f"Parameter 'type' must be '{AuthorizationType.APP_INSTALL}' or '{AuthorizationType.USER_LOGIN}'"
             )
+
+        logger.debug(f"Handling {type} authorization request for {plugin_name} to community '{community_slug or 'new community'}'")
 
         plugin_handler = self._get_plugin_request_handler(plugin_name)
         if not plugin_handler:
@@ -153,7 +171,7 @@ class MetagovRequestHandler:
             return HttpResponseNotFound()
 
         state = OAuthState(state_str, nonce)
-        logger.debug(f"Decoded state: {state}")
+        logger.debug(f"Decoded state: {state.__dict__}")
 
         if not state.redirect_uri:
             return HttpResponseBadRequest("bad state: redirect_uri is missing")
@@ -218,6 +236,8 @@ class OAuthState:
     def __init__(self, encoded_state, nonce):
         state_obj = json.loads(base64.b64decode(encoded_state).decode("ascii"))
         state = state_obj.get(nonce)
+        if not state:
+            raise Exception("nonce not in state")
         for key in state:
             setattr(self, key, state[key])
         for key in ["redirect_uri", "community", "metagov_id", "type"]:

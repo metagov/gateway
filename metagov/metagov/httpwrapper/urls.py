@@ -28,11 +28,6 @@ management_patterns = [
 
     # Webhooks
     path("api/hooks/<slug:community>/<slug:plugin_name>", views.receive_webhook, name="receive_webhook"),
-    path(
-        "api/hooks/<slug:community>/<slug:plugin_name>/<slug:webhook_slug>",
-        views.receive_webhook,
-        name="receive_webhook",
-    ),
     path("api/hooks/<slug:plugin_name>", views.receive_webhook_global, name="receive_webhook_global"),
 
 ]
