@@ -11,19 +11,15 @@ logger = logging.getLogger(__name__)
 
 class PluginSerializer(serializers.ModelSerializer):
     community = serializers.SerializerMethodField()
-    webhook_url = serializers.SerializerMethodField()
     auth_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Plugin
         # TODO: include date enabled and user who enabled it
-        fields = ("id", "name", "config", "community", "webhook_url", "auth_type")
+        fields = ("id", "name", "config", "community", "auth_type")
 
     def get_community(self, inst):
         return inst.community.slug
-
-    def get_webhook_url(self, inst):
-        return utils.construct_webhook_url(inst)
 
     def get_auth_type(self, inst):
         from metagov.core.plugin_manager import plugin_registry

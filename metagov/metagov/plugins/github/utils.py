@@ -1,7 +1,7 @@
 """ Authentication """
 
-import jwt, datetime, environ, logging, requests
-
+import jwt, datetime, logging, requests
+from django.conf import settings
 from metagov.core.errors import PluginErrorInternal
 
 import sys
@@ -9,12 +9,14 @@ import sys
 TEST = 'test' in sys.argv
 
 logger = logging.getLogger(__name__)
-env = environ.Env()
-environ.Env.read_env()
+
+github_settings = settings.METAGOV_SETTINGS["GITHUB"]
+PRIVATE_KEY_PATH = github_settings["PRIVATE_KEY_PATH"]
+APP_ID = github_settings["APP_ID"]
 
 
 def get_private_key():
-    with open(env("PATH_TO_GITHUB_PRIVATE_KEY")) as f:
+    with open(PRIVATE_KEY_PATH) as f:
         lines = f.readlines()
     if len(lines) == 1:
         return lines[0]
@@ -27,7 +29,7 @@ def get_jwt():
 
     payload = {
         # GitHub App's identifier
-        "iss": env("GITHUB_APP_ID"),
+        "iss": APP_ID,
         # issued at time, 60 seconds in the past to allow for clock drift
         "iat": int(datetime.datetime.now().timestamp()) - 60,
         # JWT expiration time (10 minute maximum)

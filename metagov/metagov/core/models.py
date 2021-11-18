@@ -36,12 +36,14 @@ class Community(models.Model):
     def plugins(self):
         return Plugin.objects.filter(community=self)
 
-    def get_plugin(self, plugin_name, community_platform_id=None):
+    def get_plugin(self, plugin_name, community_platform_id=None, id=None):
         """Get plugin proxy instance"""
 
         cls = plugin_registry.get(plugin_name)
         if not cls:
             raise ValueError(f"Plugin '{plugin_name}' not found")
+        if id is not None:
+            return cls.objects.get(name=plugin_name, community=self, pk=id)
         if community_platform_id:
             return cls.objects.get(name=plugin_name, community=self, community_platform_id=community_platform_id)
         else:
@@ -54,9 +56,9 @@ class Community(models.Model):
         plugin, created = create_or_update_plugin(plugin_name, plugin_config or {}, self)
         return plugin
 
-    def disable_plugin(self, plugin_name, community_platform_id=None):
+    def disable_plugin(self, plugin_name, community_platform_id=None, id=None):
         """Disable plugin"""
-        plugin = self.get_plugin(plugin_name, community_platform_id)
+        plugin = self.get_plugin(plugin_name, community_platform_id, id=id)
         logger.debug(f"Disabling plugin '{plugin}'")
         plugin.delete()
 
@@ -228,8 +230,6 @@ class Plugin(models.Model):
 
     def send_event_to_driver(self, event_type: str, data: dict, initiator: dict):
         """Send an event to the driver"""
-        if not settings.DRIVER_EVENT_RECEIVER_URL:
-            return
         event = {
             "community": self.community.slug,
             "source": self.name,
@@ -238,13 +238,22 @@ class Plugin(models.Model):
             "data": data,
             "initiator": initiator,
         }
-        serialized = jsonpickle.encode(event, unpicklable=False)
-        logger.debug("Sending event to Driver: " + serialized)
-        resp = requests.post(settings.DRIVER_EVENT_RECEIVER_URL, data=serialized)
-        if not resp.ok:
-            logger.error(
-                f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}"
-            )
+
+        # Emit signal
+        from metagov.core.signals import platform_event_created
+
+        platform_event_created.send(sender=self.__class__, instance=self, **event)
+
+        # Post serialized event to receiver HTTP endpoint
+        # TODO: maybe move this into a receiver for the platform_event_created signal?
+        if getattr(settings, "DRIVER_EVENT_RECEIVER_URL", None):
+            serialized = jsonpickle.encode(event, unpicklable=False)
+            logger.debug("Sending event to Driver: " + serialized)
+            resp = requests.post(settings.DRIVER_EVENT_RECEIVER_URL, data=serialized)
+            if not resp.ok:
+                logger.error(
+                    f"Error sending event to driver at {settings.DRIVER_EVENT_RECEIVER_URL}: {resp.status_code} {resp.reason}"
+                )
 
     def add_linked_account(
         self, *, platform_identifier, external_id=None, custom_data=None, link_type=None, link_quality=None
@@ -282,6 +291,11 @@ class Plugin(models.Model):
 
         return result
 
+    def serialize(self):
+        from metagov.core.serializers import PluginSerializer
+
+        return PluginSerializer(self).data
+
 
 class ProcessStatus(Enum):
     CREATED = "created"
@@ -302,6 +316,7 @@ class GovernanceProcess(models.Model):
     """Represents an instance of a governance process."""
 
     name = models.CharField(max_length=30)
+    # url = models.CharField(max_length=100, null=True, blank=True, help_text="URL of the vote or process")
     callback_url = models.CharField(
         max_length=100, null=True, blank=True, help_text="Callback URL to notify when the process is updated"
     )
@@ -394,6 +409,11 @@ class GovernanceProcess(models.Model):
         - Call ``self.save()`` to persist changes."""
         pass
 
+    @property
+    def proxy(self):
+        # TODO: can we do this without hitting the database?
+        cls = plugin_registry[self.plugin.name]._process_registry[self.name]
+        return cls.objects.get(pk=self.pk)
 
 class MetagovID(models.Model):
     """Metagov ID table links all public_ids to a single internal representation of a user. When data

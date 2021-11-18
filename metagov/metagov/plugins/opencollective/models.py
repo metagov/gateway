@@ -31,7 +31,6 @@ class OpenCollective(Plugin):
                 "type": "string",
                 "description": "Open Collective slug",
             },
-            "webhook_slug": {"type": "string"},
         },
         "required": ["api_key", "collective_slug"],
     }

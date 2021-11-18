@@ -1,6 +1,6 @@
 import logging
 
-import environ
+from django.conf import settings
 from metagov.core.plugin_manager import AuthorizationType, Registry, Parameters, VotingStandard
 import tweepy
 from metagov.core.models import AuthType, Plugin
@@ -9,15 +9,13 @@ from metagov.core.errors import PluginErrorInternal
 logger = logging.getLogger(__name__)
 
 
-env = environ.Env()
-environ.Env.read_env()
-
+twitter_settings = settings.METAGOV_SETTINGS["TWITTER"]
 
 class TwitterSecrets:
-    api_key = env("TWITTER_API_KEY", default=None)
-    api_secret_key = env("TWITTER_API_SECRET_KEY", default=None)
-    access_token = env("TWITTER_ACCESS_TOKEN", default=None)
-    access_token_secret = env("TWITTER_ACCESS_TOKEN_SECRET", default=None)
+    api_key = twitter_settings["API_KEY"]
+    api_secret_key = twitter_settings["API_SECRET_KEY"]
+    access_token = twitter_settings["ACCESS_TOKEN"]
+    access_token_secret = twitter_settings["ACCESS_TOKEN_SECRET"]
 
 
 """

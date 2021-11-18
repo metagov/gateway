@@ -19,7 +19,6 @@ class Loomio(Plugin):
         "properties": {
             "api_key": {"type": "string"},
             "subgroup_api_keys": {"type": "array", "items": {"type": "string"}},
-            "webhook_slug": {"type": "string"},
         },
         "required": ["api_key"],
     }
