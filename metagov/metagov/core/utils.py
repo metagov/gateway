@@ -107,6 +107,7 @@ def create_or_update_plugin(plugin_name, plugin_config, community):
             name=plugin_name, community=community, config=plugin_config, community_platform_id=community_platform_id
         )
         logger.info(f"Created plugin '{inst}'")
+        inst.initialize()
         return (inst, True)
     else:
         if plugin.config != plugin_config:
@@ -119,6 +120,7 @@ def create_or_update_plugin(plugin_name, plugin_config, community):
                 config=plugin_config,
                 community_platform_id=community_platform_id,
             )
+            inst.initialize()
             return (inst, True)
 
         logger.info(f"Not updating '{plugin}', no change in config.")
