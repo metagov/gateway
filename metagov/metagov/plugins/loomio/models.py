@@ -39,6 +39,7 @@ class Loomio(Plugin):
 
         # Set the community_platform_id to the main group handle
         self.community_platform_id = api_key_group_map[self.config["api_key"]]["handle"]
+        self.save()
 
     def _get_api_key(self, key_or_handle=None):
         """Get the API key for a specific Loomio group. Raises exception if not found."""
