@@ -181,11 +181,10 @@ class Plugin(models.Model):
     def save(self, *args, **kwargs):
         if not self.pk:
             self.state = DataStore.objects.create()
-            self.initialize()
         super(Plugin, self).save(*args, **kwargs)
 
     def initialize(self):
-        """Initialize the plugin. Invoked once, when the plugin instance is created."""
+        """Initialize the plugin. Invoked once, directly after the plugin instance is created."""
         pass
 
     def start_process(self, process_name, callback_url=None, **kwargs):
