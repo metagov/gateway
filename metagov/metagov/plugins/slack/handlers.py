@@ -94,11 +94,6 @@ class SlackRequestHandler(PluginRequestHandler):
         return HttpResponse()
 
     def construct_oauth_authorize_url(self, type: str, community=None):
-        try:
-            client_id = slack_settings("SLACK_CLIENT_ID")
-        except ImproperlyConfigured:
-            raise PluginAuthError(detail="Client ID not configured")
-
         if type == AuthorizationType.APP_INSTALL:
             team = None
             if community:
@@ -116,10 +111,10 @@ class SlackRequestHandler(PluginRequestHandler):
             user_scope = (
                 "chat:write,channels:write,groups:write,im:write,mpim:write" if REQUIRE_INSTALLER_TO_BE_ADMIN else ""
             )
-            return f"https://slack.com/oauth/v2/authorize?client_id={client_id}&team={team or ''}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope={user_scope}"
+            return f"https://slack.com/oauth/v2/authorize?client_id={CLIENT_ID}&team={team or ''}&scope=app_mentions:read,calls:read,calls:write,channels:history,channels:join,channels:manage,channels:read,chat:write,chat:write.customize,chat:write.public,commands,dnd:read,emoji:read,files:read,groups:history,groups:read,groups:write,im:history,im:read,im:write,incoming-webhook,links:read,links:write,mpim:history,mpim:read,mpim:write,pins:read,pins:write,reactions:read,reactions:write,team:read,usergroups:read,usergroups:write,users.profile:read,users:read,users:read.email,users:write&user_scope={user_scope}"
         if type == AuthorizationType.USER_LOGIN:
             return (
-                f"https://slack.com/oauth/v2/authorize?client_id={client_id}&user_scope=identity.basic,identity.avatar"
+                f"https://slack.com/oauth/v2/authorize?client_id={CLIENT_ID}&user_scope=identity.basic,identity.avatar"
             )
 
     def handle_oauth_callback(
