@@ -48,7 +48,7 @@ html {
 }
 
 body {
-  background-color: var(--clr-light);
+  background-color: #fff;
   color: var(--clr-dark);
   font-family: var(--font);
   font-size: 20px;
@@ -116,6 +116,10 @@ a, a:link, a:visited {
   color: var(--clr-primary2);
   text-decoration: none;
 }
+a:hover {
+  color: var(--clr-accent);
+  transition: 0.2s;
+}
 
 
 .wrapper { 
@@ -143,7 +147,7 @@ section {
   margin-right: 20px;
 }
 #intro {
-  background-image: url(../assets/img/bg.png);
+  background-image: url(../assets/img/bg2.png);
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -153,10 +157,11 @@ section {
 @media (max-width: 800px) {
   #intro {
     background-size: cover;
-    background-image: url(../assets/img/bg_mobile.png);
+    background-image: url(../assets/img/bg_mobile2.png);
     background-size: cover;
   }
 }
+
 
 #features {
   flex-direction: row;
