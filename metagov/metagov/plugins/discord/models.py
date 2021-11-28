@@ -1,18 +1,16 @@
-import environ
 import json
 import logging
 import requests
 
+from django.conf import settings
 from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
-from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
-from rest_framework.exceptions import ValidationError
+from metagov.core.plugin_manager import Registry
 from metagov.core.errors import PluginErrorInternal
 
 logger = logging.getLogger(__name__)
 
-env = environ.Env()
-environ.Env.read_env()
-DISCORD_BOT_TOKEN = env("DISCORD_BOT_TOKEN")
+discord_settings = settings.METAGOV_SETTINGS["DISCORD"]
+DISCORD_BOT_TOKEN = discord_settings["BOT_TOKEN"]
 
 
 @Registry.plugin
@@ -33,10 +31,10 @@ class Discord(Plugin):
 
     # def initialize(self):
     #     logger.debug(f"init discord {self.config}")
-        # guild_id = self.config["guild_id"]
-        # guild = self._make_discord_request(f"/guilds/{guild_id}")
-        # self.state.set("guild_data", guild)
-        # ... create webhook for guild / channel ?
+    # guild_id = self.config["guild_id"]
+    # guild = self._make_discord_request(f"/guilds/{guild_id}")
+    # self.state.set("guild_data", guild)
+    # ... create webhook for guild / channel ?
 
     def receive_event(self, request):
         json_data = json.loads(request.body)
