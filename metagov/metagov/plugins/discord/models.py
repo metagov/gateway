@@ -41,14 +41,16 @@ class Discord(Plugin):
         t = json_data["type"]
         name = json_data["name"]
         logger.debug(f">> {self} got event {t} {name}")
+        logger.debug(json_data)
+        logger.debug("--")
         user = json_data.get("user")
 
-    #     initiator = {
-    #         "user_id": message["author"]["name"],
-    #         "provider": "discord",
-    #         "is_metagov_bot": message["author"]["bot"],
-    #     }
-    #     self.send_event_to_driver(event_type=event_type, initiator=initiator, data=message)
+        # initiator = {
+        #     "user_id": message["author"]["name"],
+        #     "provider": "discord",
+        #     "is_metagov_bot": message["author"]["bot"],
+        # }
+        # self.send_event_to_driver(event_type=name, initiator=initiator, data=json_data)
 
     def _make_discord_request(self, route, method="GET", json=None):
         if not route.startswith("/"):
@@ -82,147 +84,27 @@ class Discord(Plugin):
         },
         description="Perform any Discord API call",
     )
-    def discord_method(self, parameters):
-        method = parameters.pop("method", "GET")
-        route = parameters.pop("route")
-        # TODO fill in guild id
-        return self._make_discord_request(route, method, json=parameters)
+    def method(self, route, method="GET", **kwargs):
+        return self._make_discord_request(route, method, json=kwargs)
 
-    """
-    @Registry.action(
-        slug="getuser",
-        input_schema={
-            "type": "object",
-            "properties": {"user_id": {"type": "string"}},
-            "required": ["user_id"],
-        },
-        description="Returns a user with the given ID or None if not found.",
-    )
-    def getuser(self, parameters):
-        user_id = parameters.pop("user_id")
-        return self.client.get_user(user_id)
-
-    """
 
     @Registry.action(
         slug="get-guild",
         description="Get guild information",
     )
-    def get_guild(self, parameters):
+    def get_guild(self):
         guild_id = self.config["guild_id"]
         return self._make_discord_request(f"/guilds/{guild_id}")
 
-    """
     @Registry.action(
         slug="post-message",
         input_schema={
             "type": "object",
-            "properties": {"text": {"type": "string"}, "channel": {"type": "number"}, "user": {"type": "number"}},
-            "required": ["text"],
+            "properties": {"text": {"type": "string"}, "channel": {"type": "number"}},
+            "required": ["text", "channel"],
         },
-        description="Post message either in a channel or direct message.",
+        description="Post message in a channel.",
     )
-    def post_message(self, parameters):
-        if not parameters.get("channel") and not parameters.get("user"):
-            raise ValidationError("channel or user is required")
-        if parameters.get("channel"): # Post message to channel
-            channel = self.client.get_channel(parameters.get("channel"))
-            if channel.type != discord.ChannelType.text:
-                raise ValidationError("channel passed in must be a TextChannel")
-            channel.send(parameters.get("text"))
-        else: # Post message to direct message
-            user = self.client.get_user(parameters.get("user"))
-            user.send(parameters.get("text"))
-
-    @Registry.action(
-        slug="post-reply",
-        input_schema={
-            "type": "object",
-            "properties": {"text": {"type": "string"}, "channel": {"type": "number"}, "message": {"type": "number"}},
-            "required": ["text", "channel", "message"],
-        },
-        description="Post reply to a message.",
-    )
-    def post_reply(self, parameters):
-        channel = self.client.get_channel(parameters.get("channel"))
-        if channel.type != discord.ChannelType.text:
-            raise ValidationError("channel passed in must be a TextChannel")
-        message = channel.get_partial_message(parameters.get("text"))
-        message.reply(content=parameters.get("reply"))
-
-    @Registry.action(
-        slug="create-channel",
-        input_schema={
-            "type": "object",
-            "properties": {"name": {"type": "string"}, "type": {"type": "string"}, "reason": {"type": "string"}},
-            "required": ["name", "type"],
-        },
-        description="Create a text, voice or stage channel.",
-    )
-    def create_channel(self, parameters):
-        guild = self.client.get_guild(self.config["guild_id"])
-        if type == "text":
-            guild.create_text_channel(parameters.get("name"), reason=parameters.get("reason"))
-        elif type == "voice":
-            guild.create_voice_channel(parameters.get("name"), reason=parameters.get("reason"))
-        elif type == "stage":
-            guild.create_stage_channel(parameters.get("name"), reason=parameters.get("reason"))
-        else:
-            raise ValidationError("type passed in must be 'text', 'voice' or 'stage'")
-
-    @Registry.action(
-        slug="delete-channel",
-        input_schema={
-            "type": "object",
-            "properties": {"channel": {"type": "string"}, "reason": {"type": "string"}},
-            "required": ["channel"],
-        },
-        description="Delete a channnel.",
-    )
-    def delete_channel(self, parameters):
-        channel = self.client.get_channel(parameters.get("channel"))
-        channel.delete(reason=parameters.get("reason"))
-
-    def get_user(self, user_id):
-        guild = self.client.get_guild(self.config["guild_id"])
-        return guild.get_member(user_id)
-
-    @Registry.action(
-        slug="kick-user",
-        input_schema={
-            "type": "object",
-            "properties": {"user": {"type": "number"}},
-            "required": ["user"],
-        },
-        description="Kick a user from the guild.",
-    )
-    def kick_user(self, parameters):
-        user = self.get_user(parameters.get("user"))
-        user.kick()
-
-    @Registry.action(
-        slug="ban-user",
-        input_schema={
-            "type": "object",
-            "properties": {"user": {"type": "number"}},
-            "required": ["user"],
-        },
-        description="Ban a user from the guild.",
-    )
-    def ban_user(self, parameters):
-        user = self.get_user(parameters.get("user"))
-        user.ban()
-
-    @Registry.action(
-        slug="unban-user",
-        input_schema={
-            "type": "object",
-            "properties": {"user": {"type": "number"}},
-            "required": ["user"],
-        },
-        description="Unban a user from the guild.",
-    )
-    def unban_user(self, parameters):
-        user = self.get_user(parameters.get("user"))
-        user.unban()
-    """
+    def post_message(self, text, channel, users, **kwargs):
+        kwargs["content"] = text
+        return self._make_discord_request(f"/channels/{channel}/messages", "POST", json=kwargs)
