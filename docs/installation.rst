@@ -190,11 +190,6 @@ Metagov uses `Celery <https://docs.celeryproject.org/en/stable/index.html>`_ to 
 Follow these instructions to run a celery daemon on your Ubuntu machine using ``systemd``.
 For more information about configuration options, see the `Celery Daemonization <https://docs.celeryproject.org/en/stable/userguide/daemonizing.html>`_.
 
-.. note::
-
-    Using PolicyKit with Metagov? These configuration files are designed specifically to work with the setup where PolicyKit and Metagov are deployed together.
-    PolicyKit and Metagov will use separate celery daemons that use separate RabbitMQ virtual hosts, configured using ``CELERY_BROKER_URL``.
-
 
 Create RabbitMQ virtual host
 """"""""""""""""""""""""""""
@@ -401,7 +396,7 @@ needs to create a new Slack App and store its credentials on the server where Me
 Discord
 """""""
 1. Go to https://discord.com/developers/applications
-2. Click "New Application" to create your PolicyKit application
+2. Click "New Application"
 3. Under OAuth2, add the redirect URL ``[SERVER_URL]/auth/discord/callback``
 4. Add a new Bot and enable these options:
 
