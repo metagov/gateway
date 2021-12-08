@@ -13,9 +13,9 @@ features:
     always_online: true
 oauth_config:
   redirect_urls:
-    #- https://metagov.policykit.org/auth/slack/callback
     # Replace me!
-    - $METAGOV_SERVER/auth/slack/callback
+    - $SERVER/auth/slack/callback
+    #- https://policykit.org/auth/slack/callback
   scopes:
     user:
       - reactions:read
@@ -59,9 +59,9 @@ oauth_config:
       - users:write
 settings:
   event_subscriptions:
-    # request_url: https://metagov.policykit.org/api/hooks/slack
     # Replace me!
-    request_url: $METAGOV_SERVER/api/hooks/slack
+    request_url: $SERVER/api/hooks/slack
+    # request_url: https://policykit.org/api/hooks/slack
     user_events:
       - reaction_added
     bot_events:
@@ -93,6 +93,7 @@ settings:
   interactivity:
     is_enabled: true
     # Replace me!
-    request_url: $METAGOV_SERVER/api/hooks/slack
+    request_url: $SERVER/api/hooks/slack
+    # request_url: https://policykit.org/api/hooks/slack
   org_deploy_enabled: false
   socket_mode_enabled: false
