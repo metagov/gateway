@@ -81,7 +81,7 @@ class DiscordRequestHandler(PluginRequestHandler):
         elif type == AuthorizationType.USER_LOGIN:
             scopes_and_permissions = "scope=identify"
 
-        return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&{scopes_and_permissions}"
+        return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={DISCORD_CLIENT_ID}&{scopes_and_permissions}"
 
     def handle_oauth_callback(
         self,
