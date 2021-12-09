@@ -1,9 +1,5 @@
 import json
 import logging
-import random
-import requests
-
-from django.db.models.fields import TextField
 
 from rest_framework.exceptions import ValidationError
 from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
