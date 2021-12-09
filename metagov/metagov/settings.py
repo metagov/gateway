@@ -103,7 +103,7 @@ METAGOV_SETTINGS = {
     "DISCORD": {
         "CLIENT_ID": env("DISCORD_CLIENT_ID", default=default_val),
         "CLIENT_SECRET": env("DISCORD_CLIENT_SECRET", default=default_val),
-        "ACCESSBOT_TOKEN_TOKEN": env("DISCORD_BOT_TOKEN", default=default_val),
+        "BOT_TOKEN": env("DISCORD_BOT_TOKEN", default=default_val),
         "PUBLIC_KEY": env("DISCORD_PUBLIC_KEY", default=default_val),
     }
 }
