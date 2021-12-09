@@ -10,7 +10,6 @@ from metagov.plugins.discord.models import Discord
 from requests.models import PreparedRequest
 from metagov.core.handlers import PluginRequestHandler
 
-# from nacl.exceptions import BadSignatureError
 from nacl.signing import VerifyKey
 
 
@@ -85,7 +84,16 @@ class DiscordRequestHandler(PluginRequestHandler):
         return f"https://discordapp.com/api/oauth2/authorize?response_type=code&client_id={client_id}&state={state}&{scopes_and_permissions}"
 
     def handle_oauth_callback(
-        self, type: str, code: str, redirect_uri: str, community, state=None, external_id=None, *args, **kwargs
+        self,
+        type: str,
+        code: str,
+        redirect_uri: str,
+        community,
+        request,
+        state=None,
+        external_id=None,
+        *args,
+        **kwargs,
     ):
         """
         OAuth2 callback endpoint handler for authorization code grant type.
@@ -125,40 +133,36 @@ class DiscordRequestHandler(PluginRequestHandler):
             guild_id = response["guild"]["id"]
             # Check if there are any existing Discord Plugin instances for this Discord team
             # TODO: pull some of this logic into core. Each plugin has its own version of "team_id" that may need to be unique.
-            existing_plugin_to_reinstall = None
-            for inst in Discord.objects.all():
-                if inst.config["guild_id"] == guild_id:
-                    if inst.community == community:
-                        # team matches, community matches
-
-                        # There is already a Discord Plugin enabled for this Community, so we want to delete and recreate it.
-                        # This is to support re-installation, which you might want to do if scopes have changed for example.
-                        existing_plugin_to_reinstall = inst
-                    else:
-                        # team matches, community doesnt
-
-                        # There is already a Discord Plugin for this guild enabled for a DIFFERENT community, so we error.
-                        # Discord admin would need to go into the Discord guild and uninstall the app, if they want to create a Discord Plugin for
-                        # the same guild under a different community.
-                        logger.error(
-                            f"Discord Plugin for guild {guild_id} already exists for another community: {inst}"
-                        )
-                        raise WrongCommunityError
-                elif inst.community == community:
-                    # community matches, team doesnt
-                    logger.info(
-                        f"Trying to install Discord to community {community} for guild_id {guild_id}, but community already has a Discord Plugin enabled for guild {inst.config['guild_id']}"
+            community_platform_id = str(guild_id)
+            existing_plugin_to_reinstall = Discord.objects.filter(community_platform_id=community_platform_id).first()
+            if existing_plugin_to_reinstall:
+                if existing_plugin_to_reinstall.community != community:
+                    # There is already a Discord Plugin for this guild enabled for a DIFFERENT community, so we error.
+                    # Discord admin would need to go into the Discord guild and uninstall the app, if they want to create a Discord Plugin for
+                    # the same guild under a different community.
+                    logger.error(
+                        f"Discord Plugin for guild {guild_id} already exists for another community: {existing_plugin_to_reinstall}"
                     )
-                    raise AlreadyInstalledError
+                    raise WrongCommunityError
+
+            already_installed_plugins = Discord.objects.filter(community=community).exclude(
+                community_platform_id=community_platform_id
+            )
+            if already_installed_plugins.exists():
+                # community matches, team doesnt
+                logger.info(
+                    f"Trying to install Discord to community {community} for guild_id {guild_id}, but community already has a Discord Plugin enabled for guild {inst.config['guild_id']}"
+                )
+                raise AlreadyInstalledError
 
             # Configuration for the new Discord Plugin to create
             plugin_config = {"guild_id": guild_id, "guild_name": response["guild"]["name"]}
 
-            # if REQUIRE_INSTALLER_TO_BE_ADMIN:
-            #     # TODO call auth.revoke if anything fails, to uninstall the bot and delete the bot token
+            if REQUIRE_INSTALLER_TO_BE_ADMIN:
+                # TODO call auth.revoke if anything fails, to uninstall the bot and delete the bot token
 
-            #     if response["guild"]["owner_id"] != current_user["id"]:
-            #         raise NonAdminInstallError
+                if response["guild"]["owner_id"] != current_user["id"]:
+                    raise NonAdminInstallError
 
             if existing_plugin_to_reinstall:
                 logger.info(
@@ -166,7 +170,9 @@ class DiscordRequestHandler(PluginRequestHandler):
                 )
                 existing_plugin_to_reinstall.delete()
 
-            plugin = Discord.objects.create(name="discord", community=community, config=plugin_config)
+            plugin = Discord.objects.create(
+                name="discord", community=community, config=plugin_config, community_platform_id=community_platform_id
+            )
             logger.debug(f"Created Discord plugin: {plugin}")
 
             # Add some params to redirect (this is specifically for PolicyKit which requires the installer's admin token)

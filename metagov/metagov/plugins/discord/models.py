@@ -4,7 +4,7 @@ import logging
 import requests
 from django.conf import settings
 from metagov.core.errors import PluginErrorInternal
-from metagov.core.models import AuthType, GovernanceProcess, Plugin, ProcessStatus
+from metagov.core.models import AuthType, Plugin
 from metagov.core.plugin_manager import Registry
 
 logger = logging.getLogger(__name__)
@@ -40,16 +40,8 @@ class Discord(Plugin):
         json_data = json.loads(request.body)
         t = json_data["type"]
         name = json_data["name"]
-        logger.debug(f">> {self} got event {t} {name}")
+        logger.debug(f"{self} received event {t} {name}:")
         logger.debug(json_data)
-        logger.debug("--")
-        user = json_data.get("user")
-
-        # initiator = {
-        #     "user_id": message["author"]["name"],
-        #     "provider": "discord",
-        #     "is_metagov_bot": message["author"]["bot"],
-        # }
         # self.send_event_to_driver(event_type=name, initiator=initiator, data=json_data)
 
     def _make_discord_request(self, route, method="GET", json=None):
