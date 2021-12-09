@@ -66,21 +66,10 @@ class DiscordRequestHandler(PluginRequestHandler):
         if json_data["type"] in [2, 3]:
             # 2 = APPLICATION_COMMAND
             # 3 = MESSAGE_COMPONENT
-
             guild_id = json_data["guild_id"]
-            for plugin in Discord.objects.all():
-                if plugin.config["guild_id"] == guild_id:
-                    logger.info(f"Passing event to {plugin}")
-                    plugin.receive_event(request)
-        # {
-        #     "type": 4,
-        #     "data": {
-        #         "tts": False,
-        #         "content": "Congrats on sending your command!",
-        #         "embeds": [],
-        #         "allowed_mentions": { "parse": [] }
-        #     }
-        # }
+            for plugin in Discord.objects.filter(community_platform_id=str(guild_id)):
+                logger.info(f"Passing event to {plugin}")
+                plugin.receive_event(request)
         return HttpResponse()
 
     def construct_oauth_authorize_url(self, type: str, community=None):

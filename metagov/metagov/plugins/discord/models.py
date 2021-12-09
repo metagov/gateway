@@ -1,11 +1,11 @@
 import json
 import logging
-import requests
 
+import requests
 from django.conf import settings
-from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthType
-from metagov.core.plugin_manager import Registry
 from metagov.core.errors import PluginErrorInternal
+from metagov.core.models import AuthType, GovernanceProcess, Plugin, ProcessStatus
+from metagov.core.plugin_manager import Registry
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +25,16 @@ class Discord(Plugin):
             "guild_name": {"description": "Discord Guild Name", "type": "string"},
         },
     }
+    community_platform_id_key = "guild_id"
 
     class Meta:
         proxy = True
 
     # def initialize(self):
     #     logger.debug(f"init discord {self.config}")
-    # guild_id = self.config["guild_id"]
-    # guild = self._make_discord_request(f"/guilds/{guild_id}")
-    # self.state.set("guild_data", guild)
-    # ... create webhook for guild / channel ?
+    #     guild_id = self.config["guild_id"]
+    #     guild = self._make_discord_request(f"/guilds/{guild_id}")
+    #     self.state.set("guild_data", guild)
 
     def receive_event(self, request):
         json_data = json.loads(request.body)
@@ -86,7 +86,6 @@ class Discord(Plugin):
     )
     def method(self, route, method="GET", **kwargs):
         return self._make_discord_request(route, method, json=kwargs)
-
 
     @Registry.action(
         slug="get-guild",
