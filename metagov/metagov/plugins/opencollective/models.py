@@ -129,10 +129,10 @@ class OpenCollective(Plugin):
     def __validate_collective_or_project(self, legacy_id):
         if legacy_id == self.state.get("collective_legacy_id"):
             return True
-        project_legacy_ids = self.state.get("project_legacy_ids")
+        project_legacy_ids = self.state.get("project_legacy_ids") or []
         if legacy_id in project_legacy_ids:
             return True
-        # re-initialize and check projects again, in case new project has been added
+        # re-initialize and check projects again, in case a new project has been added
         self.initialize()
         project_legacy_ids = self.state.get("project_legacy_ids")
         if legacy_id in project_legacy_ids:
