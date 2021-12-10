@@ -70,7 +70,9 @@ class DiscordRequestHandler(PluginRequestHandler):
             guild_id = json_data["guild_id"]
             for plugin in Discord.objects.filter(community_platform_id=str(guild_id)):
                 logger.info(f"Passing event to {plugin}")
-                plugin.receive_event(request)
+                response_data = plugin.receive_event(request)
+                if response_data:
+                    return JsonResponse(response_data)
                 active_processes = DiscordVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
                 for process in active_processes:
                     logger.info(f"Discord Slack interaction to {process}")
@@ -85,10 +87,7 @@ class DiscordRequestHandler(PluginRequestHandler):
 
         scopes_and_permissions = ""
         if type == AuthorizationType.APP_INSTALL:
-            # perms = 535529258070 #8589934591
-            # scopes = "applications.commands%20applications.commands.permissions.update%20bot%20identify%20guilds"
-            # scopes_and_permissions = f"scope={scopes}&permissions={perms}"
-            scopes_and_permissions = "scope=bot%20identify%20guilds&permissions=8589934591"
+            scopes_and_permissions = "scope=applications.commands%20bot%20identify%20guilds&permissions=8589934591"
         elif type == AuthorizationType.USER_LOGIN:
             scopes_and_permissions = "scope=identify"
 

@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 discord_settings = settings.METAGOV_SETTINGS["DISCORD"]
 DISCORD_BOT_TOKEN = discord_settings["BOT_TOKEN"]
 CLIENT_ID = discord_settings["CLIENT_ID"]
+SLASH_COMMAND_NAME = "metagov"  # TODO: make this a setting
 
 
 @Registry.plugin
@@ -38,7 +39,7 @@ class Discord(Plugin):
 
         # This is an example CHAT_INPUT or Slash Command, with a type of 1
         json = {
-            "name": "metagov",
+            "name": SLASH_COMMAND_NAME,
             "type": 1,
             "description": "Send a command",
             "options": [{"name": "command", "description": "Command", "type": 3}],
@@ -55,8 +56,16 @@ class Discord(Plugin):
         json_data = json.loads(request.body)
         # TODO process slash commands
         # https://discord.com/developers/docs/interactions/application-commands#registering-a-command
-        logger.debug(json_data)
+
+        if not json_data.get("data").get("name") == SLASH_COMMAND_NAME:
+            return
+
+        command = json_data["data"]["options"][0]["value"]
+        user_id = json_data["member"]["user"]["id"]
+        username = json_data["member"]["user"]["username"]
+        logger.debug(f"Metagov command: {command} from {username}")
         # self.send_event_to_driver(event_type=name, initiator=initiator, data=json_data)
+        return {"type": 4, "data": {"content": "message received", "flages": {"ephemeral": 1}}}
 
     def _make_discord_request(self, route, method="GET", json=None):
         if not route.startswith("/"):
