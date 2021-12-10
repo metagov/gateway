@@ -197,7 +197,7 @@ class DiscordVote(GovernanceProcess):
         action = json_data["data"]["custom_id"]
         if not action.startswith(VOTE_ACTION_ID):
             return None
-        selected_option = action.replace(f"{VOTE_ACTION_ID}_")
+        selected_option = action.replace(f"{VOTE_ACTION_ID}_", "")
         user_id = json_data["member"]["user"]["id"]
         username = json_data["member"]["user"]["username"]
         logger.debug(f"{username} voted for {selected_option}")
