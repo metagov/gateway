@@ -12,6 +12,7 @@ from requests.models import PreparedRequest
 from metagov.core.handlers import PluginRequestHandler
 
 from nacl.signing import VerifyKey
+from nacl.exceptions import BadSignatureError
 
 
 logger = logging.getLogger(__name__)
@@ -258,7 +259,7 @@ def add_query_parameters(url, params):
 
 
 def validate_discord_interaction(request):
-    timestamp = request.headers.get("X-Slack-Request-Timestamp")
+    timestamp = request.headers.get("X-Signature-Timestamp")
     signature = request.headers.get("X-Signature-Ed25519")
     if not timestamp or not signature:
         raise PluginErrorInternal("Bad request signature")
@@ -271,11 +272,9 @@ def validate_discord_interaction(request):
 
 
 def verify_key(raw_body, signature, timestamp, client_public_key):
-    message = timestamp.encode() + raw_body
+    vf_key = VerifyKey(bytes.fromhex(client_public_key))
     try:
-        vk = VerifyKey(bytes.fromhex(client_public_key))
-        vk.verify(message, bytes.fromhex(signature))
-        return True
-    except Exception as ex:
-        print(ex)
-    return False
+        vf_key.verify(f"{timestamp}{raw_body}".encode(), bytes.fromhex(signature))
+    except BadSignatureError:
+        return False
+    return True
