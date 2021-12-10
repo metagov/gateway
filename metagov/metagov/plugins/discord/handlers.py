@@ -6,7 +6,8 @@ from django.conf import settings
 from django.http.response import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect, JsonResponse
 from metagov.core.errors import PluginErrorInternal, PluginAuthError
 from metagov.core.plugin_manager import AuthorizationType
-from metagov.plugins.discord.models import Discord
+from metagov.core.models import ProcessStatus
+from metagov.plugins.discord.models import Discord, DiscordVote
 from requests.models import PreparedRequest
 from metagov.core.handlers import PluginRequestHandler
 
@@ -52,7 +53,7 @@ class DiscordRequestHandler(PluginRequestHandler):
         Handler for processing interaction events from Discord.
         https://discord.com/developers/docs/interactions/receiving-and-responding
         """
-
+        logger.debug(f"received discord request")
         validate_discord_interaction(request)
 
         json_data = json.loads(request.body)
@@ -69,6 +70,10 @@ class DiscordRequestHandler(PluginRequestHandler):
             for plugin in Discord.objects.filter(community_platform_id=str(guild_id)):
                 logger.info(f"Passing event to {plugin}")
                 plugin.receive_event(request)
+                active_processes = DiscordVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
+                for process in active_processes:
+                    logger.info(f"Discord Slack interaction to {process}")
+                    process.receive_webhook(request)
         return HttpResponse()
 
     def construct_oauth_authorize_url(self, type: str, community=None):
