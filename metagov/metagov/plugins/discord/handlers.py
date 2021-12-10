@@ -74,7 +74,9 @@ class DiscordRequestHandler(PluginRequestHandler):
                 active_processes = DiscordVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
                 for process in active_processes:
                     logger.info(f"Discord Slack interaction to {process}")
-                    process.receive_webhook(request)
+                    response_data = process.receive_webhook(request)
+                    if response_data:
+                        return JsonResponse(response_data)
         return HttpResponse()
 
     def construct_oauth_authorize_url(self, type: str, community=None):

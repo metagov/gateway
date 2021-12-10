@@ -304,7 +304,7 @@ class SlackEmojiVote(GovernanceProcess):
         blocks = json.dumps(blocks)
         requests.post(response_url, json={"replace_original": "true", "blocks": blocks})
 
-    def _cast_vote(self, user, value):
+    def _cast_vote(self, user: str, value: str):
         if not self.outcome["votes"].get(value):
             return False
         if user in self.outcome["votes"][value]["users"]:

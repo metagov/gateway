@@ -38,9 +38,9 @@ class Discord(Plugin):
 
     def receive_event(self, request):
         json_data = json.loads(request.body)
-        t = json_data["type"]
-        name = json_data["name"]
-        logger.debug(f"{self} received event {t} {name}:")
+        # t = json_data["type"]
+        # name = json_data["name"]
+        # logger.debug(f"{self} received event {t} {name}:")
         logger.debug(json_data)
         # self.send_event_to_driver(event_type=name, initiator=initiator, data=json_data)
 
@@ -145,7 +145,7 @@ class DiscordVote(GovernanceProcess):
         logger.debug(resp)
         # self.outcome["url"] = permalink_resp["permalink"]
         # self.outcome["channel"] = channel
-        # self.outcome["message_ts"] = ts
+        self.outcome["message_id"] = resp["id"]
         self.status = ProcessStatus.PENDING.value
         self.save()
 
@@ -168,7 +168,7 @@ class DiscordVote(GovernanceProcess):
 
             # show vote count and user list next to each vote option
             num = votes[opt]["count"]
-            option_text = f"{option_text}   `{num}`"
+            option_text = f"{option_text}   ({num})"
             if num > 0:
                 users = [f"<@{id}>" for id in votes[opt]["users"]]
                 users = ", ".join(users)
@@ -189,7 +189,46 @@ class DiscordVote(GovernanceProcess):
 
     def receive_webhook(self, request):
         logger.debug(f"{self} processing interaction {request}")
-        pass
+        json_data = json.loads(request.body)
+
+        message_id_to_match = self.outcome["message_id"]
+        if not json_data.get("message", {}).get("id") == message_id_to_match:
+            return None
+        action = json_data["data"]["custom_id"]
+        if not action.startswith(VOTE_ACTION_ID):
+            return None
+        selected_option = action.replace(f"{VOTE_ACTION_ID}_")
+        user_id = json_data["member"]["user"]["id"]
+        username = json_data["member"]["user"]["username"]
+        logger.debug(f"{username} voted for {selected_option}")
+        self._cast_vote(username, selected_option)
+
+        # Update vote message to show votes cast
+        blocks = self._construct_blocks()
+
+        return {
+            "type": 7,  # UPDATE_MESSAGE
+            "data": {"contents": json_data["message"]["content"], "components": blocks},
+        }
+
+    def _cast_vote(self, user: str, value: str):
+        if not self.outcome["votes"].get(value):
+            return False
+        if user in self.outcome["votes"][value]["users"]:
+            return False
+
+        # Update vote count for selected value
+        logger.debug(f"> {user} cast vote for {value}")
+        self.outcome["votes"][value]["users"].append(user)
+        self.outcome["votes"][value]["count"] = len(self.outcome["votes"][value]["users"])
+
+        # If user previously voter for a different option, remove old vote
+        for k, v in self.outcome["votes"].items():
+            if k != value and user in v["users"]:
+                v["users"].remove(user)
+                v["count"] = len(v["users"])
+
+        self.save()
 
     def close(self):
         # Set governnace process to completed
