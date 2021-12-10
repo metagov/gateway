@@ -88,6 +88,17 @@ query Collective($slug: String) {
         id
         legacyId
         name
+        type
+        childrenAccounts(limit: 50, offset: 0) {
+            totalCount
+            nodes {
+                id
+                legacyId
+                slug
+                name
+                type
+            }
+        }
     }
 }
 """

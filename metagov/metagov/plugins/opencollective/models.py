@@ -49,6 +49,13 @@ class OpenCollective(Plugin):
         self.state.set("collective_name", result["name"])
         self.state.set("collective_id", result["id"])
         self.state.set("collective_legacy_id", result["legacyId"])
+        project_legacy_ids = []
+        if result.get("childrenAccounts"):
+            project_legacy_ids = [
+                node["legacyId"] for node in result["childrenAccounts"]["nodes"] if node["type"] == "PROJECT"
+            ]
+
+        self.state.set("project_legacy_ids", project_legacy_ids)
 
     def run_query(self, query, variables):
         resp = requests.post(
@@ -119,16 +126,26 @@ class OpenCollective(Plugin):
         self.add_expense_url(expense_data)
         return expense_data
 
+    def __validate_collective_or_project(self, legacy_id):
+        if legacy_id == self.state.get("collective_legacy_id"):
+            return True
+        project_legacy_ids = self.state.get("project_legacy_ids") or []
+        if legacy_id in project_legacy_ids:
+            return True
+        # re-initialize and check projects again, in case a new project has been added
+        self.initialize()
+        project_legacy_ids = self.state.get("project_legacy_ids")
+        if legacy_id in project_legacy_ids:
+            return True
+        raise PluginErrorInternal(
+            f"Received webhook for the wrong collective. Expected {self.state.get('collective_legacy_id')} or projects {project_legacy_ids}, found "
+            + str(legacy_id)
+        )
+
     @Registry.webhook_receiver()
     def process_oc_webhook(self, request):
         body = json.loads(request.body)
-        collective_legacy_id = self.state.get("collective_legacy_id")
-        from_collective = body.get("data", {}).get("fromCollective", {}).get("id")
-        if body.get("CollectiveId") != collective_legacy_id and from_collective != collective_legacy_id:
-            raise PluginErrorInternal(
-                f"Received webhook for the wrong collective. Expected {collective_legacy_id}, found "
-                + str(body.get("CollectiveId"))
-            )
+        self.__validate_collective_or_project(body.get("CollectiveId"))
 
         event_type = body.get("type")
 
