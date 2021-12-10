@@ -85,7 +85,8 @@ class DiscordRequestHandler(PluginRequestHandler):
 
         scopes_and_permissions = ""
         if type == AuthorizationType.APP_INSTALL:
-            scopes_and_permissions = "scope=bot%20identify%20guilds&permissions=8589934591"
+            perms = 535529258070 #8589934591
+            scopes_and_permissions = f"scope=bot%20identify%20guilds&permissions={perms}"
         elif type == AuthorizationType.USER_LOGIN:
             scopes_and_permissions = "scope=identify"
 

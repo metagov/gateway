@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 discord_settings = settings.METAGOV_SETTINGS["DISCORD"]
 DISCORD_BOT_TOKEN = discord_settings["BOT_TOKEN"]
+CLIENT_ID = discord_settings["CLIENT_ID"]
 
 
 @Registry.plugin
@@ -30,17 +31,30 @@ class Discord(Plugin):
     class Meta:
         proxy = True
 
-    # def initialize(self):
-    #     logger.debug(f"init discord {self.config}")
+    def initialize(self):
+        logger.debug(f"init discord {self.config}")
+        # Create guild command
+        route = f"/v8/applications/{CLIENT_ID}/guilds/{self.config['guild_id']}/commands"
+
+        # This is an example CHAT_INPUT or Slash Command, with a type of 1
+        json = {
+            "name": "metagov",
+            "type": 1,
+            "description": "Send a command",
+            "options": [{"name": "command", "description": "Command", "type": 3}],
+        }
+
+        r = self._make_discord_request(route=route, method="POST", json=json)
+        logger.debug(r)
+
     #     guild_id = self.config["guild_id"]
     #     guild = self._make_discord_request(f"/guilds/{guild_id}")
     #     self.state.set("guild_data", guild)
 
     def receive_event(self, request):
         json_data = json.loads(request.body)
-        # t = json_data["type"]
-        # name = json_data["name"]
-        # logger.debug(f"{self} received event {t} {name}:")
+        # TODO process slash commands
+        # https://discord.com/developers/docs/interactions/application-commands#registering-a-command
         logger.debug(json_data)
         # self.send_event_to_driver(event_type=name, initiator=initiator, data=json_data)
 
@@ -170,42 +184,40 @@ class DiscordVote(GovernanceProcess):
             num = votes[opt]["count"]
             option_text = f"{option_text}   ({num})"
             if num > 0:
-                users = [f"<@{id}>" for id in votes[opt]["users"]]
+                users = [f"@{id}" for id in votes[opt]["users"]]
                 users = ", ".join(users)
                 option_text = f"{option_text} ({users})"
 
-            if not hide_buttons:
-                button = {
-                    "type": Type.BUTTON,
-                    "label": option_text,
-                    "style": 1,
-                    "custom_id": f"{VOTE_ACTION_ID}_{opt}",
-                }
-                if button_emoji:
-                    button["emoji"] = {"name": button_emoji}
-                blocks.append(button)
+            button = {
+                "type": Type.BUTTON,
+                "label": option_text,
+                "style": 1,
+                "custom_id": f"{VOTE_ACTION_ID}_{opt}",
+                "disabled": True if hide_buttons else False,
+            }
+            if button_emoji:
+                button["emoji"] = {"name": button_emoji}
+            blocks.append(button)
 
         return [{"type": 1, "components": blocks}]
 
     def receive_webhook(self, request):
-        logger.debug(f"{self} processing interaction {request}")
         json_data = json.loads(request.body)
-
         message_id_to_match = self.outcome["message_id"]
         if not json_data.get("message", {}).get("id") == message_id_to_match:
             return None
         action = json_data["data"]["custom_id"]
         if not action.startswith(VOTE_ACTION_ID):
             return None
+
         selected_option = action.replace(f"{VOTE_ACTION_ID}_", "")
         user_id = json_data["member"]["user"]["id"]
         username = json_data["member"]["user"]["username"]
-        logger.debug(f"{username} voted for {selected_option}")
+
         self._cast_vote(username, selected_option)
 
-        # Update vote message to show votes cast
+        # Respond with updated message, to show votes cast
         blocks = self._construct_blocks()
-
         return {
             "type": 7,  # UPDATE_MESSAGE
             "data": {"contents": json_data["message"]["content"], "components": blocks},
@@ -231,7 +243,9 @@ class DiscordVote(GovernanceProcess):
         self.save()
 
     def close(self):
-        # Set governnace process to completed
+        # Set governance process to completed
         self.status = ProcessStatus.COMPLETED.value
-        # Update vote message to hide voting buttons
+
+        # TODO: update vote message when closed? Interaction tokens are only valid for 15 minutes though.
+
         self.save()
