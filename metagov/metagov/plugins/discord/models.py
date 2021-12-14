@@ -262,7 +262,7 @@ class DiscordVote(GovernanceProcess):
             "votes": dict([(k, {"users": [], "count": 0}) for k in options]),
         }
 
-        contents = self._construct_contents()
+        contents = self._construct_content()
         components = self._construct_blocks()
         resp = self.plugin_inst.post_message(text=contents, components=components, channel=parameters.channel)
         logger.debug(resp)
@@ -274,7 +274,7 @@ class DiscordVote(GovernanceProcess):
         self.status = ProcessStatus.PENDING.value
         self.save()
 
-    def _construct_contents(self) -> str:
+    def _construct_content(self) -> str:
         """
         Construct text content of the vote message, which includes vote counts and usernames of voters
         """
@@ -291,7 +291,7 @@ class DiscordVote(GovernanceProcess):
         option_text_list = []
         for idx, opt in enumerate(options):
             if poll_type == "boolean":
-                option_text = f"Approve" if opt == Bool.YES else "Reject"
+                option_text = f"Approvals" if opt == Bool.YES else "Rejections"
             else:
                 option_text = opt
 
@@ -368,11 +368,11 @@ class DiscordVote(GovernanceProcess):
         self._cast_vote(user_id, selected_option)
 
         # Respond with updated message, to show votes cast
-        contents = self._construct_contents()
+        content = self._construct_content()
         blocks = self._construct_blocks()
         return {
             "type": 7,  # UPDATE_MESSAGE
-            "data": {"contents": contents, "components": blocks},
+            "data": {"content": content, "components": blocks},
         }
 
     def _is_eligible_voter(self, user):
