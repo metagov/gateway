@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 discord_settings = settings.METAGOV_SETTINGS["DISCORD"]
 DISCORD_BOT_TOKEN = discord_settings["BOT_TOKEN"]
 CLIENT_ID = discord_settings["CLIENT_ID"]
-SLASH_COMMAND_NAME = "metagov"  # TODO: make this a setting
 
 
 @Registry.plugin
@@ -34,30 +33,54 @@ class Discord(Plugin):
 
     def initialize(self):
         logger.debug(f"init discord {self.config}")
-        # Create guild command
-        route = f"/v8/applications/{CLIENT_ID}/guilds/{self.config['guild_id']}/commands"
-
-        # This is an example CHAT_INPUT or Slash Command, with a type of 1
-        json = {
-            "name": SLASH_COMMAND_NAME,
-            "type": 1,
-            "description": "Send a command",
-            "options": [{"name": "command", "description": "Command", "type": 3}],
-        }
-
-        r = self._make_discord_request(route=route, method="POST", json=json)
-        logger.debug(r)
 
     #     guild_id = self.config["guild_id"]
     #     guild = self._make_discord_request(f"/guilds/{guild_id}")
     #     self.state.set("guild_data", guild)
 
+    @Registry.action(
+        slug="register-guild-command",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "description": {"type": "string"},
+                "command_id": {
+                    "type": "string",
+                    "description": "required if updating an existing command",
+                },
+                # any other args are passed along to discord commands endpoing
+            },
+            "required": ["name"],
+        },
+        description="Register or update a command for this guild.",
+    )
+    def register_guild_command(self, name, description=None, command_id=None, **kwargs):
+        """
+        Register or update a guild-specific command.
+        See https://discord.com/developers/docs/interactions/application-commands#registering-a-command
+        """
+        json = {
+            "name": name,
+            "description": description,
+            **kwargs
+            # "options": [{"name": "command", "description": "Command", "type": 3}],
+        }
+        route = f"/v8/applications/{CLIENT_ID}/guilds/{self.config['guild_id']}/commands"
+        if command_id:
+            route = f"{route}/{command_id}"
+        response = self._make_discord_request(route=route, method="POST", json=json)
+        logger.debug(response)
+        return response
+
     def receive_event(self, request):
         json_data = json.loads(request.body)
-        # TODO process slash commands
+        # Process slash commands
         # https://discord.com/developers/docs/interactions/application-commands#registering-a-command
+        logger.debug(json_data)
 
-        if not json_data.get("data").get("name") == SLASH_COMMAND_NAME:
+        slash_commands = []
+        if not json_data.get("data").get("name") in slash_commands:
             return
 
         command = json_data["data"]["options"][0]["value"]
@@ -65,7 +88,7 @@ class Discord(Plugin):
         username = json_data["member"]["user"]["username"]
         logger.debug(f"Metagov command: {command} from {username}")
         # self.send_event_to_driver(event_type=name, initiator=initiator, data=json_data)
-        return {"type": 4, "data": {"content": "message received", "flages": {"ephemeral": 1}}}
+        return {"type": 4, "data": {"content": "message received!", "flages": {"ephemeral": 1}}}
 
     def _make_discord_request(self, route, method="GET", json=None):
         if not route.startswith("/"):
