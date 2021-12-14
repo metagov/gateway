@@ -55,10 +55,12 @@ class DiscordRequestHandler(PluginRequestHandler):
         https://discord.com/developers/docs/interactions/receiving-and-responding
         """
         logger.debug(f"received discord request")
-        validate_discord_interaction(request)
+        
 
         json_data = json.loads(request.body)
         logger.debug(json_data)
+
+        validate_discord_interaction(request)
 
         if json_data["type"] == 1:
             # PING response
@@ -266,13 +268,13 @@ def validate_discord_interaction(request):
     timestamp = request.headers.get("X-Signature-Timestamp")
     signature = request.headers.get("X-Signature-Ed25519")
     if not timestamp or not signature:
-        raise PluginErrorInternal("Bad request signature")
+        raise PluginErrorInternal("Bad request signature: missing headers")
 
     raw_body = request.body.decode("utf-8")
     client_public_key = DISCORD_PUBLIC_KEY
 
     if not verify_key(raw_body, signature, timestamp, client_public_key):
-        raise PluginErrorInternal("Bad request signature")
+        raise PluginErrorInternal("Bad request signature: verification failed")
 
 
 def verify_key(raw_body, signature, timestamp, client_public_key):
