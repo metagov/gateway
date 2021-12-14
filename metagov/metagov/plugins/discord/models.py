@@ -44,7 +44,7 @@ class Discord(Plugin):
         """
         Receive interaction request from Discord for this guild. Only supports slash commands for now.
 
-        Example payload for message "/policykit command: 'hello world'"
+        Example payload for slash command "/policykit command: 'hello world'"
 
             {'application_id': '0000000',
             'channel_id': '0000000',
@@ -171,7 +171,7 @@ class Discord(Plugin):
         description="Perform any Discord API call",
     )
     def method(self, route, method="GET", **kwargs):
-        return self._make_discord_request(route, method, json=kwargs)
+        return self._make_discord_request(route, method, json=kwargs if kwargs else None)
 
     @Registry.action(
         slug="get-guild",
