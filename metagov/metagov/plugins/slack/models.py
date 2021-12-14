@@ -288,7 +288,7 @@ class SlackEmojiVote(GovernanceProcess):
                 selected_option = a["value"]
                 user = payload["user"]["id"]
 
-                # If user is not eligible to vote, don't case vote & show a message
+                # If user is not eligible to vote, don't cast vote & show a message
                 if not self._is_eligible_voter(user):
                     message = self.state.get("parameters").get("ineligible_voter_message")
                     logger.debug(f"Ignoring vote from ineligible voter {user}")

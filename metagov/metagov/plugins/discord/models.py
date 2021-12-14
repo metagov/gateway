@@ -101,7 +101,7 @@ class Discord(Plugin):
 
         # Respond to the interaction
         # See: https://discord.com/developers/docs/interactions/receiving-and-responding#responding-to-an-interaction
-        return {"type": 4, "data": {"content": "message received!", "flags": 1 << 6 }}
+        return {"type": 4, "data": {"content": "message received!", "flags": 1 << 6}}
 
     def _make_discord_request(self, route, method="GET", json=None):
         if not route.startswith("/"):
@@ -212,6 +212,39 @@ class Type:
 class DiscordVote(GovernanceProcess):
     name = "vote"
     plugin_name = "discord"
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "options": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "options to use for choice selection. ignored for 'boolean' poll type",
+            },
+            "details": {"type": "string"},
+            "poll_type": {"type": "string", "enum": ["boolean", "choice"]},
+            "channel": {
+                "type": "string",
+                "description": "channel to post the vote in",
+            },
+            "eligible_voters": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "list of users who are eligible to vote. if eligible_voters is provided and channel is not provided, creates vote in a private group message.",
+            },
+            "ineligible_voters": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "list of users who are not eligible to vote",
+            },
+            "ineligible_voter_message": {
+                "type": "string",
+                "description": "message to display to ineligible voter when they attempt to cast a vote",
+                "default": "You are not eligible to vote in this poll.",
+            },
+        },
+        "required": ["title", "poll_type", "channel"],
+    }
 
     class Meta:
         proxy = True
@@ -222,11 +255,7 @@ class DiscordVote(GovernanceProcess):
         if options is None:
             raise PluginErrorInternal("Options are required for non-boolean votes")
 
-        # maybe_channel = parameters.channel
-        # maybe_users = parameters.eligible_voters
-        # if maybe_channel is None and (maybe_users is None or len(maybe_users) == 0):
-        #     raise PluginErrorInternal("eligible_voters or channel are required")
-
+        self.state.set("parameters", parameters._json)
         self.state.set("poll_type", poll_type)
         self.state.set("options", options)
         self.outcome = {
@@ -235,11 +264,14 @@ class DiscordVote(GovernanceProcess):
 
         components = self._construct_blocks()
         logger.debug(components)
-        resp = self.plugin_inst.post_message(text=parameters.title, components=components, channel=parameters.channel)
+        content = f"{parameters.title}\n{parameters.details}"
+        resp = self.plugin_inst.post_message(text=content, components=components, channel=parameters.channel)
         logger.debug(resp)
-        # self.outcome["url"] = permalink_resp["permalink"]
-        # self.outcome["channel"] = channel
-        self.outcome["message_id"] = resp["id"]
+
+        message_id = resp["id"]
+        guild_id = self.plugin.community_platform_id
+        self.outcome["message_id"] = message_id
+        self.outcome["url"] = f"https://discord.com/channels/{guild_id}/{parameters.channel}/{message_id}"
         self.status = ProcessStatus.PENDING.value
         self.save()
 
@@ -294,6 +326,12 @@ class DiscordVote(GovernanceProcess):
         user_id = json_data["member"]["user"]["id"]
         username = json_data["member"]["user"]["username"]
 
+        # If user is not eligible to vote, don't cast vote & show an ephemeral message
+        if not self._is_eligible_voter(user_id):
+            logger.debug(f"Ignoring vote from ineligible voter {user_id}")
+            message = self.state.get("parameters").get("ineligible_voter_message")
+            return {"type": 4, "data": {"content": message, "flags": 1 << 6}}
+
         logger.debug(f"> {username} casting vote for {selected_option}")
         self._cast_vote(user_id, selected_option)
 
@@ -303,6 +341,15 @@ class DiscordVote(GovernanceProcess):
             "type": 7,  # UPDATE_MESSAGE
             "data": {"contents": json_data["message"]["content"], "components": blocks},
         }
+
+    def _is_eligible_voter(self, user):
+        eligible_voters = self.state.get("parameters").get("eligible_voters")
+        if eligible_voters and user not in eligible_voters:
+            return False
+        ineligible_voters = self.state.get("parameters").get("ineligible_voters")
+        if ineligible_voters and user in ineligible_voters:
+            return False
+        return True
 
     def _cast_vote(self, user: str, value: str):
         if not self.outcome["votes"].get(value):
