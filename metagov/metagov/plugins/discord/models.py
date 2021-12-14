@@ -264,7 +264,7 @@ class DiscordVote(GovernanceProcess):
             num = votes[opt]["count"]
             option_text = f"{option_text}   ({num})"
             if num > 0:
-                users = [f"@{id}" for id in votes[opt]["users"]]
+                users = [f"<@{id}>" for id in votes[opt]["users"]]
                 users = ", ".join(users)
                 option_text = f"{option_text} ({users})"
 
@@ -294,7 +294,8 @@ class DiscordVote(GovernanceProcess):
         user_id = json_data["member"]["user"]["id"]
         username = json_data["member"]["user"]["username"]
 
-        self._cast_vote(username, selected_option)
+        logger.debug(f"> {username} casting vote for {selected_option}")
+        self._cast_vote(user_id, selected_option)
 
         # Respond with updated message, to show votes cast
         blocks = self._construct_blocks()
@@ -310,7 +311,6 @@ class DiscordVote(GovernanceProcess):
             return False
 
         # Update vote count for selected value
-        logger.debug(f"> {user} cast vote for {value}")
         self.outcome["votes"][value]["users"].append(user)
         self.outcome["votes"][value]["count"] = len(self.outcome["votes"][value]["users"])
 
