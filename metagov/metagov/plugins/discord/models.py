@@ -101,7 +101,7 @@ class Discord(Plugin):
 
         # Respond to the interaction
         # See: https://discord.com/developers/docs/interactions/receiving-and-responding#responding-to-an-interaction
-        return {"type": 4, "data": {"content": "message received!", "flags": {"ephemeral": 1}}}
+        return {"type": 4, "data": {"content": "message received!", "flags": 1 << 6 }}
 
     def _make_discord_request(self, route, method="GET", json=None):
         if not route.startswith("/"):
