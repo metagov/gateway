@@ -32,11 +32,89 @@ class Discord(Plugin):
         proxy = True
 
     def initialize(self):
-        logger.debug(f"init discord {self.config}")
+        logger.debug(f"Initializing Discord with config: {self.config}")
 
     #     guild_id = self.config["guild_id"]
     #     guild = self._make_discord_request(f"/guilds/{guild_id}")
     #     self.state.set("guild_data", guild)
+
+    def receive_event(self, request):
+        """
+        Process slash commands
+        https://discord.com/developers/docs/interactions/application-commands#registering-a-command
+
+        Example payload for message "/policykit command: 'hello world'"
+
+            {'application_id': '0000000',
+            'channel_id': '0000000',
+            'data': {'id': '0000000',
+            'name': 'policykit',
+            'options': [
+                {'name': 'command', 'type': 3, 'value': 'hello world'}
+            ],
+            'type': 1},
+            'guild_id': '0000000',
+            'id': '0000000',
+            'member': {
+                'avatar': None,
+                'communication_disabled_until': None,
+                'deaf': False,
+                'is_pending': False,
+                'joined_at': '2020-11-25T18:41:50.890000+00:00',
+                'mute': False,
+                'nick': None,
+                'pending': False,
+                'permissions': '0000000',
+                'premium_since': None,
+                'roles': [],
+                'user': {'avatar': None,
+                'discriminator': '0000000',
+                'id': '0000000',
+                'public_flags': 0,
+                'username': 'miri'}
+            },
+            'token': 'REDACTED',
+            'type': 2,
+            'version': 1}
+        """
+        interaction_object = json.loads(request.body)
+        if interaction_object["type"] != 2:
+            # ignore it if its not a slash command
+            return None
+
+        command = interaction_object["data"]["name"]
+        user_id = interaction_object["member"]["user"]["id"]
+        username = interaction_object["member"]["user"]["username"]
+        logger.debug(f"Received slash command '{command}' from {username}")
+
+        initiator = {"user_id": user_id, "provider": "discord", "is_metagov_bot": False}
+
+        # Send the whole interaction object to the driver
+        self.send_event_to_driver(event_type="slash_command", initiator=initiator, data=interaction_object)
+
+        # Respond to the interaction
+        # See: https://discord.com/developers/docs/interactions/receiving-and-responding#responding-to-an-interaction
+        return {"type": 4, "data": {"content": "message received!", "flags": {"ephemeral": 1}}}
+
+    def _make_discord_request(self, route, method="GET", json=None):
+        if not route.startswith("/"):
+            route = f"/{route}"
+
+        resp = requests.request(
+            method,
+            f"https://discord.com/api{route}",
+            headers={"Authorization": f"Bot {DISCORD_BOT_TOKEN}"},
+            json=json,
+        )
+
+        if not resp.ok:
+            logger.error(f"{resp.status_code} {resp.reason}")
+            logger.debug(resp.request.headers)
+            logger.debug(resp.request.url)
+            raise PluginErrorInternal(resp.text)
+        if resp.content:
+            return resp.json()
+        return None
 
     @Registry.action(
         slug="register-guild-command",
@@ -72,43 +150,6 @@ class Discord(Plugin):
         response = self._make_discord_request(route=route, method="POST", json=json)
         logger.debug(response)
         return response
-
-    def receive_event(self, request):
-        json_data = json.loads(request.body)
-        # Process slash commands
-        # https://discord.com/developers/docs/interactions/application-commands#registering-a-command
-        logger.debug(json_data)
-
-        slash_commands = []
-        if not json_data.get("data").get("name") in slash_commands:
-            return
-
-        command = json_data["data"]["options"][0]["value"]
-        user_id = json_data["member"]["user"]["id"]
-        username = json_data["member"]["user"]["username"]
-        logger.debug(f"Metagov command: {command} from {username}")
-        # self.send_event_to_driver(event_type=name, initiator=initiator, data=json_data)
-        return {"type": 4, "data": {"content": "message received!", "flages": {"ephemeral": 1}}}
-
-    def _make_discord_request(self, route, method="GET", json=None):
-        if not route.startswith("/"):
-            route = f"/{route}"
-
-        resp = requests.request(
-            method,
-            f"https://discord.com/api{route}",
-            headers={"Authorization": f"Bot {DISCORD_BOT_TOKEN}"},
-            json=json,
-        )
-
-        if not resp.ok:
-            logger.error(f"{resp.status_code} {resp.reason}")
-            logger.debug(resp.request.headers)
-            logger.debug(resp.request.url)
-            raise PluginErrorInternal(resp.text)
-        if resp.content:
-            return resp.json()
-        return None
 
     @Registry.action(
         slug="method",

@@ -53,34 +53,46 @@ class DiscordRequestHandler(PluginRequestHandler):
         """
         Handler for processing interaction events from Discord.
         https://discord.com/developers/docs/interactions/receiving-and-responding
-        """
-        logger.debug(f"received discord request")
-        
 
+
+        The request body is an Interaction object: https://discord.com/developers/docs/interactions/receiving-and-responding#interaction-object
+        """
         json_data = json.loads(request.body)
-        logger.debug(json_data)
+        logger.debug(f"received discord request: {json_data}")
 
         validate_discord_interaction(request)
+
+        if json_data["application_id"] != DISCORD_CLIENT_ID:
+            raise PluginErrorInternal("Received event with wrong application ID")
 
         if json_data["type"] == 1:
             # PING response
             return JsonResponse({"type": 1})
 
-        if json_data["type"] in [2, 3]:
-            # 2 = APPLICATION_COMMAND
-            # 3 = MESSAGE_COMPONENT
-            guild_id = json_data["guild_id"]
-            for plugin in Discord.objects.filter(community_platform_id=str(guild_id)):
-                logger.info(f"Passing event to {plugin}")
+        community_platform_id = str(json_data.get("guild_id"))
+
+        # Process type 2, APPLICATION_COMMAND (a user sending a slash command)
+        if json_data["type"] == 2:
+            # Pass the interaction event to the Plugin for the Guild it occured in
+            for plugin in Discord.objects.filter(community_platform_id=community_platform_id):
+                logger.info(f"Passing interaction request to {plugin}")
                 response_data = plugin.receive_event(request)
                 if response_data:
                     return JsonResponse(response_data)
-                active_processes = DiscordVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
-                for process in active_processes:
-                    logger.info(f"Discord Slack interaction to {process}")
-                    response_data = process.receive_webhook(request)
-                    if response_data:
-                        return JsonResponse(response_data)
+
+        # Process type 3, MESSAGE_COMPONENT (a user interacting with an interactive message component that was posted by the bot. for example, clicking a voting button.)
+        if json_data["type"] == 3:
+            # Pass the interaction event to all active governance processes in this guild
+            # TODO: maybe should pass message components to Plugins too, in case bots are posting interactive messages
+            active_processes = DiscordVote.objects.filter(
+                plugin__community_platform_id=community_platform_id, status=ProcessStatus.PENDING.value
+            )
+            for process in active_processes:
+                logger.info(f"Passing interaction request to {process}")
+                response_data = process.receive_webhook(request)
+                if response_data:
+                    return JsonResponse(response_data)
+
         return HttpResponse()
 
     def construct_oauth_authorize_url(self, type: str, community=None):
