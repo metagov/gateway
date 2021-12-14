@@ -262,10 +262,9 @@ class DiscordVote(GovernanceProcess):
             "votes": dict([(k, {"users": [], "count": 0}) for k in options]),
         }
 
+        contents = self._construct_contents()
         components = self._construct_blocks()
-        logger.debug(components)
-        content = f"{parameters.title}\n{parameters.details}"
-        resp = self.plugin_inst.post_message(text=content, components=components, channel=parameters.channel)
+        resp = self.plugin_inst.post_message(text=contents, components=components, channel=parameters.channel)
         logger.debug(resp)
 
         message_id = resp["id"]
@@ -275,22 +274,26 @@ class DiscordVote(GovernanceProcess):
         self.status = ProcessStatus.PENDING.value
         self.save()
 
-    def _construct_blocks(self, hide_buttons=False):
+    def _construct_contents(self) -> str:
         """
-        Construct voting message blocks
+        Construct text content of the vote message, which includes vote counts and usernames of voters
         """
+        parameters = self.state.get("parameters")
+
+        content = f"\n{parameters.get('title')}"
+        if parameters.get("details"):
+            content += f"\n{parameters.get('details')}\n"
+
         poll_type = self.state.get("poll_type")
         options = self.state.get("options")
         votes = self.outcome["votes"]
 
-        blocks = []
+        option_text_list = []
         for idx, opt in enumerate(options):
             if poll_type == "boolean":
                 option_text = f"Approve" if opt == Bool.YES else "Reject"
-                button_emoji = "👍" if opt == Bool.YES else "👎"
             else:
                 option_text = opt
-                button_emoji = None
 
             # show vote count and user list next to each vote option
             num = votes[opt]["count"]
@@ -299,6 +302,35 @@ class DiscordVote(GovernanceProcess):
                 users = [f"<@{id}>" for id in votes[opt]["users"]]
                 users = ", ".join(users)
                 option_text = f"{option_text} ({users})"
+            option_text_list.append(option_text)
+
+        content += "\n".join(option_text_list)
+        return content
+
+    def _construct_blocks(self, hide_buttons=False):
+        """
+        Construct voting message blocks
+        """
+        poll_type = self.state.get("poll_type")
+        options = self.state.get("options")
+        # votes = self.outcome["votes"]
+
+        blocks = []
+        for idx, opt in enumerate(options):
+            if poll_type == "boolean":
+                option_text = ""
+                button_emoji = "👍" if opt == Bool.YES else "👎"
+            else:
+                option_text = opt
+                button_emoji = None
+
+            # show vote count and user list next to each vote option
+            # num = votes[opt]["count"]
+            # option_text = f"{option_text}   ({num})"
+            # if num > 0:
+            #     users = [f"<@{id}>" for id in votes[opt]["users"]]
+            #     users = ", ".join(users)
+            #     option_text = f"{option_text} ({users})"
 
             button = {
                 "type": Type.BUTTON,
@@ -336,10 +368,11 @@ class DiscordVote(GovernanceProcess):
         self._cast_vote(user_id, selected_option)
 
         # Respond with updated message, to show votes cast
+        contents = self._construct_contents()
         blocks = self._construct_blocks()
         return {
             "type": 7,  # UPDATE_MESSAGE
-            "data": {"contents": json_data["message"]["content"], "components": blocks},
+            "data": {"contents": contents, "components": blocks},
         }
 
     def _is_eligible_voter(self, user):
