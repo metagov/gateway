@@ -13,6 +13,8 @@ discord_settings = settings.METAGOV_SETTINGS["DISCORD"]
 DISCORD_BOT_TOKEN = discord_settings["BOT_TOKEN"]
 CLIENT_ID = discord_settings["CLIENT_ID"]
 
+SLASH_COMMAND_EVENT_TYPE = "slash_command"
+
 
 @Registry.plugin
 class Discord(Plugin):
@@ -40,19 +42,20 @@ class Discord(Plugin):
 
     def receive_event(self, request):
         """
-        Process slash commands
-        https://discord.com/developers/docs/interactions/application-commands#registering-a-command
+        Receive interaction request from Discord for this guild. Only supports slash commands for now.
 
         Example payload for message "/policykit command: 'hello world'"
 
             {'application_id': '0000000',
             'channel_id': '0000000',
-            'data': {'id': '0000000',
-            'name': 'policykit',
-            'options': [
-                {'name': 'command', 'type': 3, 'value': 'hello world'}
-            ],
-            'type': 1},
+            'data': {
+                'id': '0000000',
+                'name': 'policykit',
+                'options': [
+                    {'name': 'command', 'type': 3, 'value': 'hello world'}
+                ],
+                'type': 1
+            },
             'guild_id': '0000000',
             'id': '0000000',
             'member': {
@@ -79,7 +82,11 @@ class Discord(Plugin):
         """
         interaction_object = json.loads(request.body)
         if interaction_object["type"] != 2:
+            # ignore it if its not an application command
+            return None
+        if interaction_object["data"]["type"] != 1:
             # ignore it if its not a slash command
+            # https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-types
             return None
 
         command = interaction_object["data"]["name"]
@@ -90,7 +97,7 @@ class Discord(Plugin):
         initiator = {"user_id": user_id, "provider": "discord", "is_metagov_bot": False}
 
         # Send the whole interaction object to the driver
-        self.send_event_to_driver(event_type="slash_command", initiator=initiator, data=interaction_object)
+        self.send_event_to_driver(event_type=SLASH_COMMAND_EVENT_TYPE, initiator=initiator, data=interaction_object)
 
         # Respond to the interaction
         # See: https://discord.com/developers/docs/interactions/receiving-and-responding#responding-to-an-interaction
