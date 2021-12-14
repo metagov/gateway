@@ -224,7 +224,7 @@ class DiscordVote(GovernanceProcess):
             "details": {"type": "string"},
             "poll_type": {"type": "string", "enum": ["boolean", "choice"]},
             "channel": {
-                "type": "string",
+                "type": "integer",
                 "description": "channel to post the vote in",
             },
             "eligible_voters": {
