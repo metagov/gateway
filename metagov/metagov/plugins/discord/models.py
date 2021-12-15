@@ -282,9 +282,9 @@ class DiscordVote(GovernanceProcess):
         """
         parameters = self.state.get("parameters")
 
-        content = f"\n**{parameters.get('title')}**\n\n"
+        content = f"\n\n**{parameters.get('title')}**\n\n"
         if parameters.get("details"):
-            content += f"\n{parameters.get('details')}\n\n"
+            content += f"{parameters.get('details')}\n\n"
 
         poll_type = self.state.get("poll_type")
         options = self.state.get("options")
@@ -307,7 +307,6 @@ class DiscordVote(GovernanceProcess):
             option_text_list.append(option_text)
 
         content += "\n\n".join(option_text_list)
-        logger.debug(content)
         return content
 
     def _construct_blocks(self, hide_buttons=False):
