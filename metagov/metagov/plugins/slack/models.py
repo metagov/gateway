@@ -1,8 +1,5 @@
 import json
 import logging
-import random
-
-from django.db.models.fields import TextField
 
 from rest_framework.exceptions import ValidationError
 from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
@@ -291,7 +288,7 @@ class SlackEmojiVote(GovernanceProcess):
                 selected_option = a["value"]
                 user = payload["user"]["id"]
 
-                # If user is not eligible to vote, don't case vote & show a message
+                # If user is not eligible to vote, don't cast vote & show a message
                 if not self._is_eligible_voter(user):
                     message = self.state.get("parameters").get("ineligible_voter_message")
                     logger.debug(f"Ignoring vote from ineligible voter {user}")
@@ -307,7 +304,7 @@ class SlackEmojiVote(GovernanceProcess):
         blocks = json.dumps(blocks)
         requests.post(response_url, json={"replace_original": "true", "blocks": blocks})
 
-    def _cast_vote(self, user, value):
+    def _cast_vote(self, user: str, value: str):
         if not self.outcome["votes"].get(value):
             return False
         if user in self.outcome["votes"][value]["users"]:

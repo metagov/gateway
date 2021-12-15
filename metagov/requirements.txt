@@ -11,6 +11,7 @@ billiard==3.6.4.0
 black==20.8b1
 celery==5.0.5
 certifi==2020.12.5
+cffi==1.15.0
 chardet==4.0.0
 click==7.1.2
 click-didyoumean==0.0.3
@@ -56,8 +57,10 @@ pexpect==4.8.0
 pickleshare==0.7.5
 prompt-toolkit==3.0.18
 ptyprocess==0.7.0
+pycparser==2.20
 Pygments==2.8.1
 PyJWT==2.1.0
+PyNaCl==1.4.0
 pyparsing==2.4.7
 pyrsistent==0.17.3
 PySocks==1.7.1

@@ -99,6 +99,13 @@ METAGOV_SETTINGS = {
         "API_SECRET_KEY": env("TWITTER_API_SECRET_KEY", default=default_val),
         "ACCESS_TOKEN": env("TWITTER_ACCESS_TOKEN", default=default_val),
         "ACCESS_TOKEN_SECRET": env("TWITTER_ACCESS_TOKEN_SECRET", default=default_val),
+    },
+    "DISCORD": {
+        "CLIENT_ID": env("DISCORD_CLIENT_ID", default=default_val),
+        "CLIENT_SECRET": env("DISCORD_CLIENT_SECRET", default=default_val),
+        "BOT_TOKEN": env("DISCORD_BOT_TOKEN", default=default_val),
+        "PUBLIC_KEY": env("DISCORD_PUBLIC_KEY", default=default_val),
+        "PERMISSIONS": env("DISCORD_PERMISSIONS", default=397821540358),
     }
 }
 

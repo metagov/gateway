@@ -190,11 +190,6 @@ Metagov uses `Celery <https://docs.celeryproject.org/en/stable/index.html>`_ to 
 Follow these instructions to run a celery daemon on your Ubuntu machine using ``systemd``.
 For more information about configuration options, see the `Celery Daemonization <https://docs.celeryproject.org/en/stable/userguide/daemonizing.html>`_.
 
-.. note::
-
-    Using PolicyKit with Metagov? These configuration files are designed specifically to work with the setup where PolicyKit and Metagov are deployed together.
-    PolicyKit and Metagov will use separate celery daemons that use separate RabbitMQ virtual hosts, configured using ``CELERY_BROKER_URL``.
-
 
 Create RabbitMQ virtual host
 """"""""""""""""""""""""""""
@@ -397,6 +392,20 @@ needs to create a new Slack App and store its credentials on the server where Me
 4. Click “Manage Distribution”->”Activate Public Distribution.” This step is necessary if you want your app to be installable to multiple Slack workspaces.
 5. In your Django app's ``settings.py`` file, fill in the Slack values in ``METAGOV_SETTINGS`` with the App ID, Client ID, Client Secret, and Signing Secret.
 6. In the Slack app management page, verify the URLs for the OAuth callback, the Events Subscription Request URL, and the Interactivity Request URL.
+
+Discord
+"""""""
+1. Go to https://discord.com/developers/applications
+2. Click "New Application"
+3. Under OAuth2, add the redirect URL ``[SERVER_URL]/auth/discord/callback``
+4. Add a new Bot and enable these options:
+
+    - Public Bot
+    - Requires OAuth2 Code Grant
+    - Presence Intent
+    - Server Members Intent
+
+5. In your Django app's ``settings.py`` file, fill in the Discord values in ``METAGOV_SETTINGS`` with the bot token, client ID, client secret, and public key.
 
 Twitter
 """""""
