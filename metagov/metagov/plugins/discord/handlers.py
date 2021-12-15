@@ -21,6 +21,7 @@ discord_settings = settings.METAGOV_SETTINGS["DISCORD"]
 DISCORD_CLIENT_ID = discord_settings["CLIENT_ID"]
 DISCORD_CLIENT_SECRET = discord_settings["CLIENT_SECRET"]
 DISCORD_PUBLIC_KEY = discord_settings["PUBLIC_KEY"]
+DISCORD_PERMISSIONS = discord_settings["PERMISSIONS"]
 
 # whether to require the installer to be an admin, and request user scopes for the installing user
 # if true, the installer's access token will be passed back after installation
@@ -101,7 +102,7 @@ class DiscordRequestHandler(PluginRequestHandler):
 
         scopes_and_permissions = ""
         if type == AuthorizationType.APP_INSTALL:
-            scopes_and_permissions = "scope=applications.commands%20bot%20identify%20guilds&permissions=8589934591"
+            scopes_and_permissions = "scope=applications.commands%20bot%20identify%20guilds&permissions={DISCORD_PERMISSIONS}"
         elif type == AuthorizationType.USER_LOGIN:
             scopes_and_permissions = "scope=identify"
 
