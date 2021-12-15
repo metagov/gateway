@@ -101,7 +101,9 @@ class Discord(Plugin):
 
         # Respond to the interaction
         # See: https://discord.com/developers/docs/interactions/receiving-and-responding#responding-to-an-interaction
-        return {"type": 4, "data": {"content": "message received!", "flags": 1 << 6}}
+
+        # return {"type": 5}  # ACK an interaction and edit a response later, the user sees a loading state
+        return {"type": 4, "data": {"content": "Message received!", "flags": 1 << 6}}
 
     def _make_discord_request(self, route, method="GET", json=None):
         if not route.startswith("/"):
@@ -193,6 +195,45 @@ class Discord(Plugin):
     def post_message(self, text, channel, **kwargs):
         kwargs["content"] = text
         return self._make_discord_request(f"/channels/{channel}/messages", "POST", json=kwargs)
+
+    @Registry.action(
+        slug="interaction-message",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "interaction_token": {"type": "string"},
+                "edit_original": {"type": "boolean", "description": "whether to edit the original message"},
+                "delete_original": {"type": "boolean", "description": "whether to delete the original message"},
+                "message_id": {
+                    "type": "number",
+                    "description": "if provided, update this message id. must be a message that was sent with the interaction token.",
+                },
+            },
+            "required": ["interaction_token"],
+        },
+        description="Respond to an interaction. Requires an interaction token, which is only valid for 15 minutes after the interaction.",
+    )
+    def interaction_message(
+        self, interaction_token, delete_original=False, edit_original=False, message_id=None, **kwargs
+    ):
+        """
+        Respond to an interaction. Requires an interaction token, which is only valid for 15 minutes after the interaction.
+
+        See: https://discord.com/developers/docs/interactions/receiving-and-responding#followup-messages
+        """
+        url = f"/webhooks/{CLIENT_ID}/{interaction_token}"
+        method = "POST"
+        if edit_original:
+            url += "/messages/@original"
+            method = "PATCH"
+        elif message_id:
+            url += f"/messages/{message_id}"
+            method = "PATCH"
+        elif delete_original:
+            url += "/messages/@original"
+            method = "DELETE"
+
+        return self._make_discord_request(url, method, json=kwargs if kwargs else None)
 
 
 VOTE_ACTION_ID = "cast_vote"
