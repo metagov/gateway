@@ -10,6 +10,7 @@ from metagov.core.models import ProcessStatus
 from metagov.plugins.discord.models import Discord, DiscordVote
 from requests.models import PreparedRequest
 from metagov.core.handlers import PluginRequestHandler
+from metagov.core.models import LinkQuality, LinkType, ProcessStatus
 
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
@@ -22,11 +23,6 @@ DISCORD_CLIENT_ID = discord_settings["CLIENT_ID"]
 DISCORD_CLIENT_SECRET = discord_settings["CLIENT_SECRET"]
 DISCORD_PUBLIC_KEY = discord_settings["PUBLIC_KEY"]
 DISCORD_PERMISSIONS = discord_settings["PERMISSIONS"]
-
-# whether to require the installer to be an admin, and request user scopes for the installing user
-# if true, the installer's access token will be passed back after installation
-# TODO: let driver choose dynamically, or make this a real config somewhere
-REQUIRE_INSTALLER_TO_BE_ADMIN = True
 
 
 class NonAdminInstallError(PluginAuthError):
@@ -102,7 +98,9 @@ class DiscordRequestHandler(PluginRequestHandler):
 
         scopes_and_permissions = ""
         if type == AuthorizationType.APP_INSTALL:
-            scopes_and_permissions = "scope=applications.commands%20bot%20identify%20guilds&permissions={DISCORD_PERMISSIONS}"
+            scopes_and_permissions = (
+                "scope=applications.commands%20bot%20identify%20guilds&permissions={DISCORD_PERMISSIONS}"
+            )
         elif type == AuthorizationType.USER_LOGIN:
             scopes_and_permissions = "scope=identify"
 
@@ -150,14 +148,10 @@ class DiscordRequestHandler(PluginRequestHandler):
             raise PluginAuthError(detail="Error getting user info for installing user")
         current_user = resp.json()
 
-        # TODO: create MetagovId
-        # current_user_id = current_user["id"]
-        # current_user_username = current_user["username"]
-
         if type == AuthorizationType.APP_INSTALL:
             guild_id = response["guild"]["id"]
+
             # Check if there are any existing Discord Plugin instances for this Discord team
-            # TODO: pull some of this logic into core. Each plugin has its own version of "team_id" that may need to be unique.
             community_platform_id = str(guild_id)
             existing_plugin_to_reinstall = Discord.objects.filter(community_platform_id=community_platform_id).first()
             if existing_plugin_to_reinstall:
@@ -183,12 +177,6 @@ class DiscordRequestHandler(PluginRequestHandler):
             # Configuration for the new Discord Plugin to create
             plugin_config = {"guild_id": guild_id, "guild_name": response["guild"]["name"]}
 
-            if REQUIRE_INSTALLER_TO_BE_ADMIN:
-                # TODO call auth.revoke if anything fails, to uninstall the bot and delete the bot token
-
-                if response["guild"]["owner_id"] != current_user["id"]:
-                    raise NonAdminInstallError
-
             if existing_plugin_to_reinstall:
                 logger.info(
                     f"Deleting existing Discord plugin found for requested community {existing_plugin_to_reinstall}"
@@ -205,9 +193,9 @@ class DiscordRequestHandler(PluginRequestHandler):
                 # Metagov community that has the Discord plugin enabled
                 "community": community.slug,
                 # Discord User ID for installer
-                "user_id": current_user["id"] if REQUIRE_INSTALLER_TO_BE_ADMIN else None,
+                "user_id": current_user["id"],
                 # Discord User Token for installer
-                "user_token": response["access_token"] if REQUIRE_INSTALLER_TO_BE_ADMIN else None,
+                "user_token": response["access_token"],
                 # (Optional) State that was originally passed from Driver, so it can validate it
                 "state": state,
                 # Guild that the user installed PolicyKit to
@@ -232,11 +220,23 @@ class DiscordRequestHandler(PluginRequestHandler):
                 for inst in Discord.objects.all():
                     if str(inst.config["guild_id"]) == str(guild["id"]):
                         guild_id_name = f"{guild['id']}:{guild['name']}"
-                        logger.debug(f">>>keeping {guild_id_name}")
                         integrated_guilds.append(guild_id_name)
+
+                        # TODO: add this back and test it. Where is 'external_id' coming from?
+                        # logger.debug(f"adding/updating linked account for {current_user['username']}")
+                        # result = inst.add_linked_account(
+                        #     platform_identifier=current_user["id"],
+                        #     external_id=external_id,
+                        #     link_type=LinkType.OAUTH.value,
+                        #     link_quality=LinkQuality.STRONG_CONFIRM.value,
+                        # )
 
             if not integrated_guilds:
                 raise PluginNotInstalledError
+
+            logger.debug(
+                f"User {current_user['username']} is connected to {len(integrated_guilds)} Metagov-integrated guilds: {integrated_guilds}"
+            )
 
             # Add some params to redirect
             params = {
