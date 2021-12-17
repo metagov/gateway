@@ -11,10 +11,6 @@ TEST = 'test' in sys.argv
 
 logger = logging.getLogger(__name__)
 
-APP_ID = github_settings["APP_ID"]
-
-
-
 
 def get_private_key(community):
     PRIVATE_KEY_PATH = get_configuration("GITHUB_PRIVATE_KEY_PATH", community=community)
@@ -31,7 +27,7 @@ def get_jwt(community):
 
     payload = {
         # GitHub App's identifier
-        "iss": get_configuration("GITHUB_PRIVATE_KEY_PATH", community=community),
+        "iss": get_configuration("GITHUB_APP_ID, community=community),
         # issued at time, 60 seconds in the past to allow for clock drift
         "iat": int(datetime.datetime.now().timestamp()) - 60,
         # JWT expiration time (10 minute maximum)
