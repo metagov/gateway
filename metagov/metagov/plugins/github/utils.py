@@ -1,8 +1,9 @@
 """ Authentication """
 
 import jwt, datetime, logging, requests
-from django.conf import settings
+
 from metagov.core.errors import PluginErrorInternal
+from metagov.core.utils import get_configuration
 
 import sys
 
@@ -10,12 +11,13 @@ TEST = 'test' in sys.argv
 
 logger = logging.getLogger(__name__)
 
-github_settings = settings.METAGOV_SETTINGS["GITHUB"]
-PRIVATE_KEY_PATH = github_settings["PRIVATE_KEY_PATH"]
 APP_ID = github_settings["APP_ID"]
 
 
-def get_private_key():
+
+
+def get_private_key(community):
+    PRIVATE_KEY_PATH = get_configuration("GITHUB_PRIVATE_KEY_PATH", community=community)
     with open(PRIVATE_KEY_PATH) as f:
         lines = f.readlines()
     if len(lines) == 1:
@@ -24,25 +26,25 @@ def get_private_key():
         return "".join(lines)
 
 
-def get_jwt():
+def get_jwt(community):
     if TEST: return ""
 
     payload = {
         # GitHub App's identifier
-        "iss": APP_ID,
+        "iss": get_configuration("GITHUB_PRIVATE_KEY_PATH", community=community),
         # issued at time, 60 seconds in the past to allow for clock drift
         "iat": int(datetime.datetime.now().timestamp()) - 60,
         # JWT expiration time (10 minute maximum)
         "exp": int(datetime.datetime.now().timestamp()) + (9 * 60)
     }
-    return jwt.encode(payload, get_private_key(), algorithm="RS256")
+    return jwt.encode(payload, get_private_key(community), algorithm="RS256")
 
 
-def get_access_token(installation_id):
+def get_access_token(installation_id, community=community):
     """Get installation access token using installation id"""
     headers = {
         "Accept": "application/vnd.github.v3+json",
-        "Authorization": f"Bearer {get_jwt()}"
+        "Authorization": f"Bearer {get_jwt(community)}"
     }
     url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
     resp = requests.request("POST", url, headers=headers)
