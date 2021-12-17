@@ -144,6 +144,26 @@ def get_plugin_instance(plugin_name, community, community_platform_id=None):
         )
 
 
+def get_configuration(config_name, **kwargs):
+
+    # if multi driver functionality is on, use httpwrapper's version of get_configuration
+    from django.conf import settings
+    if hasattr(settings, "MULTI_DRIVER") and settings.MULTI_DRIVER:
+        from metagov.httpwrapper.utils import get_configuration as multidriver_get_configuration
+        return multidriver_get_configuration(config_name, **kwargs)
+
+    # otherwise just get from environment
+    from metagov.settings import TESTING
+    default_val = TESTING if TESTING else None
+
+    return env(config_name, default=default_val)
+
+
+def set_configuration(config_name, config_value, **kwargs):
+    # TODO: implement this as a helper method for single-driver apps
+    pass
+
+
 # def jsonschema_to_parameters(schema):
 #     #arg_dict["manual_parameters"].extend(jsonschema_to_parameters(meta.input_schema
 #     schema = convert(schema)
