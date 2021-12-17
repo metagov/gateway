@@ -161,8 +161,8 @@ class GithubIssueReactVote(GovernanceProcess):
         self.state.set("issue_number", issue["number"])
         self.state.set("bot_id", issue["user"]["id"])
         self.status = ProcessStatus.PENDING.value
+        self.url = f"https://github.com/{self.plugin_inst.config['owner']}/{parameters.repo_name}/issues/{issue['number']}"
         self.outcome = {
-            "vote_url": f"https://github.com/{self.plugin_inst.config['owner']}/{parameters.repo_name}/issues/{issue['number']}",
             "issue_number": issue["number"],
             "votes": {self.YES: 0, self.NO: 0}
         }

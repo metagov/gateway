@@ -130,19 +130,18 @@ class LoomioPoll(GovernanceProcess):
             raise PluginErrorInternal(str(errors))
 
         poll_key = response.get("polls")[0].get("key")
-        poll_url = f"https://www.loomio.org/p/{poll_key}"
+        self.url = f"https://www.loomio.org/p/{poll_key}"
         self.state.set("poll_key", poll_key)
-        self.outcome = {"poll_url": poll_url}
+        self.outcome = {}
         self.status = ProcessStatus.PENDING.value
         self.save()
 
     def receive_webhook(self, request):
         poll_key = self.state.get("poll_key")
-        poll_url = self.outcome.get("poll_url")
 
         body = json.loads(request.body)
         url = body.get("url")
-        if url is None or not url.startswith(poll_url):
+        if url is None or not url.startswith(self.url):
             return
         kind = body.get("kind")
         logger.info(f"Processing event '{kind}' for poll {url}")

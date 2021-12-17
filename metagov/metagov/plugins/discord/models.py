@@ -272,7 +272,7 @@ class DiscordVote(GovernanceProcess):
         message_id = resp["id"]
         guild_id = self.plugin.community_platform_id
         self.outcome["message_id"] = message_id
-        self.outcome["url"] = f"https://discord.com/channels/{guild_id}/{parameters.channel}/{message_id}"
+        self.url = f"https://discord.com/channels/{guild_id}/{parameters.channel}/{message_id}"
         self.status = ProcessStatus.PENDING.value
         self.save()
 
