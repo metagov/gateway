@@ -6,6 +6,8 @@ alongside your existing governance engine.
 
 You can also look at the `"Minimal Driver" Express App <https://github.com/metagov/example-driver>`_ for an example of a single-community Driver. (Warning! Example Driver may be out-of-sync with latest Metagov APIs. Copy-paste with caution.)
 
+This tutorial assumes you are writing an **HTTP Driver**. A tutorial for Django Drivers is forthcoming.
+
 Set up
 ------
 
