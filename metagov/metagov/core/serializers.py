@@ -82,7 +82,7 @@ class GovernanceProcessSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GovernanceProcess
-        fields = ("id", "name", "community", "status", "errors", "outcome")
+        fields = ("id", "name", "community", "status", "url", "errors", "outcome")
 
     def get_name(self, inst):
         return f"{inst.plugin.name}.{inst.name}"
