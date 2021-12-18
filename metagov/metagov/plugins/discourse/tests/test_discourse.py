@@ -65,7 +65,7 @@ class ApiTests(PluginTestCase):
 
             # status should be pending
             response = self.client.get(location, content_type="application/json")
-            self.assertContains(response, "poll_url")
+            self.assertContains(response, "url")
 
             process = DiscoursePoll.objects.first()
             self.assertEqual(process.status, "pending")
@@ -78,7 +78,7 @@ class ApiTests(PluginTestCase):
 
             # status should still be pending
             response = self.client.get(location, content_type="application/json")
-            self.assertContains(response, "poll_url")
+            self.assertContains(response, "url")
             self.assertContains(response, "pending")
             self.assertContains(response, "25")  # current vote count is included in the response
 
@@ -99,7 +99,7 @@ class ApiTests(PluginTestCase):
 
             # status should be completed
             response = self.client.get(location, content_type="application/json")
-            self.assertContains(response, "poll_url")
+            self.assertContains(response, "url")
             self.assertContains(response, "completed")
             self.assertContains(response, "35")  # current vote count is included in the response
 
@@ -115,6 +115,6 @@ class ApiTests(PluginTestCase):
 
             # status should be completed
             response = self.client.delete(location, content_type="application/json")
-            self.assertContains(response, "poll_url")
+            self.assertContains(response, "url")
             self.assertContains(response, "completed")
             self.assertContains(response, "35")  # vote count from the toggle response is the final outcome

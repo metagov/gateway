@@ -315,7 +315,7 @@ class GovernanceProcess(models.Model):
     """Represents an instance of a governance process."""
 
     name = models.CharField(max_length=30)
-    # url = models.CharField(max_length=100, null=True, blank=True, help_text="URL of the vote or process")
+    url = models.CharField(max_length=150, null=True, blank=True, help_text="URL of the vote or process")
     callback_url = models.CharField(
         max_length=100, null=True, blank=True, help_text="Callback URL to notify when the process is updated"
     )

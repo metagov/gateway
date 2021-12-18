@@ -344,15 +344,15 @@ class DiscoursePoll(GovernanceProcess):
             errors = response["errors"]
             raise PluginErrorInternal(str(errors))
 
-        poll_url = self.plugin_inst.construct_post_url(response)
-        logger.info(f"Poll created at {poll_url}")
+        self.url = self.plugin_inst.construct_post_url(response)
+        logger.info(f"Poll created at {self.url}")
         logger.debug(response)
 
         self.state.set("post_id", response.get("id"))
         self.state.set("topic_id", response.get("topic_id"))
         self.state.set("topic_slug", response.get("topic_slug"))
 
-        self.outcome = {"poll_url": poll_url}  # this gets serialized and returned
+        self.outcome = {}
         self.status = ProcessStatus.PENDING.value
         self.save()
 

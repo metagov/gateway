@@ -209,11 +209,13 @@ class OpenCollectiveVote(GovernanceProcess):
         result = self.plugin_inst.create_conversation(
             raw=parameters.details, title=parameters.title, tags="metagov-vote"
         )
-        logger.info(f"Poll created at {result['url']}")
+        self.url = result["url"]
+        logger.info(f"Poll created at {self.url}")
 
         self.state.set("id", result["id"])
         self.state.set("title", result["title"])
-        self.outcome = {"vote_url": result["url"], "votes": {self.YES: 0, self.NO: 0}}
+
+        self.outcome = {"votes": {self.YES: 0, self.NO: 0}}
 
         result = self.plugin_inst.run_query(Queries.conversation, {"id": self.state.get("id")})
         data = result["conversation"]

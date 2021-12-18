@@ -269,7 +269,7 @@ class SlackEmojiVote(GovernanceProcess):
 
         permalink_resp = self.plugin_inst.method(method_name="chat.getPermalink", channel=channel, message_ts=ts)
 
-        self.outcome["url"] = permalink_resp["permalink"]
+        self.url = permalink_resp["permalink"]
         self.outcome["channel"] = channel
         self.outcome["message_ts"] = ts
 
