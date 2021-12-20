@@ -1,13 +1,144 @@
 Installing Metagov
 ==================
 
-This documentation will walk through how to set up Metagov on an Ubuntu server.
-If you want to set up Metagov for local development, follow the instructions at :doc:`Local Development <../development>` instead.
+This documentation will walk through how to set up Metagov to work with a Driver. If you want to set up Metagov for local development, follow the instructions at :doc:`Local Development <../development>` instead.
 
-Metagov needs to be installed on the same server as your governance "Driver":
+There are three ways to work with Metagov:
 
-* If you're using PolicyKit as your Driver, head over to the `PolicyKit Documentation <https://policykit.readthedocs.io/>`_ for instructions on how to install PolicyKit on your server.
-* If you're using Metagov alongside your existing system, just make sure that you're installing Metagov on the same server. This is necessary because Metagov and your system will communicate over the local network.
+1. Import the Django app directly into a Django-based Driver.
+2. Communicate with a hosted version of Metagov via public (authenticated) HTTP endpoints.
+3. Install your own version of Metagov and communicate locally via HTTP.
+
+Instructions for #1 and #3 are written below. We are in the process of launching a hosted version of Metagov (#2). Once that's set up, documentation on how to work with it will be linked here.
+
+Using Metagov with a Django-based Driver
+########################################
+
+If you're using PolicyKit as your Driver, head over to the `PolicyKit Documentation <https://policykit.readthedocs.io/>`_ for instructions on how to install PolicyKit on your server. The following instructions should work for all Django-based Drivers, not just PolicyKit.
+
+Installation & Setup
+^^^^^^^^^^^^^^^^^^^^
+
+Install the most recent version of Metagov directly or by adding it to your project's requirements.txt:
+
+.. code-block:: shell
+
+    pip install -e git+https://github.com/metagov/gateway.git#egg=metagov&subdirectory=metagov
+
+You can then add Metagov to your project's ``settings.py``. Note that you need to install each plugin that you want to use individually:
+
+.. code-block:: python
+
+    INSTALLED_APPS = [
+        ... # existing apps
+        'metagov.plugins.slack',
+        'metagov.plugins.opencollective',
+        'metagov.plugins.github',
+        'metagov.plugins.sourcecred',
+        'metagov.plugins.loomio',
+        'metagov.plugins.discord',
+        'metagov.plugins.discourse',
+        'metagov.plugins.example', #for testing
+        'metagov.core',
+    ]
+
+You should also add a variable named METAGOV_SETTINGS to your ``settings.py``. This is used to configure plugins, for example:
+
+.. code-block:: python
+
+    METAGOV_SETTINGS = {
+        "SLACK": {
+            "CLIENT_ID": env("SLACK_CLIENT_ID", default=None),
+            "CLIENT_SECRET": env("SLACK_CLIENT_SECRET", default=None),
+            "SIGNING_SECRET": env("SLACK_SIGNING_SECRET", default=None),
+            "APP_ID": env("SLACK_APP_ID", default=None),
+        }
+    }
+
+Read more about :ref:`installing and configuring plugins<Plugins>`.
+
+Usage
+^^^^^
+
+Use the Metagov app by importing it from core:
+
+.. code-block:: python
+
+    from metagov.core.app import MetagovApp
+
+    metagov = MetagovApp()
+    community = metagov.get_community("metagov_slug")
+
+    community.enable_plugin(
+        name="opencollective",
+        config={"collective_slug": "mycollective", api_key": "XYZ"}
+    )
+    metagov_community.perform_action(plugin_name="opencollective", action_id="process-expense")
+
+    plugin_instance = community.get_plugin("opencollective")
+    plugin.start_process("vote", title="A test vote on OpenCollective")
+
+Request Handlers
+""""""""""""""""
+
+Metagov allows your Driver to talk to third party platforms through a class called **MetagovRequestHandler**. The handler takes care of two main types of communication: webhook events sent by the third party platform, and authentication (usually via oauth). Most of the business logic is handled by Metagov core and by the plugins, however you will need to make sure you're exposing these endpoints.
+
+You can do this in two ways. The endpoints are defined in ``metagov.core.urls.py``, which can be added to your project's ``urls.py``. Alternatively, you can import MetagovRequestHandler directly and create your own urls and/or custom views which call it, for example:
+
+.. code-block:: python
+
+    from metagov.core.app import MetagovApp
+    from metagov.core.handlers import MetagovRequestHandler
+
+    metagov = MetagovApp()
+    metagov_handler = MetagovRequestHandler(metagov)
+
+    def plugin_auth_callback(request, plugin_name):
+        return metagov_handler.handle_oauth_callback(request, plugin_name)
+
+Signal Handlers
+"""""""""""""""
+
+When Metagov receives an event from a third-party platform, it emits a `platform_event_created` `Signal <https://docs.djangoproject.com/en/4.0/topics/signals/>`_. Your Driver should use signal receivers to capture these events and perform actions, for example:
+
+.. code-block:: python
+
+    from django.dispatch import receiver
+
+    @receiver(platform_event_created, sender=Github)
+    def github_event_receiver(sender, instance, event_type, data, initiator, **kwargs):
+        logger.debug(f"Received {event_type} event from {instance}")
+        # custom logic here
+
+Metagov also emits a `governance_process_updated` signal when a GovernanceProcess is updated. Again, use receivers to capture the signal, for example:
+
+.. code-block:: python
+
+    @receiver(governance_process_updated, sender=GithubIssueReactVote)
+    def github_vote_updated_receiver(sender, instance, status, outcome, errors, **kwargs):
+        ...
+
+Note that in both of these examples, we use the sender parameter in the receiver decorator to filter out events and governance process updates not relevant to a specific platform. You can then check the sender's subclass to determine the relevant platform - or ignore that information, if not needed.
+
+To receive all events simply drop the sender argument from the receiver decorator's parameters. If you want to recieve all Plugin events (but not other events) you'll need to check that the sender is a subclass of Plugin:
+
+.. code-block:: python
+
+    @receiver(platform_event_created)
+    def metagov_event_receiver(sender, instance, event_type, data, initiator, **kwargs):
+        if not issubclass(sender, Plugin):
+            return
+        # do something...
+
+.. warning::
+
+    It is easy to accidentally cause signals to be duplicated. Please do not assume all signals sent with Metagov are unique, and instead make use of `dispatch_uid <https://docs.djangoproject.com/en/4.0/topics/signals/#preventing-duplicate-signals>`_ to weed out duplicate signals.
+
+
+Installing your own version of Metagov and communicating via local HTTP
+#######################################################################
+
+If you're using Metagov alongside an existing system, make sure that you're installing Metagov on the same server. This is necessary because Metagov and your system will communicate over the local network.
 
 We’ll assume that you don’t have Python or apache2 installed on your Ubuntu system.
 These installation instructions have only been tested on **Ubuntu 20.04**.
@@ -376,12 +507,12 @@ try running celery directly to see if there are errors in your code:
     celery -A metagov beat -l info --uid celery --schedule=/var/run/celery/celerybeat-metagov-schedule
 
 Plugins
-^^^^^^^^^^^^
+#######
 
 Some plugins require administrator setup before they can be used.
 
 Slack
-"""""
+^^^^^
 
 In order to use the Metagov Slack plugin, the Metagov server administrator
 needs to create a new Slack App and store its credentials on the server where Metagov is being used:
@@ -394,7 +525,8 @@ needs to create a new Slack App and store its credentials on the server where Me
 6. In the Slack app management page, verify the URLs for the OAuth callback, the Events Subscription Request URL, and the Interactivity Request URL.
 
 Discord
-"""""""
+^^^^^^^
+
 1. Go to https://discord.com/developers/applications
 2. Click "New Application"
 3. Under OAuth2, add the redirect URL ``[SERVER_URL]/auth/discord/callback``
@@ -408,7 +540,7 @@ Discord
 5. In your Django app's ``settings.py`` file, fill in the Discord values in ``METAGOV_SETTINGS`` with the bot token, client ID, client secret, and public key.
 
 Twitter
-"""""""
+^^^^^^^
 
 1. Create a new account for your bot
 2. Apply for a developer account for that account
@@ -418,7 +550,7 @@ Twitter
 6. In your Django app's ``settings.py`` file, fill in the Twitter values in ``METAGOV_SETTINGS``. To get the values for ``TWITTER_ACCESS_TOKEN`` and ``TWITTER_ACCESS_TOKEN_SECRET``, you'll need to generate a new access token and secret in the developer portal.
 
 Github
-""""""
+^^^^^^
 
 In order to ues the Metagov Github plugin, the Metagov server administrator needs to create a new Github app and link it to Metagov:
 
