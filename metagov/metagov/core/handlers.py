@@ -179,14 +179,14 @@ class MetagovRequestHandler:
                 f"Parameter 'type' must be '{AuthorizationType.APP_INSTALL}' or '{AuthorizationType.USER_LOGIN}'"
             )
 
-    def authorize_app_install(request, plugin_handler, plugin_name, redirect_uri, type, metagov_id, community_slug):
+    def authorize_app_install(self, request, plugin_handler, plugin_name, redirect_uri, type, metagov_id, community_slug):
         community = self.get_or_create_community(plugin_name, community_slug)
         state_encoded = self.create_state(request, redirect_uri, metagov_id, str(community.slug))
         url = plugin_handler.construct_oauth_authorize_url(type=type, community=community)
         logger.debug(f"Redirecting to {url}")
         return redirect_with_params(url, state=state_encoded)
 
-    def authorize_user_login(request, plugin_handler, redirect_uri, type, metagov_id):
+    def authorize_user_login(self, request, plugin_handler, redirect_uri, type, metagov_id):
         state_encoded = self.create_state(request, redirect_uri, metagov_id)
         url = plugin_handler.construct_oauth_authorize_url(type=type)
         logger.debug(f"Redirecting to {url}")
