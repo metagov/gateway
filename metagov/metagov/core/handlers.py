@@ -106,7 +106,7 @@ class MetagovRequestHandler:
         logger.debug(f"Created new community for installing {plugin_name}: {community}")
         return community
 
-    def create_state(self, request, redirect_uri, metagov_id, community_slug=None):
+    def create_state(self, request, redirect_uri, metagov_id, type, community_slug=None):
 
         # state to pass along to final redirect after auth flow is done
         received_state = request.GET.get("state")
@@ -181,13 +181,13 @@ class MetagovRequestHandler:
 
     def authorize_app_install(self, request, plugin_handler, plugin_name, redirect_uri, type, metagov_id, community_slug):
         community = self.get_or_create_community(plugin_name, community_slug)
-        state_encoded = self.create_state(request, redirect_uri, metagov_id, str(community.slug))
+        state_encoded = self.create_state(request, redirect_uri, metagov_id, type, str(community.slug))
         url = plugin_handler.construct_oauth_authorize_url(type=type, community=community)
         logger.debug(f"Redirecting to {url}")
         return redirect_with_params(url, state=state_encoded)
 
     def authorize_user_login(self, request, plugin_handler, redirect_uri, type, metagov_id):
-        state_encoded = self.create_state(request, redirect_uri, metagov_id)
+        state_encoded = self.create_state(request, redirect_uri, metagov_id, type)
         url = plugin_handler.construct_oauth_authorize_url(type=type)
         logger.debug(f"Redirecting to {url}")
         return redirect_with_params(url, state=state_encoded)
