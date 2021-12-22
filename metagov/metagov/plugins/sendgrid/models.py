@@ -14,14 +14,6 @@ logger = logging.getLogger(__name__)
 @Registry.plugin
 class SendGrid(Plugin):
     name = 'sendgrid'
-    config_schema = {
-        "type": "object",
-        "properties": {
-            "domain_name": {"type": "string"},
-            "api_key": {"type": "string"}
-        },
-        "required": ["domain_name", "api_key"]
-    }
 
     class Meta:
         proxy = True
