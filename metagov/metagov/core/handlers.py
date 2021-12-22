@@ -39,7 +39,7 @@ class MetagovRequestHandler:
 
     ### Incoming Webhook Logic ###
 
-    def pass_to_plugin_instance(self, request, community_slug, community_platform_id):
+    def pass_to_plugin_instance(self, request, plugin_name, community_slug, community_platform_id):
         """Passes incoming request to a specific pluin instance as well as all pending GovernanceProcesses
         associated with that plugin."""
 
@@ -68,7 +68,7 @@ class MetagovRequestHandler:
 
         return response
 
-    def pass_to_platformwide_handlers(self, plugin_name, request):
+    def pass_to_platformwide_handlers(self, request, plugin_name):
         """Passes request to platform-wide handlers (e.g. Slack, where there is one webhook for all
         communities)."""
         plugin_handler = self._get_plugin_request_handler(plugin_name)
@@ -86,7 +86,7 @@ class MetagovRequestHandler:
         logger.debug(f"Received webhook request: {plugin_name} ({community_platform_id or 'no community_platform_id'}) ({community_slug or 'no community'})")
 
         if community_slug:
-            response = self.pass_to_plugin_instance(request, community_slug, community_platform_id)
+            response = self.pass_to_plugin_instance(request, plugin_name, community_slug, community_platform_id)
             return response or HttpResponse()
 
         response = self.pass_to_platformwide_handlers(request, plugin_name)
