@@ -1,16 +1,19 @@
+import logging
 from django.conf import settings
 from metagov.core.models import Plugin
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from metagov.core.plugin_manager import Registry
+from metagov.core.errors import PluginErrorInternal
 
 sendgrid_settings = settings.METAGOV_SETTINGS["SENDGRID"]
 SENDGRID_API_KEY = sendgrid_settings["SENDGRID_API_KEY"]
 
+logger = logging.getLogger(__name__)
 
 @Registry.plugin
-class Mailgun(Plugin):
-    name = 'mailgun'
+class SendGrid(Plugin):
+    name = 'sendgrid'
     config_schema = {
         "type": "object",
         "properties": {
@@ -70,8 +73,9 @@ class Mailgun(Plugin):
         try:
             sg = SendGridAPIClient(SENDGRID_API_KEY)
             response = sg.send(message)
-            print(response.status_code, response.body)
-            return True
+            logger.info(response.status_code, response.body)
+            if response.status_code != 202:
+                raise PluginErrorInternal("There was error sending email")
         except Exception as e:
-            print(e.message)
-            return False
+            logger.error(e.message)
+            raise PluginErrorInternal("There was error sending email")
