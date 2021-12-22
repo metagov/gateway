@@ -7,7 +7,7 @@ from metagov.core.plugin_manager import Registry
 from metagov.core.errors import PluginErrorInternal
 
 sendgrid_settings = settings.METAGOV_SETTINGS["SENDGRID"]
-SENDGRID_API_KEY = sendgrid_settings["SENDGRID_API_KEY"]
+SENDGRID_API_KEY = sendgrid_settings["API_KEY"]
 
 logger = logging.getLogger(__name__)
 
