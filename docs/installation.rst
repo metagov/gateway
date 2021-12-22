@@ -521,7 +521,7 @@ needs to create a new Slack App and store its credentials on the server where Me
 2. Click “Create New App” and select "From an app manifest"
 3. Paste in the `manifest.yaml file <https://github.com/metagov/metagov-prototype/blob/master/metagov/metagov/plugins/slack/manifest.yaml>`_. Replace ``$METAGOV_SERVER`` with the URL for your Metagov server under ``redirect_urls`` and ``request_url``. Optional: adjust scopes, events, and bot name as desired.
 4. Click “Manage Distribution”->”Activate Public Distribution.” This step is necessary if you want your app to be installable to multiple Slack workspaces.
-5. In your Django app's ``settings.py`` file, fill in the Slack values in ``METAGOV_SETTINGS`` with the App ID, Client ID, Client Secret, and Signing Secret.
+5. In your Django app's ``.env`` file, set the values for Slack's App ID, Client ID, Client Secret, and Signing Secret.
 6. In the Slack app management page, verify the URLs for the OAuth callback, the Events Subscription Request URL, and the Interactivity Request URL.
 
 Discord
@@ -537,7 +537,7 @@ Discord
     - Presence Intent
     - Server Members Intent
 
-5. In your Django app's ``settings.py`` file, fill in the Discord values in ``METAGOV_SETTINGS`` with the bot token, client ID, client secret, and public key.
+5. In your Django app's ``.env`` file, set the values for Discord's bot token, client ID, client secret, and public key.
 
 Twitter
 ^^^^^^^
@@ -547,7 +547,7 @@ Twitter
 3. Go to the developer portal and create a new Project (NOT a standalone app). Follow the prompts.
 4. On completion, you should see the API Key, API Secret Key, and Bearer Token.
 5. On the Metagov server, copy ``metagov/plugins/twitter/.env.example`` to ``metagov/plugins/twitter/.env``.
-6. In your Django app's ``settings.py`` file, fill in the Twitter values in ``METAGOV_SETTINGS``. To get the values for ``TWITTER_ACCESS_TOKEN`` and ``TWITTER_ACCESS_TOKEN_SECRET``, you'll need to generate a new access token and secret in the developer portal.
+6. In your Django app's ``.env`` file, fill in the Twitter values. To get the values for ``TWITTER_ACCESS_TOKEN`` and ``TWITTER_ACCESS_TOKEN_SECRET``, you'll need to generate a new access token and secret in the developer portal.
 
 Github
 ^^^^^^
@@ -556,6 +556,6 @@ In order to ues the Metagov Github plugin, the Metagov server administrator need
 
 1. Create a metagov app and get the app ID. You can follow `this guide <https://docs.github.com/en/developers/apps/building-github-apps/creating-a-github-app>`_. Don't forget to `set permissions and subscribe to events <https://docs.github.com/en/developers/apps/managing-github-apps/editing-a-github-apps-permissions>`_.
 2. On Github, generate and download a `private key <https://docs.github.com/en/developers/apps/building-github-apps/authenticating-with-github-apps#generating-a-private-key>`_. Put the private key in the github plugin folder.
-3. In your Django app's ``settings.py`` file, fill in the GitHub values in ``METAGOV_SETTINGS``. Put the app ID in the file as well as the path to your private key.
+3. In your Django app's ``.env`` file, fill in the GitHub values. Put the app ID in the file as well as the path to your private key.
 
 The plugin should now work. To use the app in their community, an admin will have to install the app manually on Github. They will then provide the installation ID and organization name as configuration parameters when enabling the plugin. We are working to make this process smoother in the future.
