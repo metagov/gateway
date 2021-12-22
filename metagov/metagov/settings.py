@@ -106,6 +106,9 @@ METAGOV_SETTINGS = {
         "BOT_TOKEN": env("DISCORD_BOT_TOKEN", default=default_val),
         "PUBLIC_KEY": env("DISCORD_PUBLIC_KEY", default=default_val),
         "PERMISSIONS": env("DISCORD_PERMISSIONS", default=397821540358),
+    },
+    "SENDGRID": {
+        "API_KEY": env("SENDGRID_API_KEY", default=default_val)
     }
 }
 
