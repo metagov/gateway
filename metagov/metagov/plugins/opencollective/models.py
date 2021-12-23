@@ -43,6 +43,8 @@ class OpenCollective(Plugin):
         slug = self.config["collective_slug"]
         response = self.run_query(Queries.collective, {"slug": slug})
         result = response["collective"]
+        if result is None:
+            raise PluginErrorInternal(f"Collective '{slug}' not found.")
 
         logger.info("Initialized Open Collective: " + str(result))
 
