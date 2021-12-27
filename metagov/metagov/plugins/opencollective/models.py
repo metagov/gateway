@@ -1,7 +1,8 @@
 import json
 import logging
+from django.conf import settings
 
-from metagov.core.plugin_manager import Registry, Parameters, VotingStandard
+from metagov.core.plugin_manager import Registry, Parameters
 import metagov.plugins.opencollective.queries as Queries
 import metagov.plugins.opencollective.schemas as Schemas
 import requests
@@ -10,12 +11,15 @@ from metagov.core.models import GovernanceProcess, Plugin, ProcessStatus, AuthTy
 
 logger = logging.getLogger(__name__)
 
-OPEN_COLLECTIVE_URL = "https://opencollective.com"
-OPEN_COLLECTIVE_GRAPHQL = "https://api.opencollective.com/graphql/v2"
+USE_STAGING = settings.METAGOV_SETTINGS.get("OPENCOLLECTIVE", {}).get("USE_STAGING", False)
 
-# staging urls
-# OPEN_COLLECTIVE_URL = "https://staging.opencollective.com"
-# OPEN_COLLECTIVE_GRAPHQL = "https://staging.opencollective.com/api/graphql/v2"
+
+if USE_STAGING:
+    OPEN_COLLECTIVE_URL = "https://staging.opencollective.com"
+    OPEN_COLLECTIVE_GRAPHQL = "https://staging.opencollective.com/api/graphql/v2"
+else:
+    OPEN_COLLECTIVE_URL = "https://opencollective.com"
+    OPEN_COLLECTIVE_GRAPHQL = "https://api.opencollective.com/graphql/v2"
 
 
 @Registry.plugin
