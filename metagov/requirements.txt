@@ -87,7 +87,7 @@ sphinxcontrib-htmlhelp==1.0.3
 sphinxcontrib-jsmath==1.0.1
 sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.4
-sqlparse==0.4.1
+sqlparse==0.4.2
 starkbank-ecdsa==2.0.3
 toml==0.10.2
 tornado==6.1
