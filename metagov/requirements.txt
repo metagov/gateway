@@ -66,6 +66,7 @@ pyrsistent==0.17.3
 PySocks==1.7.1
 python-crontab==2.5.1
 python-dateutil==2.8.1
+python-http-client==3.3.4
 pytz==2021.1
 PyYAML==5.4.1
 regex==2021.3.17
@@ -74,6 +75,7 @@ requests-mock==1.8.0
 requests-oauthlib==1.3.0
 ruamel.yaml==0.16.13
 ruamel.yaml.clib==0.2.2
+sendgrid==6.9.3
 six==1.15.0
 snowballstemmer==2.1.0
 Sphinx==3.5.3
@@ -86,6 +88,7 @@ sphinxcontrib-jsmath==1.0.1
 sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.4
 sqlparse==0.4.1
+starkbank-ecdsa==2.0.3
 toml==0.10.2
 tornado==6.1
 traitlets==5.0.5

@@ -107,6 +107,9 @@ METAGOV_SETTINGS = {
         "PUBLIC_KEY": env("DISCORD_PUBLIC_KEY", default=default_val),
         "PERMISSIONS": env("DISCORD_PERMISSIONS", default=397821540358),
     },
+    "SENDGRID": {
+        "API_KEY": env("SENDGRID_API_KEY", default=default_val)
+    },
     "OPENCOLLECTIVE": {
         "USE_STAGING": env("OPENCOLLECTIVE_USE_STAGING", default=False)
     }
