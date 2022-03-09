@@ -33,8 +33,52 @@ class PluginRequestHandler:
 
 
 class MetagovRequestHandler:
+
     def __init__(self, app: MetagovApp):
         self.app = app
+
+    ### Incoming Webhook Logic ###
+
+    def pass_to_plugin_instance(self, request, plugin_name, community_slug, community_platform_id):
+        """Passes incoming request to a specific pluin instance as well as all pending GovernanceProcesses
+        associated with that plugin."""
+
+        # Pass request a specific plugin instance
+        community = self.app.get_community(community_slug)
+        plugin = community.get_plugin(plugin_name, community_platform_id)
+        response = None
+        if plugin._webhook_receiver_function:
+            webhook_handler_fn = getattr(plugin, plugin._webhook_receiver_function)
+            logger.debug(f"Passing webhook request to: {plugin}")
+            try:
+                response = webhook_handler_fn(request)
+            except Exception as e:
+                logger.error(f"Plugin '{plugin}' failed to process webhook: {e}")
+
+        # Pass request to all pending GovernanceProcesses for this plugin, too
+        for cls in plugin._process_registry.values():
+            processes = cls.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
+            if processes.count():
+                logger.debug(f"{processes.count()} pending processes for plugin instance '{plugin}'")
+            for process in processes:
+                try:
+                    process.receive_webhook(request)
+                except Exception as e:
+                    logger.error(f"Process '{process}' failed to process webhook: {e}")
+
+        return response
+
+    def pass_to_platformwide_handlers(self, request, plugin_name):
+        """Passes request to platform-wide handlers (e.g. Slack, where there is one webhook for all
+        communities)."""
+        plugin_handler = self._get_plugin_request_handler(plugin_name)
+        if not plugin_handler:
+            logger.error(f"No request handler found for '{plugin_name}'")
+        else:
+            try:
+                return plugin_handler.handle_incoming_webhook(request) or HttpResponse()
+            except NotImplementedError:
+                logger.error(f"Webhook handler not implemented for '{plugin_name}'")
 
     def handle_incoming_webhook(
         self, request, plugin_name, community_slug=None, community_platform_id=None
@@ -42,41 +86,56 @@ class MetagovRequestHandler:
         logger.debug(f"Received webhook request: {plugin_name} ({community_platform_id or 'no community_platform_id'}) ({community_slug or 'no community'})")
 
         if community_slug:
-            # Pass request a specific plugin instance
-            community = self.app.get_community(community_slug)
-            plugin = community.get_plugin(plugin_name, community_platform_id)
-            response = None
-            if plugin._webhook_receiver_function:
-                webhook_handler_fn = getattr(plugin, plugin._webhook_receiver_function)
-                logger.debug(f"Passing webhook request to: {plugin}")
-                try:
-                    response = webhook_handler_fn(request)
-                except Exception as e:
-                    logger.error(f"Plugin '{plugin}' failed to process webhook: {e}")
-
-            # Pass request to all pending GovernanceProcesses for this plugin, too
-            for cls in plugin._process_registry.values():
-                processes = cls.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
-                if processes.count():
-                    logger.debug(f"{processes.count()} pending processes for plugin instance '{plugin}'")
-                for process in processes:
-                    try:
-                        process.receive_webhook(request)
-                    except Exception as e:
-                        logger.error(f"Process '{process}' failed to process webhook: {e}")
-
+            response = self.pass_to_plugin_instance(request, plugin_name, community_slug, community_platform_id)
             return response or HttpResponse()
 
-        # Pass request to platform-wide handlers (e.g. Slack, where there is one webhook for all communities)
-        plugin_handler = self._get_plugin_request_handler(plugin_name)
-        if not plugin_handler:
-            logger.error(f"No request handler found for '{plugin_name}'")
-            return HttpResponseNotFound()
-        try:
-            return plugin_handler.handle_incoming_webhook(request) or HttpResponse()
-        except NotImplementedError:
-            logger.error(f"Webhook handler not implemented for '{plugin_name}'")
-            return HttpResponseNotFound()
+        response = self.pass_to_platformwide_handlers(request, plugin_name)
+        return response or HttpResponseNotFound()
+
+    ### Oauth Logic ###
+
+    def get_or_create_community(self, plugin_name, community_slug):
+
+        if community_slug:
+            try:
+                return Community.objects.get(slug=community_slug)
+            except Community.DoesNotExist:
+                return HttpResponseBadRequest(f"No such community: {community_slug}")
+
+        community = Community.objects.create()
+        logger.debug(f"Created new community for installing {plugin_name}: {community}")
+        return community
+
+    def create_state(self, request, redirect_uri, metagov_id, type, community_slug=None):
+
+        # state to pass along to final redirect after auth flow is done
+        received_state = request.GET.get("state")
+        request.session["received_authorize_state"] = received_state
+
+        # Create the state
+        nonce = utils.generate_nonce()
+        state = {
+            nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type, "metagov_id": metagov_id}
+        }
+        state_str = json.dumps(state).encode("ascii")
+        state_encoded = base64.b64encode(state_str).decode("ascii")
+        # Store nonce in the session so we can validate the callback request
+        request.session["nonce"] = nonce
+
+        return state_encoded
+
+    def check_request_values(self, request, redirect_uri, type, community_slug, metagov_id):
+        """Helper method which checks request to see if parameter values have been passed in it. If values are
+        passed in both parameters and request, parameters take precedence. If no values provided, default is None."""
+        # where to redirect after auth flow is done
+        redirect_uri = redirect_uri or request.GET.get("redirect_uri")
+        # auth type (user login or app installation)
+        type = type or request.GET.get("type", AuthorizationType.APP_INSTALL)
+        # community to install to (optional for installation, ignored for user login)
+        community_slug = community_slug or request.GET.get("community")
+        # metagov_id of logged in user, if exists
+        metagov_id = metagov_id or request.GET.get("metagov_id")
+        return redirect_uri, type, community_slug, metagov_id
 
     def handle_oauth_authorize(
         self,
@@ -97,55 +156,39 @@ class MetagovRequestHandler:
         :param community_slug: community to install to (optional for installation, ignored for user login)
         :param metagov_id: metagov_id of logged in user, if exists
         """
+
+        redirect_uri, type, community_slug, metagov_id = self.check_request_values(request, redirect_uri, type, community_slug, metagov_id)
+
+        logger.debug(f"Handling {type} authorization request for {plugin_name}' to community '{community_slug}'")
+
+        # Get plugin handler
         if not plugin_registry.get(plugin_name):
             return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
-        # auth type (user login or app installation)
-        type = type or request.GET.get("type", AuthorizationType.APP_INSTALL)
-        # community to install to (optional for installation, ignored for user login)
-        community_slug = community_slug or request.GET.get("community")
-        # where to redirect after auth flow is done
-        redirect_uri = redirect_uri or request.GET.get("redirect_uri")
-        # metagov_id of logged in user, if exists
-        metagov_id = metagov_id or request.GET.get("metagov_id")
-        # state to pass along to final redirect after auth flow is done
-        received_state = request.GET.get("state")
-        request.session["received_authorize_state"] = received_state
-        if type != AuthorizationType.APP_INSTALL and type != AuthorizationType.USER_LOGIN:
-            return HttpResponseBadRequest(
-                f"Parameter 'type' must be '{AuthorizationType.APP_INSTALL}' or '{AuthorizationType.USER_LOGIN}'"
-            )
-
-        logger.debug(f"Handling {type} authorization request for {plugin_name} to community '{community_slug or 'new community'}'")
-
         plugin_handler = self._get_plugin_request_handler(plugin_name)
         if not plugin_handler:
             logger.error(f"No request handler found for '{plugin_name}'")
             return HttpResponseNotFound()
 
-        community = None
         if type == AuthorizationType.APP_INSTALL:
-            if community_slug:
-                try:
-                    community = Community.objects.get(slug=community_slug)
-                except Community.DoesNotExist:
-                    return HttpResponseBadRequest(f"No such community: {community_slug}")
-            else:
-                community = Community.objects.create()
-                # TODO: delete the community if installation fails.
-                logger.debug(f"Created new community for installing {plugin_name}: {community}")
-            community_slug = str(community.slug)
+            return self.authorize_app_install(request, plugin_handler, plugin_name, redirect_uri, type, metagov_id, community_slug)
 
-        # Create the state
-        nonce = utils.generate_nonce()
-        state = {
-            nonce: {"community": community_slug, "redirect_uri": redirect_uri, "type": type, "metagov_id": metagov_id}
-        }
-        state_str = json.dumps(state).encode("ascii")
-        state_encoded = base64.b64encode(state_str).decode("ascii")
-        # Store nonce in the session so we can validate the callback request
-        request.session["nonce"] = nonce
+        if type == AuthorizationType.USER_LOGIN:
+            return self.authorize_user_login(request, plugin_handler, redirect_uri, type, metagov_id)
 
+        return HttpResponseBadRequest(
+                f"Parameter 'type' must be '{AuthorizationType.APP_INSTALL}' or '{AuthorizationType.USER_LOGIN}'"
+            )
+
+    def authorize_app_install(self, request, plugin_handler, plugin_name, redirect_uri, type, metagov_id, community_slug):
+        community = self.get_or_create_community(plugin_name, community_slug)
+        state_encoded = self.create_state(request, redirect_uri, metagov_id, type, str(community.slug))
         url = plugin_handler.construct_oauth_authorize_url(type=type, community=community)
+        logger.debug(f"Redirecting to {url}")
+        return redirect_with_params(url, state=state_encoded)
+
+    def authorize_user_login(self, request, plugin_handler, redirect_uri, type, metagov_id):
+        state_encoded = self.create_state(request, redirect_uri, metagov_id, type)
+        url = plugin_handler.construct_oauth_authorize_url(type=type)
         logger.debug(f"Redirecting to {url}")
         return redirect_with_params(url, state=state_encoded)
 
@@ -153,25 +196,18 @@ class MetagovRequestHandler:
         """
         Oauth2 callback for installation and/or user login
         """
-        logger.debug(f"Plugin auth callback received request: {request.GET}")
-        if not plugin_registry.get(plugin_name):
-            return HttpResponseBadRequest(f"No such plugin: {plugin_name}")
+
+        # Validate and decode state
         state_str = request.GET.get("state")
         if not state_str:
             return HttpResponseBadRequest("missing state")
-
-        # Validate and decode state
         nonce = request.session.get("nonce")
         if not nonce:
             return HttpResponseBadRequest("missing session nonce")
-
-        plugin_handler = self._get_plugin_request_handler(plugin_name)
-        if not plugin_handler:
-            logger.error(f"No request handler found for '{plugin_name}'")
-            return HttpResponseNotFound()
-
         state = OAuthState(state_str, nonce)
         logger.debug(f"Decoded state: {state.__dict__}")
+
+        logger.debug(f"Plugin auth callback received request: {request.GET}")
 
         if not state.redirect_uri:
             return HttpResponseBadRequest("bad state: redirect_uri is missing")
@@ -180,6 +216,14 @@ class MetagovRequestHandler:
         state_to_pass = request.session.get("received_authorize_state")
         redirect_params = {"state": state_to_pass, "community": state.community}
 
+        # Get plugin handler
+        if not plugin_registry.get(plugin_name):
+            return redirect_with_params(state.redirect_uri, **redirect_params, error=f"No such plugin: {plugin_name}")
+        plugin_handler = self._get_plugin_request_handler(plugin_name)
+        if not plugin_handler:
+            logger.error(f"No request handler found for '{plugin_name}'")
+            return redirect_with_params(state.redirect_uri, **redirect_params, error=f"No request handler found for '{plugin_name}'")
+
         if request.GET.get("error"):
             return redirect_with_params(state.redirect_uri, **redirect_params, error=request.GET.get("error"))
 
@@ -187,15 +231,15 @@ class MetagovRequestHandler:
         if not code:
             return redirect_with_params(state.redirect_uri, **redirect_params, error="server_error")
 
-        community = None
-        if state.type == AuthorizationType.APP_INSTALL:
-            # For installs, validate the community
+        if state.type == AuthorizationType.APP_INSTALL:  # For installs, validate the community
             if not state.community:
                 return redirect_with_params(state.redirect_uri, **redirect_params, error="bad_state")
             try:
                 community = Community.objects.get(slug=state.community)
             except Community.DoesNotExist:
                 return redirect_with_params(state.redirect_uri, **redirect_params, error="community_not_found")
+        else:
+            community = None
 
         try:
             response = plugin_handler.handle_oauth_callback(
