@@ -529,6 +529,7 @@ Discord
 
 1. Go to https://discord.com/developers/applications
 2. Click "New Application"
+3. Under General, add the interactions endpoint URL ``[SERVER_URL]/api/hooks/discord``
 3. Under OAuth2, add the redirect URL ``[SERVER_URL]/auth/discord/callback``
 4. Add a new Bot and enable these options:
 
