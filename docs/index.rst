@@ -19,6 +19,12 @@ Metagov is a prototype under active development, so please help us out by sendin
         <iframe src="https://www.youtube.com/embed/ekGVje3qb98" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
     </div>
 
+.. raw:: html
+
+    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+        <iframe class="airtable-embed" src="https://airtable.com/embed/shrbe2t2xIaGm5Dua?backgroundColor=cyan" frameborder="0" onmousewheel="" width="100%" height="533" style="background: transparent; border: 1px solid #ccc;"></iframe>
+    </div>
+
 |
 
 .. toctree::
