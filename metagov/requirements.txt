@@ -36,7 +36,7 @@ ed25519==1.5
 idna==2.10
 imagesize==1.2.0
 inflection==0.5.1
-ipython==7.21.0
+ipython==7.31.1
 ipython-genutils==0.2.0
 itypes==1.2.0
 jedi==0.18.0
