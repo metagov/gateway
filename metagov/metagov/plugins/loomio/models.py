@@ -118,7 +118,14 @@ class LoomioPoll(GovernanceProcess):
 
         payload["options[]"] = parameters.options
         payload["api_key"] = api_key
-        resp = requests.post(url, json=payload)
+        if parameters.recipient_emails:
+            payload["recipient_emails[]"] = parameters.recipient_emails
+            payload.pop("recipient_emails")
+        if parameters.recipient_user_ids:
+            payload["recipient_user_ids[]"] = parameters.recipient_user_ids
+            payload.pop("recipient_user_ids")
+        resp = requests.post(url, payload)
+
         if not resp.ok:
             logger.error(f"Error: {resp.status_code} {resp.text}")
             raise PluginErrorInternal(resp.text)
