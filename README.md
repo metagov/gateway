@@ -2,6 +2,10 @@
 
 The Metagov Gateway is an open-source API gateway for online communities. It helps communities govern themselves by connecting decision-making tools to platforms where decisions need to be made. It’s designed to support rapid prototyping of governance systems, decision-making processes, and social workflows across a range of platforms, from forums to chat services to blockchains. To help people prototype, Metagov ships with a powerful driver, PolicyKit, for authoring governance policies.
 
+| ![Metagov Integrations](https://github.com/CommitsVortex/gateway/blob/master/metagov-integrations.png) |
+|:--:|
+| *Widget of Tools that Metagov uses through the Metagov Gateway* |
+
 The Gateway currently supports:
 - Discord
 - Slack
