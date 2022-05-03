@@ -2,9 +2,10 @@ pipeline {
     agent any
 
     environment {
-        DJANGO_SECRET_KEY='t5y0(1hpfj2%%qrys%rjso*dfb6ph%3t2dmag=+9o%t(=l3w#9'
+        downstream_job_name = 'Policykit CICD'
         working_directory="${WORKSPACE}/metagov"
         current_branch=GIT_BRANCH.replace("origin/", "")
+        DJANGO_SECRET_KEY='t5y0(1hpfj2%%qrys%rjso*dfb6ph%3t2dmag=+9o%t(=l3w#9'
     }
 
     stages {
@@ -84,6 +85,9 @@ pipeline {
                                     "\n Build Status: Passed :tada: :tada: :tada:" +
                                     "\n Build Url: " + BUILD_URL +
                                     "\n Github Url: " + html_url
+
+                build job: env.downstream_job_name,
+                wait: true
             }
         }
 
