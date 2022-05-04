@@ -86,8 +86,16 @@ pipeline {
                                     "\n Build Url: " + BUILD_URL +
                                     "\n Github Url: " + html_url
 
-                build job: env.downstream_job_name,
-                wait: true
+                if (current_branch == "master") {
+                    build job: env.downstream_job_name,
+                    parameters: [string(name: 'deploy_to_prod', value: 'true')],
+                    wait: true
+                }
+                else {
+                    build job: env.downstream_job_name,
+                    parameters: [string(name: 'deploy_to_prod', value: 'false')],
+                    wait: true
+                }
             }
         }
 
