@@ -7,8 +7,7 @@ from django.http.response import HttpResponseBadRequest, HttpResponseRedirect
 from metagov.core.errors import PluginAuthError
 from metagov.core.plugin_manager import AuthorizationType
 from metagov.core.models import ProcessStatus
-from metagov.metagov.plugins.opencollective.models import OPEN_COLLECTIVE_GRAPHQL
-from metagov.plugins.opencollective.models import OpenCollective
+from metagov.plugins.opencollective.models import OpenCollective, OPEN_COLLECTIVE_GRAPHQL
 from requests.models import PreparedRequest
 from metagov.core.handlers import PluginRequestHandler
 

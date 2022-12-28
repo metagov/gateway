@@ -159,7 +159,7 @@ class MetagovRequestHandler:
 
         redirect_uri, type, community_slug, metagov_id = self.check_request_values(request, redirect_uri, type, community_slug, metagov_id)
 
-        logger.debug(f"Handling {type} authorization request for {plugin_name}' to community '{community_slug}'")
+        logger.debug(f"Handling {type} authorization request for '{plugin_name}' to community '{community_slug}'")
 
         # Get plugin handler
         if not plugin_registry.get(plugin_name):
