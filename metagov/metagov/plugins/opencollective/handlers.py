@@ -16,7 +16,7 @@ from metagov.core.handlers import PluginRequestHandler
 
 logger = logging.getLogger(__name__)
 
-open_collective_settings = settings.METAGOV_SETTINGS["OPEN_COLLECTIVE"]
+open_collective_settings = settings.METAGOV_SETTINGS["OPENCOLLECTIVE"]
 OC_CLIENT_ID = open_collective_settings["CLIENT_ID"]
 OC_CLIENT_SECRET = open_collective_settings["CLIENT_SECRET"]
 
