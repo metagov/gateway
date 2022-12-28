@@ -67,7 +67,7 @@ class OpenCollective(Plugin):
         resp = requests.post(
             OPEN_COLLECTIVE_GRAPHQL,
             json={"query": query, "variables": variables},
-            headers={"Api-Key": f"{self.config['api_key']}"},
+            headers={"Authorization": f"Bearer {self.config['api_key']}"},
         )
         if not resp.ok:
             logger.error(f"Query failed with {resp.status_code} {resp.reason}: {query}")
