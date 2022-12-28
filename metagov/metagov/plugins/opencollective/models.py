@@ -25,7 +25,7 @@ else:
 @Registry.plugin
 class OpenCollective(Plugin):
     name = "opencollective"
-    auth_type = AuthType.API_KEY
+    auth_type = AuthType.OAUTH
     config_schema = {
         "type": "object",
         "additionalProperties": False,
