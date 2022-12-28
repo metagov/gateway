@@ -7,7 +7,7 @@ from django.http.response import HttpResponseBadRequest, HttpResponseRedirect
 from metagov.core.errors import PluginAuthError
 from metagov.core.plugin_manager import AuthorizationType
 from metagov.core.models import ProcessStatus
-from metagov.plugins.opencollective.models import OpenCollective, OPEN_COLLECTIVE_GRAPHQL
+from metagov.plugins.opencollective.models import OpenCollective, OPEN_COLLECTIVE_URL, OPEN_COLLECTIVE_GRAPHQL
 from requests.models import PreparedRequest
 from metagov.core.handlers import PluginRequestHandler
 
@@ -31,7 +31,7 @@ class OpenCollectiveRequestHandler(PluginRequestHandler):
         # if type == AuthorizationType.APP_INSTALL:    
         # elif type == AuthorizationType.USER_LOGIN:
 
-        return f"https://opencollective.com/oauth/authorizeauthorize?response_type=code&client_id={OC_CLIENT_ID}&scope={admin_scopes.join(',')}"
+        return f"{OPEN_COLLECTIVE_URL}/oauth/authorize?response_type=code&client_id={OC_CLIENT_ID}&scope={','.join(admin_scopes)}"
 
     def handle_oauth_callback(
         self,
@@ -125,7 +125,7 @@ def _exchange_code(code):
         "code": code,
         "redirect_uri": f"{settings.SERVER_URL}/auth/opencollective/callback",
     }
-    resp = requests.post("https://opencollective.com/oauth/token", data=data)
+    resp = requests.post(f"{OPEN_COLLECTIVE_URL}/oauth/token", data=data)
     if not resp.ok:
         logger.error(f"OC auth failed: {resp.status_code} {resp.reason}")
         raise PluginAuthError
