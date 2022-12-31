@@ -32,7 +32,7 @@ class NotOneCollectiveError(PluginAuthError):
 
 class InsufficientPermissions(PluginAuthError):
     default_code = "insufficient_permissions"
-    default_detail = f"The Open Collective account does not have sufficient permissions. Account must be able to create webhooks for the collective."
+    default_detail = f"The Open Collective account does not have sufficient permissions. Account must be an admin on the collective."
 
 class OpenCollectiveRequestHandler(PluginRequestHandler):
     def construct_oauth_authorize_url(self, type: str, community=None):
