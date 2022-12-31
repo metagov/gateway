@@ -1,8 +1,8 @@
-import json
 import logging
 import requests
 from django.conf import settings
 
+import metagov.plugins.opencollective.queries as Queries
 from django.http.response import HttpResponseBadRequest, HttpResponseRedirect
 from metagov.core.errors import PluginAuthError
 from metagov.core.plugin_manager import AuthorizationType
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 open_collective_settings = settings.METAGOV_SETTINGS["OPENCOLLECTIVE"]
 OC_CLIENT_ID = open_collective_settings["CLIENT_ID"]
 OC_CLIENT_SECRET = open_collective_settings["CLIENT_SECRET"]
+BOT_ACCOUNT_NAME_SUBSTRING = "governance bot"
 
 class OpenCollectiveRequestHandler(PluginRequestHandler):
     def construct_oauth_authorize_url(self, type: str, community=None):
@@ -64,25 +65,34 @@ class OpenCollectiveRequestHandler(PluginRequestHandler):
         logger.info(f"---- {response} ----")
         user_access_token = response["access_token"]
 
-        logger.info(OPEN_COLLECTIVE_GRAPHQL)
         # Get user info
         resp = requests.post(
             OPEN_COLLECTIVE_GRAPHQL,
-            json={"query": "{ me { id name email } }"},
+            json={"query": Queries.me},
             headers={"Authorization": f"Bearer {user_access_token}"}
         )
         logger.debug(resp.request.headers)
         if not resp.ok:
             logger.error(f"OC req failed: {resp.status_code} {resp.reason}")
             raise PluginAuthError(detail="Error getting user info for installing user")
-        current_user = resp.json()
-        logger.debug(current_user)
+        response = resp.json()
+        logger.info(response)
+        account_name = response['data']['me']['name'] or ''
+        member_of = response['data']['me']['memberOf']
+        if not BOT_ACCOUNT_NAME_SUBSTRING in account_name.lower():
+            logger.error(f"OC bad account name: {account_name}")
+            raise PluginAuthError(detail=f"Failed to install to account {account_name}. Account name must contains string '{BOT_ACCOUNT_NAME_SUBSTRING}' (case insensitive).")
 
-        # TODO: prompt choose collective?
-        collective = 'metagov-test-collective-2'
+        if not member_of or member_of['totalCount'] != 1:
+            raise PluginAuthError(detail=f"Failed to install to account {account_name}. Account must be a member of exactly one collective.")
+
+        collective = member_of['nodes'][0]['account']['slug']
+        logger.info('collective: ')
+        logger.info(collective)
+
 
         if type == AuthorizationType.APP_INSTALL:
-            plugin_config = {"collective_slug": collective, "api_key": user_access_token}
+            plugin_config = {"collective_slug": collective, "access_token": user_access_token}
             plugin = OpenCollective.objects.create(
                 name="opencollective", community=community, config=plugin_config, community_platform_id=collective
             )
@@ -100,17 +110,11 @@ class OpenCollectiveRequestHandler(PluginRequestHandler):
             return HttpResponseRedirect(url)
 
         elif type == AuthorizationType.USER_LOGIN:
+            # TODO Implement
+            # Validate that is member of collective
+
             # Add some params to redirect
-            params = {
-                # # Discord User ID for logged-in user
-                # "user_id": current_user["id"],
-                # # Discord User Token for logged-in user
-                # "user_token": response["access_token"],
-                # # Metagov-integrated guilds that this user belongs to
-                # "guild[]": integrated_guilds,
-                # # (Optional) State that was originally passed from Driver, so it can validate it
-                "state": state,
-            }
+            params = { "state": state }
             url = add_query_parameters(redirect_uri, params)
             return HttpResponseRedirect(url)
 
