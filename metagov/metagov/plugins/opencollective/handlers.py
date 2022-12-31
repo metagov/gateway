@@ -21,6 +21,15 @@ OC_CLIENT_ID = open_collective_settings["CLIENT_ID"]
 OC_CLIENT_SECRET = open_collective_settings["CLIENT_SECRET"]
 BOT_ACCOUNT_NAME_SUBSTRING = "governance bot"
 
+class NonBotAccountError(PluginAuthError):
+    default_code = "non_bot_account"
+    default_details = f"Failed to install. The Open Collective account name must contains string '{BOT_ACCOUNT_NAME_SUBSTRING}' (case insensitive)."
+
+
+class NotOneCollectiveError(PluginAuthError):
+    default_code = "not_one_collective"
+    default_details = f"Failed to install. The Open Collective account must be a member of exactly 1 collective."
+
 class OpenCollectiveRequestHandler(PluginRequestHandler):
     def construct_oauth_authorize_url(self, type: str, community=None):
         if not OC_CLIENT_ID:
@@ -81,10 +90,10 @@ class OpenCollectiveRequestHandler(PluginRequestHandler):
         member_of = response['data']['me']['memberOf']
         if not BOT_ACCOUNT_NAME_SUBSTRING in account_name.lower():
             logger.error(f"OC bad account name: {account_name}")
-            raise PluginAuthError(detail=f"Failed to install to account {account_name}. Account name must contains string '{BOT_ACCOUNT_NAME_SUBSTRING}' (case insensitive).")
+            raise NonBotAccountError
 
         if not member_of or member_of['totalCount'] != 1:
-            raise PluginAuthError(detail=f"Failed to install to account {account_name}. Account must be a member of exactly one collective.")
+            raise NotOneCollectiveError
 
         collective = member_of['nodes'][0]['account']['slug']
         logger.info('collective: ')

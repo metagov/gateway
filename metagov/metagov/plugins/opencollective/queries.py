@@ -158,6 +158,7 @@ query Collective($slug: String) {
 
 me = (
   """
+{
   me {
     id
     name
