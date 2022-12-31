@@ -23,12 +23,12 @@ BOT_ACCOUNT_NAME_SUBSTRING = "governance bot"
 
 class NonBotAccountError(PluginAuthError):
     default_code = "non_bot_account"
-    default_details = f"Failed to install. The Open Collective account name must contains string '{BOT_ACCOUNT_NAME_SUBSTRING}' (case insensitive)."
+    default_detail = f"The Open Collective account name must contains string '{BOT_ACCOUNT_NAME_SUBSTRING}' (case insensitive)."
 
 
 class NotOneCollectiveError(PluginAuthError):
     default_code = "not_one_collective"
-    default_details = f"Failed to install. The Open Collective account must be a member of exactly 1 collective."
+    default_detail = f"The Open Collective account must be a member of exactly 1 collective."
 
 class OpenCollectiveRequestHandler(PluginRequestHandler):
     def construct_oauth_authorize_url(self, type: str, community=None):
