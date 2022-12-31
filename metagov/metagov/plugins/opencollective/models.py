@@ -80,6 +80,7 @@ class OpenCollective(Plugin):
         result = resp.json()
         if result.get("errors"):
             msg = ",".join([e["message"] for e in result["errors"]])
+            logger.error(f"Query failed: {msg}")
             raise PluginErrorInternal(msg)
         return result["data"]
 
