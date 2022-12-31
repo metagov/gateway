@@ -4,7 +4,7 @@ from django.conf import settings
 
 import metagov.plugins.opencollective.queries as Queries
 from django.http.response import HttpResponseBadRequest, HttpResponseRedirect
-from metagov.core.errors import PluginAuthError
+from metagov.core.errors import PluginAuthError, PluginErrorInternal
 from metagov.core.plugin_manager import AuthorizationType
 from metagov.core.models import ProcessStatus
 from metagov.plugins.opencollective.models import OpenCollective, OPEN_COLLECTIVE_URL, OPEN_COLLECTIVE_GRAPHQL
@@ -29,6 +29,10 @@ class NonBotAccountError(PluginAuthError):
 class NotOneCollectiveError(PluginAuthError):
     default_code = "not_one_collective"
     default_detail = f"The Open Collective account must be a member of exactly 1 collective."
+
+class InsufficientPermissions(PluginAuthError):
+    default_code = "insufficient_permissions"
+    default_detail = f"The Open Collective account does not have sufficient permissions. Account must be able to create webhooks for the collective."
 
 class OpenCollectiveRequestHandler(PluginRequestHandler):
     def construct_oauth_authorize_url(self, type: str, community=None):
@@ -106,7 +110,14 @@ class OpenCollectiveRequestHandler(PluginRequestHandler):
                 name="opencollective", community=community, config=plugin_config, community_platform_id=collective
             )
             logger.debug(f"Created OC plugin: {plugin}")
-            plugin.initialize()
+            try:
+                plugin.initialize()
+            except PluginErrorInternal as e:
+                plugin.delete()
+                if 'permission' in e.detail:
+                    raise InsufficientPermissions
+                else:
+                    raise PluginAuthError
 
             params = {
                 # Metagov community that has the OC plugin enabled
