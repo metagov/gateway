@@ -87,9 +87,13 @@ class OpenCollective(Plugin):
         webhook_url = f"{settings.SERVER_URL}/api/hooks/{self.name}/{self.community.slug}"
         logger.debug(f"Creating OC webhook: {webhook_url}")
         resp = self.run_query(Queries.create_webhook, {
-            "slug": self.config["collective_slug"],
-            "activityType": "ACTIVITY_ALL",
-            "webhookUrl": webhook_url
+            "webhook": {
+                "account": {
+                    "slug": self.config["collective_slug"]
+                },
+                "activityType": "ACTIVITY_ALL",
+                "webhookUrl": webhook_url
+            }
         })
         result = resp.json()
         logger.debug(result)

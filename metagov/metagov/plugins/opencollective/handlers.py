@@ -106,6 +106,7 @@ class OpenCollectiveRequestHandler(PluginRequestHandler):
                 name="opencollective", community=community, config=plugin_config, community_platform_id=collective
             )
             logger.debug(f"Created OC plugin: {plugin}")
+            plugin.initialize()
 
             params = {
                 # Metagov community that has the OC plugin enabled
