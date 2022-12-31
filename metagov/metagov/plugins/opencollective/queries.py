@@ -184,6 +184,11 @@ mutation CreateWebhook($webhook: WebhookCreateInput!) {
     id
     activityType
     webhookUrl
+    account {
+      id
+      slug
+      name
+    }
   }
 }
 """
