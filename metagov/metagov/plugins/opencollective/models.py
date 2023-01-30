@@ -25,18 +25,18 @@ else:
 @Registry.plugin
 class OpenCollective(Plugin):
     name = "opencollective"
-    auth_type = AuthType.API_KEY
+    auth_type = AuthType.OAUTH
     config_schema = {
         "type": "object",
         "additionalProperties": False,
         "properties": {
-            "api_key": {"type": "string", "description": "API Key for a user that is an admin on this collective."},
+            "access_token": {"type": "string", "description": "Access token for Open Collective account"},
             "collective_slug": {
                 "type": "string",
                 "description": "Open Collective slug",
             },
         },
-        "required": ["api_key", "collective_slug"],
+        "required": ["access_token", "collective_slug"],
     }
     community_platform_id_key = "collective_slug"
 
@@ -44,14 +44,17 @@ class OpenCollective(Plugin):
         proxy = True
 
     def initialize(self):
+        # Fetch info about collective
         slug = self.config["collective_slug"]
         response = self.run_query(Queries.collective, {"slug": slug})
         result = response["collective"]
         if result is None:
             raise PluginErrorInternal(f"Collective '{slug}' not found.")
 
-        logger.info("Initialized Open Collective: " + str(result))
+        # Create webhook for listening to events on OC
+        self.create_webhook()
 
+        # Store collective information in plugin state
         self.state.set("collective_name", result["name"])
         self.state.set("collective_id", result["id"])
         self.state.set("collective_legacy_id", result["legacyId"])
@@ -62,12 +65,13 @@ class OpenCollective(Plugin):
             ]
 
         self.state.set("project_legacy_ids", project_legacy_ids)
+        logger.info("Initialized Open Collective: " + str(result))
 
     def run_query(self, query, variables):
         resp = requests.post(
             OPEN_COLLECTIVE_GRAPHQL,
             json={"query": query, "variables": variables},
-            headers={"Api-Key": f"{self.config['api_key']}"},
+            headers={"Authorization": f"Bearer {self.config['access_token']}"},
         )
         if not resp.ok:
             logger.error(f"Query failed with {resp.status_code} {resp.reason}: {query}")
@@ -76,8 +80,23 @@ class OpenCollective(Plugin):
         result = resp.json()
         if result.get("errors"):
             msg = ",".join([e["message"] for e in result["errors"]])
+            logger.error(f"Query failed: {msg}")
             raise PluginErrorInternal(msg)
         return result["data"]
+
+    def create_webhook(self):
+        webhook_url = f"{settings.SERVER_URL}/api/hooks/{self.name}/{self.community.slug}"
+        logger.debug(f"Creating OC webhook: {webhook_url}")
+        result = self.run_query(Queries.create_webhook, {
+            "webhook": {
+                "account": {
+                    "slug": self.config["collective_slug"]
+                },
+                "activityType": "ACTIVITY_ALL",
+                "webhookUrl": webhook_url
+            }
+        })
+        logger.debug(result)
 
     @Registry.action(slug="list-members", description="list members of the collective")
     def list_members(self):

@@ -156,6 +156,39 @@ query Collective($slug: String) {
 }
 """
 
+me = (
+  """
+{
+  me {
+    id
+    name
+    email
+    memberOf(accountType: COLLECTIVE) {
+      totalCount
+      nodes {
+        account {
+          name
+          slug
+        }
+      }
+    }
+  }
+}
+  """
+)
+
+create_webhook = (
+    """
+mutation CreateWebhook($webhook: WebhookCreateInput!) {
+  createWebhook(webhook: $webhook) {
+    id
+    activityType
+    webhookUrl
+  }
+}
+"""
+)
+
 conversation = (
     """
 query Conversation($id: String!) {

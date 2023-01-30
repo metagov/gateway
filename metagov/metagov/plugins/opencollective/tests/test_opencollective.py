@@ -12,7 +12,7 @@ class ApiTests(PluginTestCase):
                 json={"data": {"collective": {"name": "my community", "id": "xyz", "legacyId": 123}}},
             )
             # enable the plugin
-            self.enable_plugin(name="opencollective", config={"collective_slug": "mycollective", "api_key": "empty"})
+            self.enable_plugin(name="opencollective", config={"collective_slug": "mycollective", "access_token": "empty"})
 
     def test_init_works(self):
         """Plugin is properly initialized"""

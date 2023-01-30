@@ -111,7 +111,9 @@ METAGOV_SETTINGS = {
         "API_KEY": env("SENDGRID_API_KEY", default=default_val)
     },
     "OPENCOLLECTIVE": {
-        "USE_STAGING": env("OPENCOLLECTIVE_USE_STAGING", default=False)
+        "USE_STAGING": env("OPENCOLLECTIVE_USE_STAGING", default=False),
+        "CLIENT_ID": env("OPENCOLLECTIVE_CLIENT_ID", default=default_val),
+        "CLIENT_SECRET": env("OPENCOLLECTIVE_CLIENT_SECRET", default=default_val),
     }
 }
 
