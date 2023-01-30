@@ -1,21 +1,14 @@
 import logging
 
-from django.conf import settings
 from metagov.core.plugin_manager import AuthorizationType, Registry, Parameters, VotingStandard
 import tweepy
 from metagov.core.models import AuthType, Plugin
 from metagov.core.errors import PluginErrorInternal
+from metagov.core.utils import get_configuration
 
 logger = logging.getLogger(__name__)
 
 
-twitter_settings = settings.METAGOV_SETTINGS["TWITTER"]
-
-class TwitterSecrets:
-    api_key = twitter_settings["API_KEY"]
-    api_secret_key = twitter_settings["API_SECRET_KEY"]
-    access_token = twitter_settings["ACCESS_TOKEN"]
-    access_token_secret = twitter_settings["ACCESS_TOKEN_SECRET"]
 
 
 """
@@ -41,9 +34,16 @@ class Twitter(Plugin):
     def tweepy_api(self):
         if getattr(self, "api", None):
             return self.api
-        auth = tweepy.OAuthHandler(TwitterSecrets.api_key, TwitterSecrets.api_secret_key)
-        auth.set_access_token(TwitterSecrets.access_token, TwitterSecrets.access_token_secret)
+
+        api_key = get_configuration("TWITTER_API_KEY", community=self.community)
+        api_secret_key = get_configuration("TWITTER_API_SECRET_KEY", community=self.community)
+        access_token = get_configuration("TWITTER_ACCESS_TOKEN", community=self.community)
+        access_token_secret = get_configuration("TWITTER_ACCESS_TOKEN_SECRET", community=self.community)
+
+        auth = tweepy.OAuthHandler(api_key, api_secret_key)
+        auth.set_access_token(access_token, access_token_secret)
         self.api = tweepy.API(auth)
+
         return self.api
 
     def initialize(self):
@@ -88,7 +88,7 @@ class Twitter(Plugin):
         slug="get-user-id",
         description="Gets user id of a Twitter user",
         input_schema={
-            "type": "object", 
+            "type": "object",
             "properties": {"screen_name": {"type": "string"}},
             "required": ["screen_name"]
         }

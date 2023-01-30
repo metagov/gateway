@@ -25,7 +25,7 @@ class Github(Plugin):
         """Requests a new installation access token from Github using a JWT signed by private key."""
         installation_id = self.config["installation_id"]
         self.state.set("installation_id", installation_id)
-        token = get_access_token(installation_id)
+        token = get_access_token(installation_id, community=self.community)
         self.state.set("installation_access_token", token)
 
     def initialize(self):
@@ -55,7 +55,11 @@ class Github(Plugin):
         """Makes request to Github. If status code returned is 401 (bad credentials), refreshes the
         access token and tries again. Refresh parameter is used to make sure we only try once."""
 
-        authorization = f"Bearer {get_jwt()}" if use_jwt else f"token {self.state.get('installation_access_token')}"
+        if use_jwt:
+            authorization = f"Bearer {get_jwt(community=self.community)}"
+        else:
+            authorization =  f"token {self.state.get('installation_access_token')}"
+
         headers = {
             "Authorization": authorization,
             "Accept": "application/vnd.github.v3+json"
