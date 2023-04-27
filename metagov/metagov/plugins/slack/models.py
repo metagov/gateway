@@ -393,6 +393,8 @@ def construct_message_header(title, details=None):
 
 
 ADVANCED_VOTE_ACTION_ID = "advanced_vote"
+CONFIRM_ADVANCED_VOTE = "confirm"
+
 @Registry.governance_process
 class SlackAdvancedVote(GovernanceProcess):
     name = "advanced-vote"
@@ -459,10 +461,11 @@ class SlackAdvancedVote(GovernanceProcess):
     
     def receive_webhook(self, request):
         payload = json.loads(request.POST.get("payload"))
-        logger.debug(f"payload received: {payload}")
+        
         if payload["message"]["ts"] != self.outcome["message_ts"]:
             return
 
+        logger.debug(f"payload received: {payload['actions']}")
         logger.info(f"{self} received block action")
         response_url = payload["response_url"]
 
@@ -482,11 +485,31 @@ class SlackAdvancedVote(GovernanceProcess):
                     return
 
                 self._cast_vote(user, candidate, selected_option)
-
+            elif a["action_id"] == CONFIRM_ADVANCED_VOTE:
+                user = payload["user"]["id"]
+                reports = self._examine_vote(user)
+                logger.debug(f"reports: {reports}")
+                requests.post(response_url, json={"text": reports, "replace_original": "true"})
         # requests.post(response_url, json={"text": "You have cast your vote", "replace_original": "false"})
 
     def _is_eligible_voter(self, user):
         return True 
+
+    def _examine_vote(self, user):
+        # examine whether the user has voted for all candidates and in an expected way
+        if user not in self.outcome["votes"]:
+            return None
+        
+        votes = self.outcome["votes"][user]
+        candidates = self.state.get("candidates")
+        # examine whether the user has voted for all candidates
+        reports = ""
+        for candidate in candidates:
+            if candidate not in votes:
+                return None
+            reports += f"You have selected {votes[candidate]} for {candidate}\n"
+
+        return reports
 
     def _cast_vote(self, user: str, candidate: str, option: str):
         # Update vote count for selected value
@@ -528,6 +551,21 @@ class SlackAdvancedVote(GovernanceProcess):
                     "value": option
                 })
             blocks.append(vote_option_section)
+        
+        blocks.append({
+			"type": "actions",
+			"elements": [
+				{
+					"type": "button",
+					"text": {
+						"type": "plain_text",
+						"text": "Confirm"
+					},
+					"value": "confirm",
+					"action_id": CONFIRM_ADVANCED_VOTE
+				}
+			]
+		})
         return blocks
 
     def close(self):

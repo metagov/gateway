@@ -11,7 +11,7 @@ from metagov.core.errors import PluginAuthError, PluginErrorInternal
 from metagov.core.handlers import PluginRequestHandler
 from metagov.core.models import LinkQuality, LinkType, ProcessStatus
 from metagov.core.plugin_manager import AuthorizationType
-from metagov.plugins.slack.models import Slack, SlackEmojiVote, SlackAdvancedVote
+from metagov.plugins.slack.models import Slack, SlackEmojiVote, SlackAdvancedVote, ADVANCED_VOTE_ACTION_ID, VOTE_ACTION_ID, CONFIRM_ADVANCED_VOTE
 from requests.models import PreparedRequest
 
 logger = logging.getLogger(__name__)
@@ -61,18 +61,20 @@ class SlackRequestHandler(PluginRequestHandler):
             if payload["type"] != "block_actions":
                 return
             team_id = payload["team"]["id"]
-            if len(payload["actions"]) > 0 and payload["actions"][0]["type"] == "button":
-                for plugin in Slack.objects.filter(community_platform_id=team_id):
-                    active_emoji_vote_processes = SlackEmojiVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
-                    for process in active_emoji_vote_processes:
-                        logger.info(f"Passing Slack interaction to {process}")
-                        process.receive_webhook(request)
-            elif len(payload["actions"]) > 0 and payload["actions"][0]["type"] == "static_select":
-                for plugin in Slack.objects.filter(community_platform_id=team_id):
-                    active_advanced_vote_processes = SlackAdvancedVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
-                    for process in active_advanced_vote_processes:
-                        logger.info(f"Passing Slack interaction to {process}")
-                        process.receive_webhook(request)
+            if len(payload["actions"]) > 0:
+                action_id_example = payload["actions"][0]["action_id"]
+                if action_id_example == VOTE_ACTION_ID:
+                    for plugin in Slack.objects.filter(community_platform_id=team_id):
+                        active_emoji_vote_processes = SlackEmojiVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
+                        for process in active_emoji_vote_processes:
+                            logger.info(f"Passing Slack interaction to {process}")
+                            process.receive_webhook(request)
+                elif action_id_example.startswith(ADVANCED_VOTE_ACTION_ID) or action_id_example == CONFIRM_ADVANCED_VOTE:
+                    for plugin in Slack.objects.filter(community_platform_id=team_id):
+                        active_advanced_vote_processes = SlackAdvancedVote.objects.filter(plugin=plugin, status=ProcessStatus.PENDING.value)
+                        for process in active_advanced_vote_processes:
+                            logger.info(f"Passing Slack interaction to {process}")
+                            process.receive_webhook(request)
             return
 
         # Assume that this is a request from the Slack Events API
