@@ -191,7 +191,7 @@ class Plugin(models.Model):
         """Start a new GovernanceProcess"""
         # Find the proxy class for the specified GovernanceProcess
         cls = self.__get_process_cls(process_name)
-
+        logger.debug("parameters validate: ", kwargs.get("validate"))
         # Convert kwargs to Parameters (does schema validation and filling in default values)
         params = Parameters(values=kwargs, schema=cls.input_schema)
 

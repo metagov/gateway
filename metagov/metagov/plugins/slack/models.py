@@ -239,6 +239,7 @@ class SlackEmojiVote(GovernanceProcess):
         text = construct_message_header(parameters.title, parameters.details)
         self.state.set("message_header", text)
         self.state.set("parameters", parameters._json)
+        self.state.set("validate", parameters.validate)
 
         poll_type = parameters.poll_type
         options = [Bool.YES, Bool.NO] if poll_type == "boolean" else parameters.options
@@ -344,7 +345,7 @@ class SlackEmojiVote(GovernanceProcess):
         blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
         for idx, opt in enumerate(options):
             if poll_type == "boolean":
-                option_text = f"MyApprove" if opt == Bool.YES else "Reject"
+                option_text = f"Approve" if opt == Bool.YES else "Reject"
                 button_text = f":+1:" if opt == Bool.YES else ":-1:"
             else:
                 option_text = opt
@@ -417,6 +418,14 @@ class SlackAdvancedVote(GovernanceProcess):
                 "type": "string",
                 "description": "channel to post the vote in",
             },
+            "private": {
+                "type": "boolean",
+                "description": "whether to post the summary of a user's vote in a channel",
+            },
+            "validate": {
+                "type": "string",
+                "description": "a function that is used to validate a user's vote"
+            }
         },
         "required": ["title", "channel"],
     }
@@ -428,6 +437,8 @@ class SlackAdvancedVote(GovernanceProcess):
         text = construct_message_header(parameters.title)
         self.state.set("message_header", text)
         self.state.set("candidates", parameters.candidates)
+        self.state.set("validate", parameters.validate)
+        self.state.set("private", parameters.private)
         self.state.set("parameters", parameters._json)
 
         options = parameters.options
@@ -442,7 +453,6 @@ class SlackAdvancedVote(GovernanceProcess):
         self.outcome = {"votes": {}}
 
         blocks = self._construct_blocks()
-        logger.debug(f"blocks: {blocks}")
         blocks = json.dumps(blocks)
 
         response = self.plugin_inst.post_message(channel=maybe_channel, blocks=blocks)
@@ -465,7 +475,9 @@ class SlackAdvancedVote(GovernanceProcess):
         if payload["message"]["ts"] != self.outcome["message_ts"]:
             return
 
-        logger.debug(f"payload received: {payload['actions']}")
+        logger.debug(f"payload received")
+        for key, value in payload.items():
+            logger.debug(f"{key}: \t{value}")
         logger.info(f"{self} received block action")
         response_url = payload["response_url"]
 
@@ -488,9 +500,12 @@ class SlackAdvancedVote(GovernanceProcess):
             elif a["action_id"] == CONFIRM_ADVANCED_VOTE:
                 user = payload["user"]["id"]
                 reports = self._examine_vote(user)
-                logger.debug(f"reports: {reports}")
-                requests.post(response_url, json={"text": reports, "replace_original": "true"})
-        # requests.post(response_url, json={"text": "You have cast your vote", "replace_original": "false"})
+                if not self.state.get("private"):
+                    requests.post(response_url, json={
+                        "text": reports, 
+                        "replace_original": "false", 
+                        "response_type": "in_channel"
+                    })
 
     def _is_eligible_voter(self, user):
         return True 
@@ -508,7 +523,8 @@ class SlackAdvancedVote(GovernanceProcess):
             if candidate not in votes:
                 return None
             reports += f"You have selected {votes[candidate]} for {candidate}\n"
-
+        validate = self.state.get("validate")
+        logger.debug(f"validate: {validate}")
         return reports
 
     def _cast_vote(self, user: str, candidate: str, option: str):
