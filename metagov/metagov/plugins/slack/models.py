@@ -344,7 +344,7 @@ class SlackEmojiVote(GovernanceProcess):
         blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
         for idx, opt in enumerate(options):
             if poll_type == "boolean":
-                option_text = f"Approve" if opt == Bool.YES else "Reject"
+                option_text = f"MyApprove" if opt == Bool.YES else "Reject"
                 button_text = f":+1:" if opt == Bool.YES else ":-1:"
             else:
                 option_text = opt
@@ -390,3 +390,115 @@ def construct_message_header(title, details=None):
     if details:
         text += f"{details}\n"
     return text
+
+
+ADVANCED_VOTE_ACTION_ID = "advanced_vote"
+@Registry.governance_process
+class SlackAdvancedVote(GovernanceProcess):
+    name = "advanced-vote"
+    plugin_name = "slack"
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "candidates": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "a list of candidates to vote for; for each we will create a select button",
+            },
+            "options": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "a predefined options for users to select from",
+            },
+            "channel": {
+                "type": "string",
+                "description": "channel to post the vote in",
+            }
+        },
+        "required": ["title", "channel"],
+    }
+
+    class Meta:
+        proxy = True
+
+    def start(self, parameters: Parameters) -> None:
+        text = construct_message_header(parameters.title)
+        self.state.set("message_header", text)
+        self.state.set("candidates", parameters.candidates)
+        self.state.set("parameters", parameters._json)
+
+        options = parameters.options
+        if options is None:
+            raise ValidationError("Options are required for advanced votes")
+
+        maybe_channel = parameters.channel
+        if maybe_channel is None:
+            raise ValidationError("eligible_voters or channel are required")
+        
+        self.state.set("options", options)
+        self.outcome = {"votes": {}}
+
+        blocks = self._construct_blocks()
+        logger.debug(f"blocks: {blocks}")
+        blocks = json.dumps(blocks)
+
+        response = self.plugin_inst.post_message(channel=maybe_channel, blocks=blocks)
+
+        ts = response["ts"]
+        channel = response["channel"]
+
+        permalink_resp = self.plugin_inst.method(method_name="chat.getPermalink", channel=channel, message_ts=ts)
+
+        self.url = permalink_resp["permalink"]
+        self.outcome["channel"] = channel
+        self.outcome["message_ts"] = ts
+
+        self.status = ProcessStatus.PENDING.value
+        self.save()
+    
+    def receive_webhook(self, request):
+        payload = json.loads(request.POST.get("payload"))
+        if payload["message"]["ts"] != self.outcome["message_ts"]:
+            return
+        logger.info(f"{self} received block action")
+        response_url = payload["response_url"]
+
+    def _construct_blocks(self, hide_buttons=False):
+        """
+        Construct voting message blocks
+        """
+        text = self.state.get("message_header")
+        candidates = self.state.get("candidates")
+        options = self.state.get("options")
+        votes = self.outcome["votes"]
+
+        blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
+        for idx, candidate in enumerate(candidates):
+            candidate_text = candidate
+
+            vote_option_section = {"type": "section", "text": {"type": "mrkdwn", "text": candidate_text}}
+            vote_option_section["accessory"] = {
+                "action_id": ADVANCED_VOTE_ACTION_ID,
+                "type": "static_select",
+                "placeholder": {
+                    "type": "plain_text",
+                    "text": "Select an option"
+                },
+                "options": []
+            }
+            for idx, option in enumerate(options):
+                vote_option_section["accessory"]["options"].append({
+                    "text": {
+                        "type": "plain_text",
+                        "text": option
+                    },
+                    "value": option
+                })
+            blocks.append(vote_option_section)
+        return blocks
+
+    def close(self):
+        # Set governnace process to completed
+        self.status = ProcessStatus.COMPLETED.value
+        self.save()
