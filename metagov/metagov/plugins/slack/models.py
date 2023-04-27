@@ -417,14 +417,6 @@ class SlackAdvancedVote(GovernanceProcess):
             "channel": {
                 "type": "string",
                 "description": "channel to post the vote in",
-            },
-            "private": {
-                "type": "boolean",
-                "description": "whether to post the summary of a user's vote in a channel",
-            },
-            "validate": {
-                "type": "string",
-                "description": "a function that is used to validate a user's vote"
             }
         },
         "required": ["title", "channel"],
@@ -437,8 +429,6 @@ class SlackAdvancedVote(GovernanceProcess):
         text = construct_message_header(parameters.title)
         self.state.set("message_header", text)
         self.state.set("candidates", parameters.candidates)
-        self.state.set("validate", parameters.validate)
-        self.state.set("private", parameters.private)
         self.state.set("parameters", parameters._json)
 
         options = parameters.options
@@ -497,35 +487,9 @@ class SlackAdvancedVote(GovernanceProcess):
                     return
 
                 self._cast_vote(user, candidate, selected_option)
-            elif a["action_id"] == CONFIRM_ADVANCED_VOTE:
-                user = payload["user"]["id"]
-                reports = self._examine_vote(user)
-                if not self.state.get("private"):
-                    requests.post(response_url, json={
-                        "text": reports, 
-                        "replace_original": "false", 
-                        "response_type": "in_channel"
-                    })
 
     def _is_eligible_voter(self, user):
         return True 
-
-    def _examine_vote(self, user):
-        # examine whether the user has voted for all candidates and in an expected way
-        if user not in self.outcome["votes"]:
-            return None
-        
-        votes = self.outcome["votes"][user]
-        candidates = self.state.get("candidates")
-        # examine whether the user has voted for all candidates
-        reports = ""
-        for candidate in candidates:
-            if candidate not in votes:
-                return None
-            reports += f"You have selected {votes[candidate]} for {candidate}\n"
-        validate = self.state.get("validate")
-        logger.debug(f"validate: {validate}")
-        return reports
 
     def _cast_vote(self, user: str, candidate: str, option: str):
         # Update vote count for selected value
