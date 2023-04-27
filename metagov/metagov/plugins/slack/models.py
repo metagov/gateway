@@ -414,7 +414,7 @@ class SlackAdvancedVote(GovernanceProcess):
             "channel": {
                 "type": "string",
                 "description": "channel to post the vote in",
-            }
+            },
         },
         "required": ["title", "channel"],
     }
@@ -459,10 +459,42 @@ class SlackAdvancedVote(GovernanceProcess):
     
     def receive_webhook(self, request):
         payload = json.loads(request.POST.get("payload"))
+        logger.debug(f"payload received: {payload}")
         if payload["message"]["ts"] != self.outcome["message_ts"]:
             return
+
         logger.info(f"{self} received block action")
         response_url = payload["response_url"]
+
+        for a in payload["actions"]:
+            if a["action_id"].startswith(ADVANCED_VOTE_ACTION_ID):
+                candidate = a["action_id"].split(".")[1]
+                selected_option = a["selected_option"]["value"]
+                user = payload["user"]["id"]
+
+                # If user is not eligible to vote, don't cast vote & show a message
+                if not self._is_eligible_voter(user):
+                    # message = self.state.get("parameters").get("ineligible_voter_message")
+                    # logger.debug(f"Ignoring vote from ineligible voter {user}")
+                    # self.plugin_inst.method(
+                    #     method_name="chat.postEphemeral", channel=self.outcome["channel"], text=message, user=user
+                    # )
+                    return
+
+                self._cast_vote(user, candidate, selected_option)
+
+        # requests.post(response_url, json={"text": "You have cast your vote", "replace_original": "false"})
+
+    def _is_eligible_voter(self, user):
+        return True 
+
+    def _cast_vote(self, user: str, candidate: str, option: str):
+        # Update vote count for selected value
+        logger.debug(f"> {user} cast vote {option} for {candidate}")
+        if user not in self.outcome["votes"]:
+            self.outcome["votes"][user] = {}
+        self.outcome["votes"][user][candidate] = option
+        self.save()
 
     def _construct_blocks(self, hide_buttons=False):
         """
@@ -476,10 +508,10 @@ class SlackAdvancedVote(GovernanceProcess):
         blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
         for idx, candidate in enumerate(candidates):
             candidate_text = candidate
-
+            action_id = f"{ADVANCED_VOTE_ACTION_ID}.{candidate}"
             vote_option_section = {"type": "section", "text": {"type": "mrkdwn", "text": candidate_text}}
             vote_option_section["accessory"] = {
-                "action_id": ADVANCED_VOTE_ACTION_ID,
+                "action_id": action_id,
                 "type": "static_select",
                 "placeholder": {
                     "type": "plain_text",
