@@ -239,7 +239,6 @@ class SlackEmojiVote(GovernanceProcess):
         text = construct_message_header(parameters.title, parameters.details)
         self.state.set("message_header", text)
         self.state.set("parameters", parameters._json)
-        self.state.set("validate", parameters.validate)
 
         poll_type = parameters.poll_type
         options = [Bool.YES, Bool.NO] if poll_type == "boolean" else parameters.options
@@ -394,7 +393,6 @@ def construct_message_header(title, details=None):
 
 
 ADVANCED_VOTE_ACTION_ID = "advanced_vote"
-CONFIRM_ADVANCED_VOTE = "confirm"
 
 @Registry.governance_process
 class SlackAdvancedVote(GovernanceProcess):
@@ -404,6 +402,7 @@ class SlackAdvancedVote(GovernanceProcess):
         "type": "object",
         "properties": {
             "title": {"type": "string"},
+            "details": {"type": "string"},
             "candidates": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -417,7 +416,22 @@ class SlackAdvancedVote(GovernanceProcess):
             "channel": {
                 "type": "string",
                 "description": "channel to post the vote in",
-            }
+            },
+            "eligible_voters": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "list of users who are eligible to vote. if eligible_voters is provided and channel is not provided, creates vote in a private group message.",
+            },
+            "ineligible_voters": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "list of users who are not eligible to vote",
+            },
+            "ineligible_voter_message": {
+                "type": "string",
+                "description": "message to display to ineligible voter when they attempt to cast a vote",
+                "default": "You are not eligible to vote in this poll.",
+            },
         },
         "required": ["title", "channel"],
     }
@@ -426,7 +440,7 @@ class SlackAdvancedVote(GovernanceProcess):
         proxy = True
 
     def start(self, parameters: Parameters) -> None:
-        text = construct_message_header(parameters.title)
+        text = construct_message_header(parameters.title, parameters.details)
         self.state.set("message_header", text)
         self.state.set("candidates", parameters.candidates)
         self.state.set("parameters", parameters._json)
@@ -479,17 +493,23 @@ class SlackAdvancedVote(GovernanceProcess):
 
                 # If user is not eligible to vote, don't cast vote & show a message
                 if not self._is_eligible_voter(user):
-                    # message = self.state.get("parameters").get("ineligible_voter_message")
-                    # logger.debug(f"Ignoring vote from ineligible voter {user}")
-                    # self.plugin_inst.method(
-                    #     method_name="chat.postEphemeral", channel=self.outcome["channel"], text=message, user=user
-                    # )
+                    message = self.state.get("parameters").get("ineligible_voter_message")
+                    logger.debug(f"Ignoring vote from ineligible voter {user}")
+                    self.plugin_inst.method(
+                        method_name="chat.postEphemeral", channel=self.outcome["channel"], text=message, user=user
+                    )
                     return
 
                 self._cast_vote(user, candidate, selected_option)
 
     def _is_eligible_voter(self, user):
-        return True 
+        eligible_voters = self.state.get("parameters").get("eligible_voters")
+        if eligible_voters and user not in eligible_voters:
+            return False
+        ineligible_voters = self.state.get("parameters").get("ineligible_voters")
+        if ineligible_voters and user in ineligible_voters:
+            return False
+        return True
 
     def _cast_vote(self, user: str, candidate: str, option: str):
         # Update vote count for selected value
@@ -531,21 +551,6 @@ class SlackAdvancedVote(GovernanceProcess):
                     "value": option
                 })
             blocks.append(vote_option_section)
-        
-        blocks.append({
-			"type": "actions",
-			"elements": [
-				{
-					"type": "button",
-					"text": {
-						"type": "plain_text",
-						"text": "Confirm"
-					},
-					"value": "confirm",
-					"action_id": CONFIRM_ADVANCED_VOTE
-				}
-			]
-		})
         return blocks
 
     def close(self):
