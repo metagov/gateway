@@ -433,7 +433,7 @@ class SlackAdvancedVote(GovernanceProcess):
                 "default": "You are not eligible to vote in this poll.",
             },
         },
-        "required": ["title", "channel"],
+        "required": ["title", "candidates", "options"],
     }
 
     class Meta:
@@ -443,23 +443,25 @@ class SlackAdvancedVote(GovernanceProcess):
         text = construct_message_header(parameters.title, parameters.details)
         self.state.set("message_header", text)
         self.state.set("candidates", parameters.candidates)
+        self.state.set("options", parameters.options)
         self.state.set("parameters", parameters._json)
 
-        options = parameters.options
-        if options is None:
-            raise ValidationError("Options are required for advanced votes")
-
         maybe_channel = parameters.channel
-        if maybe_channel is None:
+        maybe_users = parameters.eligible_voters
+        if maybe_channel is None and (maybe_users is None or len(maybe_users) == 0):
             raise ValidationError("eligible_voters or channel are required")
+
         
-        self.state.set("options", options)
+        
         self.outcome = {"votes": {}}
 
         blocks = self._construct_blocks()
         blocks = json.dumps(blocks)
 
-        response = self.plugin_inst.post_message(channel=maybe_channel, blocks=blocks)
+        if maybe_channel:
+            response = self.plugin_inst.post_message(channel=maybe_channel, blocks=blocks)
+        else:
+            response = self.plugin_inst.post_message(users=maybe_users, blocks=blocks)
 
         ts = response["ts"]
         channel = response["channel"]
@@ -479,9 +481,6 @@ class SlackAdvancedVote(GovernanceProcess):
         if payload["message"]["ts"] != self.outcome["message_ts"]:
             return
 
-        logger.debug(f"payload received")
-        for key, value in payload.items():
-            logger.debug(f"{key}: \t{value}")
         logger.info(f"{self} received block action")
         response_url = payload["response_url"]
 
