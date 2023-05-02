@@ -141,7 +141,7 @@ def quality_is_greater(a, b):
     return order.index(a) > order.index(b)
 
 
-class Plugin(models.Model):
+class Plugin(models.Model ):
     """Represents an instance of an activated plugin."""
 
     name = models.CharField(max_length=30, blank=True, help_text="Name of the plugin")
@@ -191,10 +191,9 @@ class Plugin(models.Model):
         """Start a new GovernanceProcess"""
         # Find the proxy class for the specified GovernanceProcess
         cls = self.__get_process_cls(process_name)
-        logger.debug("parameters validate: ", kwargs.get("validate"))
+       
         # Convert kwargs to Parameters (does schema validation and filling in default values)
         params = Parameters(values=kwargs, schema=cls.input_schema)
-
         # Create new process instance
         new_process = cls.objects.create(name=process_name, callback_url=callback_url, plugin=self)
         logger.debug(f"Created process: {new_process}")
