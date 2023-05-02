@@ -390,3 +390,169 @@ def construct_message_header(title, details=None):
     if details:
         text += f"{details}\n"
     return text
+
+
+ADVANCED_VOTE_ACTION_ID = "advanced_vote"
+
+@Registry.governance_process
+class SlackAdvancedVote(GovernanceProcess):
+    name = "advanced-vote"
+    plugin_name = "slack"
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "details": {"type": "string"},
+            "candidates": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "a list of candidates to vote for; for each we will create a select button",
+            },
+            "options": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "a predefined options for users to select from",
+            },
+            "channel": {
+                "type": "string",
+                "description": "channel to post the vote in",
+            },
+            "eligible_voters": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "list of users who are eligible to vote. if eligible_voters is provided and channel is not provided, creates vote in a private group message.",
+            },
+            "ineligible_voters": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "list of users who are not eligible to vote",
+            },
+            "ineligible_voter_message": {
+                "type": "string",
+                "description": "message to display to ineligible voter when they attempt to cast a vote",
+                "default": "You are not eligible to vote in this poll.",
+            },
+        },
+        "required": ["title", "candidates", "options"],
+    }
+
+    class Meta:
+        proxy = True
+
+    def start(self, parameters: Parameters) -> None:
+        text = construct_message_header(parameters.title, parameters.details)
+        self.state.set("message_header", text)
+        self.state.set("candidates", parameters.candidates)
+        self.state.set("options", parameters.options)
+        self.state.set("parameters", parameters._json)
+
+        maybe_channel = parameters.channel
+        maybe_users = parameters.eligible_voters
+        if maybe_channel is None and (maybe_users is None or len(maybe_users) == 0):
+            raise ValidationError("eligible_voters or channel are required")
+
+        
+        
+        self.outcome = {"votes": {}}
+
+        blocks = self._construct_blocks()
+        blocks = json.dumps(blocks)
+
+        if maybe_channel:
+            response = self.plugin_inst.post_message(channel=maybe_channel, blocks=blocks)
+        else:
+            response = self.plugin_inst.post_message(users=maybe_users, blocks=blocks)
+
+        ts = response["ts"]
+        channel = response["channel"]
+
+        permalink_resp = self.plugin_inst.method(method_name="chat.getPermalink", channel=channel, message_ts=ts)
+
+        self.url = permalink_resp["permalink"]
+        self.outcome["channel"] = channel
+        self.outcome["message_ts"] = ts
+
+        self.status = ProcessStatus.PENDING.value
+        self.save()
+    
+    def receive_webhook(self, request):
+        payload = json.loads(request.POST.get("payload"))
+        
+        if payload["message"]["ts"] != self.outcome["message_ts"]:
+            return
+
+        logger.info(f"{self} received block action")
+        response_url = payload["response_url"]
+
+        for a in payload["actions"]:
+            if a["action_id"].startswith(ADVANCED_VOTE_ACTION_ID):
+                candidate = a["action_id"].split(".")[1]
+                selected_option = a["selected_option"]["value"]
+                user = payload["user"]["id"]
+
+                # If user is not eligible to vote, don't cast vote & show a message
+                if not self._is_eligible_voter(user):
+                    message = self.state.get("parameters").get("ineligible_voter_message")
+                    logger.debug(f"Ignoring vote from ineligible voter {user}")
+                    self.plugin_inst.method(
+                        method_name="chat.postEphemeral", channel=self.outcome["channel"], text=message, user=user
+                    )
+                    return
+
+                self._cast_vote(user, candidate, selected_option)
+
+    def _is_eligible_voter(self, user):
+        eligible_voters = self.state.get("parameters").get("eligible_voters")
+        if eligible_voters and user not in eligible_voters:
+            return False
+        ineligible_voters = self.state.get("parameters").get("ineligible_voters")
+        if ineligible_voters and user in ineligible_voters:
+            return False
+        return True
+
+    def _cast_vote(self, user: str, candidate: str, option: str):
+        # Update vote count for selected value
+        logger.debug(f"> {user} cast vote {option} for {candidate}")
+        if user not in self.outcome["votes"]:
+            self.outcome["votes"][user] = {}
+        self.outcome["votes"][user][candidate] = option
+        self.save()
+
+    def _construct_blocks(self, hide_buttons=False):
+        """
+        Construct voting message blocks
+        """
+        text = self.state.get("message_header")
+        candidates = self.state.get("candidates")
+        options = self.state.get("options")
+        votes = self.outcome["votes"]
+
+        blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
+        for idx, candidate in enumerate(candidates):
+            candidate_text = candidate
+            action_id = f"{ADVANCED_VOTE_ACTION_ID}.{candidate}"
+            vote_option_section = {"type": "section", "text": {"type": "mrkdwn", "text": candidate_text}}
+            vote_option_section["accessory"] = {
+                "action_id": action_id,
+                "type": "static_select",
+                "placeholder": {
+                    "type": "plain_text",
+                    "text": "Select an option"
+                },
+                "options": []
+            }
+            for idx, option in enumerate(options):
+                vote_option_section["accessory"]["options"].append({
+                    "text": {
+                        "type": "plain_text",
+                        "text": option
+                    },
+                    "value": option
+                })
+            blocks.append(vote_option_section)
+        return blocks
+
+    def close(self):
+        # Set governnace process to completed
+        self.status = ProcessStatus.COMPLETED.value
+        self.save()
