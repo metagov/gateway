@@ -163,7 +163,7 @@ me = (
     id
     name
     email
-    memberOf(accountType: COLLECTIVE) {
+    memberOf(accountType: {in: [COLLECTIVE, ORGANIZATION]}) {
       totalCount
       nodes {
         account {
